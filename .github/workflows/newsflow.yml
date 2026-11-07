@@ -3,12 +3,6 @@ name: NewsFlow pipeline
 on:
   workflow_dispatch:
     inputs:
-      dry_run:
-        description: "Collect stories and create scripts only (no video generation)"
-        required: false
-        type: boolean
-        default: true
-  schedule:
     - cron: "0 6 * * *"
 
 permissions:
