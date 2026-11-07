@@ -1,0 +1,14 @@
+# RSS feeds are used for discovery and attribution, not as permission to reuse media.
+sources:
+  - name: BBC Arabic
+    url: https://feeds.bbci.co.uk/arabic/rss.xml
+    category: عام
+  - name: Al Jazeera
+    url: https://www.aljazeera.net/aljazeerarss/ar.xml
+    category: عام
+  - name: UN News Arabic
+    url: https://news.un.org/feed/subscribe/ar/news/all/rss.xml
+    category: دولي
+  - name: IMF
+    url: https://www.imf.org/en/News/RSS
+    category: اقتصاد
