@@ -122,7 +122,7 @@ def make_video(title, audio, output, short=False):
     still.unlink(missing_ok=True)
 
 
-def youtube_upload(video_path: Path, title: str, description: str):
+def youtube_upload(video_path: Path, title: str, description: str, privacy_override: str | None = None):
     if os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() != "true":
         print("[SAFE] رفع يوتيوب معطل. الفيديو محفوظ كـ Artifact.")
         return
@@ -138,7 +138,7 @@ def youtube_upload(video_path: Path, title: str, description: str):
         scopes=["https://www.googleapis.com/auth/youtube.upload"],
     )
     youtube = build("youtube", "v3", credentials=creds)
-    status = os.getenv("YOUTUBE_PRIVACY_STATUS", "private")
+    status = privacy_override or os.getenv("YOUTUBE_PRIVACY_STATUS", "private")
     if status not in {"private", "unlisted", "public"}:
         raise ValueError("YOUTUBE_PRIVACY_STATUS must be private, unlisted, or public")
     body = {
@@ -152,14 +152,31 @@ def youtube_upload(video_path: Path, title: str, description: str):
         media_body=MediaFileUpload(str(video_path), chunksize=-1, resumable=True),
     )
     response = request.execute()
-    print(f"[UPLOAD] https://youtu.be/{response.get('id')}")
+    video_id = response.get("id")
+    if not video_id:
+        raise RuntimeError("YouTube لم يُرجع معرّف الفيديو بعد الرفع")
+    confirmed = youtube.videos().list(part="status", id=video_id).execute()
+    items = confirmed.get("items", [])
+    if not items or items[0].get("status", {}).get("privacyStatus") != status:
+        raise RuntimeError("تم الرفع لكن تعذر تأكيد حالة الخصوصية المطلوبة من YouTube")
+    print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="NewsFlow AI Arabic news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "5")))
+    parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy")
     args = parser.parse_args()
+    if args.private_test and args.dry_run:
+        parser.error("--private-test cannot be combined with --dry-run")
+    if args.private_test:
+        args.max_stories = 1
+        if os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() != "true":
+            parser.error("Private test requires YOUTUBE_UPLOAD_ENABLED=true")
+        missing = [key for key in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN") if not os.getenv(key)]
+        if missing:
+            parser.error("Missing required YouTube secrets: " + ", ".join(missing))
     out = ROOT / os.getenv("NEWSFLOW_OUTPUT_DIR", "output")
     out.mkdir(parents=True, exist_ok=True)
     stories = collect(args.max_stories)
@@ -178,11 +195,13 @@ def main():
             continue
         audio = folder / "voice.mp3"
         asyncio.run(make_audio(script, audio))
-        for label, short in (("long", False), ("short", True)):
+        variants = (("long", False),) if args.private_test else (("long", False), ("short", True))
+        for label, short in variants:
             video = folder / f"{label}.mp4"
             make_video(story["title"], audio, video, short=short)
-            # No automatic publishing until explicitly enabled in repository settings.
-            youtube_upload(video, story["title"], f"{script}\n\nالمصدر: {story['link']}")
+            # Publishing is opt-in per invocation; scheduled runs never upload.
+            if args.private_test:
+                youtube_upload(video, story["title"], f"{script}\n\nالمصدر: {story['link']}", privacy_override="private")
 
 
 if __name__ == "__main__":
