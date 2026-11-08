@@ -201,7 +201,7 @@ def main():
             make_video(story["title"], audio, video, short=short)
             # Publishing is opt-in per invocation; scheduled runs never upload.
             if args.private_test:
-                youtube_upload(video, story["title"], f"{script}\\n\\nالمصدر: {story['link']}", privacy_override="private")
+                youtube_upload(video, story["title"], f"{script}\n\nالمصدر: {story['link']}", privacy_override="private")
 
 
 if __name__ == "__main__":
