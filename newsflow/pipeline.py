@@ -122,14 +122,13 @@ def make_video(title, audio, output, short=False):
     still.unlink(missing_ok=True)
 
 
-def youtube_upload(video_path: Path, title: str, description: str, privacy_override: str | None = None):
-    if os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() != "true":
-        print("[SAFE] رفع يوتيوب معطل. الفيديو محفوظ كـ Artifact.")
-        return
+def create_youtube_credentials():
     from google.oauth2.credentials import Credentials
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
-    creds = Credentials(
+    required = ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")
+    missing = [key for key in required if not os.getenv(key)]
+    if missing:
+        raise RuntimeError("أسرار YouTube ناقصة في GitHub Secrets: " + ", ".join(missing))
+    return Credentials(
         token=None,
         refresh_token=os.environ["YOUTUBE_REFRESH_TOKEN"],
         token_uri="https://oauth2.googleapis.com/token",
@@ -137,6 +136,43 @@ def youtube_upload(video_path: Path, title: str, description: str, privacy_overr
         client_secret=os.environ["YOUTUBE_CLIENT_SECRET"],
         scopes=["https://www.googleapis.com/auth/youtube.upload"],
     )
+
+
+def validate_youtube_auth():
+    from google.auth.exceptions import RefreshError
+    from google.auth.transport.requests import Request
+
+    creds = create_youtube_credentials()
+    try:
+        creds.refresh(Request())
+    except RefreshError as exc:
+        if "invalid_grant" in str(exc):
+            raise RuntimeError(
+                "فشل تجديد صلاحية YouTube (invalid_grant). غالباً Refresh Token منتهي أو ملغي، "
+                "أو لا يطابق Client ID وClient Secret. أنشئ Refresh Token جديداً من نفس OAuth Client "
+                "وحدّث أسرار GitHub الثلاثة معاً. إذا كان التطبيق في وضع Testing فقد تنتهي صلاحية "
+                "Refresh Token بعد 7 أيام. لم يتم رفع أي فيديو."
+            ) from None
+        raise RuntimeError(
+            "تعذر تجديد صلاحية YouTube؛ راجع إعدادات OAuth وGitHub Secrets. لم يتم رفع أي فيديو. "
+            + type(exc).__name__
+        ) from None
+    if not creds.valid:
+        raise RuntimeError("Google لم يؤكد صلاحية Access Token؛ لم يتم رفع أي فيديو.")
+    print("[AUTH_OK] تم تجديد صلاحية YouTube بنجاح.")
+    return creds
+
+
+def youtube_upload(
+    video_path: Path, title: str, description: str,
+    privacy_override: str | None = None, credentials=None
+):
+    if os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() != "true":
+        print("[SAFE] رفع يوتيوب معطل. الفيديو محفوظ كـ Artifact.")
+        return
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+    creds = credentials or create_youtube_credentials()
     youtube = build("youtube", "v3", credentials=creds)
     status = privacy_override or os.getenv("YOUTUBE_PRIVACY_STATUS", "private")
     if status not in {"private", "unlisted", "public"}:
@@ -161,7 +197,6 @@ def youtube_upload(video_path: Path, title: str, description: str, privacy_overr
         raise RuntimeError("تم الرفع لكن تعذر تأكيد حالة الخصوصية المطلوبة من YouTube")
     print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status}")
 
-
 def main():
     parser = argparse.ArgumentParser(description="NewsFlow AI Arabic news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
@@ -170,13 +205,18 @@ def main():
     args = parser.parse_args()
     if args.private_test and args.dry_run:
         parser.error("--private-test cannot be combined with --dry-run")
+    upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
     if args.private_test:
         args.max_stories = 1
-        if os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() != "true":
+        if not upload_enabled:
             parser.error("Private test requires YOUTUBE_UPLOAD_ENABLED=true")
-        missing = [key for key in ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN") if not os.getenv(key)]
-        if missing:
-            parser.error("Missing required YouTube secrets: " + ", ".join(missing))
+    # Verify OAuth before spending time generating audio/video.
+    auth_credentials = None
+    if args.private_test or (not args.dry_run and upload_enabled):
+        try:
+            auth_credentials = validate_youtube_auth()
+        except RuntimeError as exc:
+            parser.error(str(exc))
     out = ROOT / os.getenv("NEWSFLOW_OUTPUT_DIR", "output")
     out.mkdir(parents=True, exist_ok=True)
     stories = collect(args.max_stories)
@@ -199,9 +239,18 @@ def main():
         for label, short in variants:
             video = folder / f"{label}.mp4"
             make_video(story["title"], audio, video, short=short)
-            # Publishing is opt-in per invocation; scheduled runs never upload.
+            # Scheduled and dry-run executions never upload. Manual normal runs upload
+            # both variants when YOUTUBE_UPLOAD_ENABLED=true; private-test uploads one long video.
             if args.private_test:
-                youtube_upload(video, story["title"], f"{script}\n\nالمصدر: {story['link']}", privacy_override="private")
+                youtube_upload(
+                    video, story["title"], f"{script}\n\nالمصدر: {story['link']}",
+                    privacy_override="private", credentials=auth_credentials
+                )
+            elif upload_enabled:
+                youtube_upload(
+                    video, story["title"], f"{script}\n\nالمصدر: {story['link']}",
+                    credentials=auth_credentials
+                )
 
 
 if __name__ == "__main__":
