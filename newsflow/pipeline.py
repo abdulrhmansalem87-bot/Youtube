@@ -70,7 +70,7 @@ def make_script(stories):
         "للتفاصيل والتحديثات، فهذه نشرة آلية موجزة ولا تمثل تحققاً مستقلاً من جميع المعلومات. "
         "ولا تنسوا الاشتراك بالقناة وتفعيل زر الجرس."
     )
-    return "\\n\\n".join(parts)
+    return "\n\n".join(parts)
 
 
 async def make_audio(text, path):
@@ -267,7 +267,7 @@ def main():
 
     variants = (("long", False),) if args.private_test else (("long", False), ("short", True))
     video_title = "أهم الأخبار | نشرة اليوم"
-    description = bulletin_script + "\\n\\nمصادر الأخبار:\\n" + "\\n".join(
+    description = bulletin_script + "\n\nمصادر الأخبار:\n" + "\n".join(
         f"{story['source']}: {story['link']}" for story in stories
     )
     for label, short in variants:
