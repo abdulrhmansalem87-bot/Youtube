@@ -46,7 +46,7 @@ jobs:
           NEWSFLOW_MAX_STORIES: "5"
           NEWSFLOW_TTS_VOICE: ar-EG-SalmaNeural
           YOUTUBE_UPLOAD_ENABLED: ${{ vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
-          YOUTUBE_PRIVACY_STATUS: private
+          YOUTUBE_PRIVACY_STATUS: ${{ vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
