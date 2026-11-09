@@ -53,22 +53,28 @@ def collect(max_stories: int):
     return stories[:max_stories]
 
 
-def make_script(story):
-    # Extractive draft only: do not invent facts or imply independent verification.
-    summary = story["summary"] or "لا يتوفر ملخص في موجز المصدر؛ يلزم استكمال المعلومات تحريرياً."
-    return (
-        f"نشرة موجزة من NewsFlow.\n\n"
-        f"عنوان الخبر: {story['title']}\n\n"
-        f"{summary}\n\n"
-        f"المصدر المنشور: {story['source']}. "
-        f"يمكنكم الرجوع إلى الرابط الأصلي في وصف الفيديو. "
-        f"هذه مسودة آلية أولية وليست تحققاً مستقلاً من صحة الخبر. "
-        f"تابعونا للمزيد من التغطيات."
+def make_script(stories):
+    # Build a multi-story Arabic bulletin from source-provided facts only.
+    parts = ["أهلاً بكم في أهم الأخبار. نقدم لكم موجزاً لأبرز التطورات."]
+    for index, story in enumerate(stories, start=1):
+        summary = story["summary"] or "لا يتوفر ملخص كافٍ لهذا الخبر في موجز المصدر."
+        lead = "نبدأ بالخبر الأول." if index == 1 else f"وننتقل إلى الخبر رقم {index}."
+        parts.append(
+            f"{lead} {story['title']}. "
+            f"{summary} "
+            f"نُسبت هذه المعلومات إلى {story['source']}، ويمكنكم مراجعة رابط المصدر "
+            f"للاطلاع على التفاصيل الكاملة."
+        )
+    parts.append(
+        "وبذلك نصل إلى ختام موجز أهم الأخبار. نذكّركم بضرورة متابعة المصادر الأصلية "
+        "للتفاصيل والتحديثات، فهذه نشرة آلية موجزة ولا تمثل تحققاً مستقلاً من جميع المعلومات. "
+        "ولا تنسوا الاشتراك بالقناة وتفعيل زر الجرس."
     )
+    return "\\n\\n".join(parts)
 
 
 async def make_audio(text, path):
-    voice = os.getenv("NEWSFLOW_TTS_VOICE", "ar-EG-SalmaNeural")
+    voice = os.getenv("NEWSFLOW_TTS_VOICE", "ar-EG-ShakirNeural")
     rate = os.getenv("NEWSFLOW_TTS_RATE", "+0%")
     await edge_tts.Communicate(text, voice, rate=rate).save(str(path))
 
@@ -227,33 +233,55 @@ def main():
     if not stories:
         print("[INFO] لم يتم العثور على أخبار في المصادر.")
         return
-    for index, story in enumerate(stories, start=1):
-        script = make_script(story)
+    for story in stories:
         folder = out / story["id"]
         folder.mkdir(exist_ok=True)
-        (folder / "script.txt").write_text(script, encoding="utf-8")
+        (folder / "script.txt").write_text(make_script([story]), encoding="utf-8")
         (folder / "metadata.json").write_text(json.dumps(story, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[DRAFT] {story['title']} — {story['link']}")
-        if args.dry_run:
-            continue
-        audio = folder / "voice.mp3"
-        asyncio.run(make_audio(script, audio))
-        variants = (("long", False),) if args.private_test else (("long", False), ("short", True))
-        for label, short in variants:
-            video = folder / f"{label}.mp4"
-            make_video(story["title"], audio, video, short=short)
-            # Scheduled and dry-run executions never upload. Manual normal runs upload
-            # both variants when YOUTUBE_UPLOAD_ENABLED=true; private-test uploads one long video.
-            if args.private_test:
-                youtube_upload(
-                    video, story["title"], f"{script}\n\nالمصدر: {story['link']}",
-                    privacy_override="private", credentials=auth_credentials
-                )
-            elif upload_enabled:
-                youtube_upload(
-                    video, story["title"], f"{script}\n\nالمصدر: {story['link']}",
-                    credentials=auth_credentials
-                )
+
+    bulletin_script = make_script(stories)
+    bulletin = out / "bulletin"
+    bulletin.mkdir(exist_ok=True)
+    (bulletin / "script.txt").write_text(bulletin_script, encoding="utf-8")
+    (bulletin / "stories.json").write_text(
+        json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    if args.dry_run:
+        return
+
+    audio = bulletin / "voice.mp3"
+    asyncio.run(make_audio(bulletin_script, audio))
+    ffprobe = shutil.which("ffprobe")
+    duration = None
+    if ffprobe:
+        probe = subprocess.run(
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
+            check=True, capture_output=True, text=True
+        )
+        duration = float(probe.stdout.strip())
+        print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
+        if not 150 <= duration <= 210:
+            print("[WARN] مدة التعليق الصوتي بعيدة عن 3 دقائق؛ راجع النص أو عدد الأخبار قبل النشر.")
+
+    variants = (("long", False),) if args.private_test else (("long", False), ("short", True))
+    video_title = "أهم الأخبار | نشرة اليوم"
+    description = bulletin_script + "\\n\\nمصادر الأخبار:\\n" + "\\n".join(
+        f"{story['source']}: {story['link']}" for story in stories
+    )
+    for label, short in variants:
+        video = bulletin / f"{label}.mp4"
+        make_video(video_title, audio, video, short=short)
+        if args.private_test:
+            youtube_upload(
+                video, video_title, description,
+                privacy_override="private", credentials=auth_credentials
+            )
+        elif upload_enabled:
+            youtube_upload(
+                video, video_title, description, credentials=auth_credentials
+            )
 
 
 if __name__ == "__main__":
