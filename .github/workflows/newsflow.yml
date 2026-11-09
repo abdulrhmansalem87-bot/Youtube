@@ -43,8 +43,8 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run NewsFlow
         env:
-          NEWSFLOW_MAX_STORIES: "5"
-          NEWSFLOW_TTS_VOICE: ar-EG-SalmaNeural
+          NEWSFLOW_MAX_STORIES: "8"
+          NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
           YOUTUBE_UPLOAD_ENABLED: ${{ vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
           YOUTUBE_PRIVACY_STATUS: ${{ vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
