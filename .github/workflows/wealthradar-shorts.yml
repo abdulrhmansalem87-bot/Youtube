@@ -1,6 +1,11 @@
 name: WealthRadar Shorts
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "wealthradar_shorts/pipeline.py"
+      - ".github/workflows/wealthradar-shorts.yml"
   workflow_dispatch:
     inputs:
       validate_only:
@@ -52,7 +57,7 @@ jobs:
           WEALTHRADAR_TTS_VOICE: ar-EG-ShakirNeural
         run: python -m wealthradar_shorts --plan "${{ inputs.plan_path }}"
       - name: Upload WealthRadar Short privately
-        if: ${{ !inputs.validate_only && inputs.upload_private }}
+        if: ${{ !inputs.validate_only && (inputs.upload_private || github.event_name == 'push') }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
