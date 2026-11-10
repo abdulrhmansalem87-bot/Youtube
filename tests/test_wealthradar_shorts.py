@@ -16,7 +16,7 @@ def valid_plan():
         ],
         "scenes": [
             {"duration": 2.0, "query": "modern bank vault cinematic", "caption": ["سر البنك"]},
-            {"duration": 2.0, "query": "financial advisor office portrait", "caption": ["فكّر جيداً", "قبل التوقيع"]},
+            {"duration": 2.0, "query": "financial advisor office portrait", "caption": ["فكّر", "جيداً"]},
             {"duration": 2.0, "query": "calculator money closeup portrait", "caption": ["الفائدة", "والرسوم"]},
             {"duration": 2.0, "query": "businessman reviewing contract portrait", "caption": ["قرار مالي", "ذكي"]}
         ] * 4
