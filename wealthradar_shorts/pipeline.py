@@ -128,7 +128,7 @@ def _render_fallback_segment(ffmpeg: str, segment: Path, ass: Path, seconds: flo
         ("0B1C24", "164B4B", "40B89A"),
     ]
     base, panel, accent = palettes[(index - 1) % len(palettes)]
-    subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\\:")
+    subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
     vf = (
         f"drawbox=x=72:y=250:w=936:h=5:color=0x{accent}@0.95:t=fill,"
         f"drawbox=x=72:y=255:w=936:h=310:color=0x{panel}@0.72:t=fill,"
@@ -289,7 +289,7 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
                 source_url = find_pexels_video(scene["query"], api_key)
                 raw = work / f"source-{index:02d}.mp4"
                 _download(source_url, raw)
-                subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\\:")
+                subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
                 _run([
                     ffmpeg, "-y", "-stream_loop", "-1", "-i", str(raw), "-t", f"{seconds:.2f}",
                     "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
