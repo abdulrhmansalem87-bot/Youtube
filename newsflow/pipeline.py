@@ -54,24 +54,68 @@ def collect(max_stories: int):
 
 
 def make_script(stories):
-    # Build a multi-story Arabic bulletin from source-provided facts only.
-    parts = ["أهلاً بكم في أهم الأخبار. نقدم لكم موجزاً لأبرز التطورات."]
+    parts = [
+        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar. "
+        "نستعرض معكم أبرز التطورات التي قد تؤثر في الأسواق وأموالكم."
+    ]
     for index, story in enumerate(stories, start=1):
-        summary = story["summary"] or "لا يتوفر ملخص كافٍ لهذا الخبر في موجز المصدر."
-        lead = "نبدأ بالخبر الأول." if index == 1 else f"وننتقل إلى الخبر رقم {index}."
+        summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
         parts.append(
-            f"{lead} {story['title']}. "
-            f"{summary} "
-            f"نُسبت هذه المعلومات إلى {story['source']}، ويمكنكم مراجعة رابط المصدر "
-            f"للاطلاع على التفاصيل الكاملة."
+            f"الخبر {index}: {story['title']}. "
+            f"{summary} بحسب {story['source']}. "
+            "تابعوا رابط المصدر في وصف الفيديو للتفاصيل."
         )
     parts.append(
-        "وبذلك نصل إلى ختام موجز أهم الأخبار. نذكّركم بضرورة متابعة المصادر الأصلية "
-        "للتفاصيل والتحديثات، فهذه نشرة آلية موجزة ولا تمثل تحققاً مستقلاً من جميع المعلومات. "
-        "ولا تنسوا الاشتراك بالقناة وتفعيل زر الجرس."
+        "كانت هذه أبرز أخبار المال والاقتصاد لهذا اليوم. "
+        "تذكّروا أن الأخبار والمعلومات الواردة من المصادر قد تتغير، "
+        "وأن هذا الموجز لا يمثل نصيحة استثمارية. "
+        "ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس."
     )
     return "\n\n".join(parts)
 
+
+def build_youtube_metadata(stories, script):
+    title = f"أهم {len(stories)} أخبار اقتصادية اليوم | WealthRadar"
+    text_blob = " ".join(
+        f"{item.get('title', '')} {item.get('summary', '')} {item.get('category', '')}"
+        for item in stories
+    ).lower()
+    keyword_map = [
+        (("ذهب", "gold"), "الذهب"),
+        (("دولار", "عملة", "عملات", "currency"), "الدولار"),
+        (("بورصة", "أسهم", "سندات", "stocks", "market"), "البورصة"),
+        (("بنك", "مصارف", "فائدة", "interest"), "البنوك"),
+        (("نفط", "طاقة", "oil"), "النفط"),
+        (("مصر", "مصري", "egypt"), "اقتصاد مصر"),
+        (("استثمار", "invest"), "الاستثمار"),
+    ]
+    tags = ["WealthRadar", "أخبار اقتصادية", "أخبار المال", "الاقتصاد", "الأسواق"]
+    for terms, tag in keyword_map:
+        if any(term in text_blob for term in terms):
+            tags.append(tag)
+    tags = list(dict.fromkeys(tags))[:15]
+    hashtags = ["#WealthRadar", "#أخبار_اقتصادية"]
+    if any(term in text_blob for term in ("ذهب", "gold")):
+        hashtags.append("#الذهب")
+    elif any(term in text_blob for term in ("دولار", "currency")):
+        hashtags.append("#الدولار")
+    elif any(term in text_blob for term in ("بورصة", "أسهم", "stocks")):
+        hashtags.append("#البورصة")
+    else:
+        hashtags.append("#الاقتصاد")
+    source_lines = "\n".join(
+        f"{i}. {item['source']}: {item['link']}"
+        for i, item in enumerate(stories, start=1)
+    )
+    description = (
+        "موجز WealthRadar اليومي لأهم تطورات المال والاقتصاد والأسواق. "
+        "عناوين واضحة ومصادر مباشرة لمساعدتك على متابعة ما يحدث.\n\n"
+        + script + "\n\nمصادر الأخبار وروابطها:\n" + source_lines
+        + "\n\nهذا المحتوى إخباري وتثقيفي، ولا يُعد توصية أو نصيحة استثمارية. "
+        + "تحقق من المصدر الأصلي قبل اتخاذ أي قرار مالي.\n\n"
+        + " ".join(hashtags)
+    )
+    return title, description[:5000], tags
 
 async def make_audio(text, path):
     voice = os.getenv("NEWSFLOW_TTS_VOICE", "ar-EG-ShakirNeural")
@@ -116,7 +160,7 @@ def make_video(title, audio, output, short=False):
     for item in lines[:8]:
         draw.text((width // 2, y), item, font=font, fill="white", anchor="mm", direction="rtl")
         y += font_size + 18
-    draw.text((width // 2, height - 90), "NewsFlow AI • مسودة آلية للمراجعة", font=font, fill=(160, 190, 220), anchor="mm")
+    draw.text((width // 2, height - 90), "WealthRadar • المال والاقتصاد ببساطة", font=font, fill=(160, 190, 220), anchor="mm", direction="rtl")
     still = output.with_suffix(".png")
     image.save(still)
     subprocess.run([
@@ -142,7 +186,6 @@ def create_youtube_credentials():
         client_secret=os.environ["YOUTUBE_CLIENT_SECRET"],
         scopes=[
             "https://www.googleapis.com/auth/youtube.upload",
-            "https://www.googleapis.com/auth/youtube.readonly",
         ],
     )
 
@@ -173,7 +216,7 @@ def validate_youtube_auth():
 
 
 def youtube_upload(
-    video_path: Path, title: str, description: str,
+    video_path: Path, title: str, description: str, tags: list[str],
     privacy_override: str | None = None, credentials=None
 ):
     if os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() != "true":
@@ -187,9 +230,9 @@ def youtube_upload(
     if status not in {"private", "unlisted", "public"}:
         raise ValueError("YOUTUBE_PRIVACY_STATUS must be private, unlisted, or public")
     body = {
-        "snippet": {"title": title[:100], "description": description[:5000],
+        "snippet": {"title": title[:100], "description": description[:5000], "tags": tags,
                     "categoryId": os.getenv("YOUTUBE_CATEGORY_ID", "25"),
-                    "defaultLanguage": "ar"},
+                    "defaultLanguage": "ar", "defaultAudioLanguage": "ar"},
         "status": {"privacyStatus": status, "selfDeclaredMadeForKids": False},
     }
     request = youtube.videos().insert(
@@ -200,16 +243,15 @@ def youtube_upload(
     video_id = response.get("id")
     if not video_id:
         raise RuntimeError("YouTube لم يُرجع معرّف الفيديو بعد الرفع")
-    confirmed = youtube.videos().list(part="status", id=video_id).execute()
-    items = confirmed.get("items", [])
-    if not items or items[0].get("status", {}).get("privacyStatus") != status:
-        raise RuntimeError("تم الرفع لكن تعذر تأكيد حالة الخصوصية المطلوبة من YouTube")
+    returned_status = response.get("status", {}).get("privacyStatus")
+    if returned_status != status:
+        raise RuntimeError("استجابة YouTube لم تؤكد الخصوصية المطلوبة؛ لن نعلن نجاح التحقق.")
     print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status}")
 
 def main():
     parser = argparse.ArgumentParser(description="NewsFlow AI Arabic news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
-    parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "5")))
+    parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "8")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy")
     args = parser.parse_args()
     if args.private_test and args.dry_run:
@@ -266,21 +308,19 @@ def main():
             print("[WARN] مدة التعليق الصوتي بعيدة عن 3 دقائق؛ راجع النص أو عدد الأخبار قبل النشر.")
 
     variants = (("long", False),) if args.private_test else (("long", False), ("short", True))
-    video_title = "أهم الأخبار | نشرة اليوم"
-    description = bulletin_script + "\n\nمصادر الأخبار:\n" + "\n".join(
-        f"{story['source']}: {story['link']}" for story in stories
-    )
+    video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
+    print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
     for label, short in variants:
         video = bulletin / f"{label}.mp4"
         make_video(video_title, audio, video, short=short)
         if args.private_test:
             youtube_upload(
-                video, video_title, description,
+                video, video_title, description, tags,
                 privacy_override="private", credentials=auth_credentials
             )
         elif upload_enabled:
             youtube_upload(
-                video, video_title, description, credentials=auth_credentials
+                video, video_title, description, tags, credentials=auth_credentials
             )
 
 
