@@ -157,18 +157,59 @@ def build_youtube_metadata(stories, script):
     )
     return title, description[:5000], tags
 
+def clean_narration(value):
+    """Normalize feed text before TTS to reduce awkward pauses and symbol readings."""
+    import html
+    text = html.unescape(str(value or ""))
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = text.replace("\u200f", " ").replace("\u200e", " ")
+    text = re.sub(r"[|*_~]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    text = re.sub(r"\.{2,}", ".", text)
+    text = re.sub(r"\s*([،؛؟.!])\s*", r"\1 ", text)
+    return text.strip()
+
+
 async def make_audio(text, path):
+    """Generate Egyptian Arabic narration, then master it for clear, even playback."""
     voice = os.getenv("NEWSFLOW_TTS_VOICE", "ar-EG-ShakirNeural")
-    rate = os.getenv("NEWSFLOW_TTS_RATE", "+0%")
-    await edge_tts.Communicate(text, voice, rate=rate).save(str(path))
+    rate = os.getenv("NEWSFLOW_TTS_RATE", "-6%")
+    pitch = os.getenv("NEWSFLOW_TTS_PITCH", "-2Hz")
+    raw_path = path.with_name(path.stem + ".raw.mp3")
+    clean_text = clean_narration(text)
+    await edge_tts.Communicate(
+        clean_text, voice, rate=rate, pitch=pitch
+    ).save(str(raw_path))
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        shutil.move(str(raw_path), str(path))
+        return
+    try:
+        subprocess.run(
+            [
+                ffmpeg, "-y", "-i", str(raw_path),
+                "-af",
+                "highpass=f=75,lowpass=f=12500,"
+                "acompressor=threshold=-18dB:ratio=2.2:attack=18:release=220,"
+                "loudnorm=I=-16:TP=-1.5:LRA=10",
+                "-codec:a", "libmp3lame", "-q:a", "2", str(path),
+            ],
+            check=True, capture_output=True,
+        )
+    finally:
+        raw_path.unlink(missing_ok=True)
 
 
-def find_font():
-    candidates = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-        "C:/Windows/Fonts/arial.ttf",
-    ]
+def find_font(bold=False):
+    candidates = (
+        [
+            "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ] if bold else [
+            "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        ]
+    )
     for item in candidates:
         if Path(item).exists():
             return item
@@ -181,13 +222,14 @@ def make_video(title, audio, output, short=False, stories=None):
     if not ffmpeg or not ffprobe:
         raise RuntimeError("يجب تثبيت FFmpeg وFFprobe")
     width, height = (1080, 1920) if short else (1920, 1080)
-    font_path = find_font()
-    heading_font_size = 72 if short else 66
-    body_font_size = 48 if short else 44
-    small_font_size = 34 if short else 30
-    heading_font = ImageFont.truetype(font_path, heading_font_size) if font_path else ImageFont.load_default()
-    body_font = ImageFont.truetype(font_path, body_font_size) if font_path else ImageFont.load_default()
-    small_font = ImageFont.truetype(font_path, small_font_size) if font_path else ImageFont.load_default()
+    regular_path, bold_path = find_font(False), find_font(True)
+    heading_font_size = 76 if short else 72
+    body_font_size = 45 if short else 42
+    small_font_size = 31 if short else 28
+    heading_font = ImageFont.truetype(bold_path or regular_path, heading_font_size) if bold_path or regular_path else ImageFont.load_default()
+    body_font = ImageFont.truetype(regular_path, body_font_size) if regular_path else ImageFont.load_default()
+    small_font = ImageFont.truetype(bold_path or regular_path, small_font_size) if bold_path or regular_path else ImageFont.load_default()
+    english_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", max(22, small_font_size - 5)) if Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf").exists() else small_font
 
     probe = subprocess.run(
         [ffprobe, "-v", "error", "-show_entries", "format=duration",
@@ -196,20 +238,22 @@ def make_video(title, audio, output, short=False, stories=None):
     )
     total_duration = float(probe.stdout.strip())
     story_list = stories or []
-    cards = [("نشرة WealthRadar", title, "أهم تطورات المال والاقتصاد في موجز واحد")]
+    cards = [("نشرة WealthRadar", title, "أهم تطورات المال والاقتصاد في موجز واحد", "DAILY MARKET BRIEF")]
     for index, story in enumerate(story_list, start=1):
         cards.append((
-            f"الخبر {index} • {story.get('source', 'المصدر')}",
-            story.get("title", ""),
-            story.get("summary", "")[:520] or "راجع رابط المصدر لمعرفة التفاصيل الكاملة."
+            f"الخبر {index:02d} • {story.get('source', 'المصدر')}",
+            clean_narration(story.get("title", "")),
+            clean_narration(story.get("summary", "")[:520]) or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
+            f"STORY {index:02d}  |  MARKET WATCH"
         ))
     cards.append((
         "قبل أي قرار مالي",
         "تابع المصدر الأصلي وقارن المعلومات",
-        "اشترك في WealthRadar وفعّل زر الجرس لمتابعة موجز الأخبار القادم"
+        "اشترك في WealthRadar وفعّل زر الجرس لمتابعة موجز الأخبار القادم",
+        "FOLLOW • SUBSCRIBE • STAY INFORMED"
     ))
 
-    weights = [max(60, len(head) + len(body)) for head, body, _ in cards]
+    weights = [max(60, len(head) + len(body)) for _, head, body, _ in cards]
     weight_total = sum(weights)
     durations = [total_duration * weight / weight_total for weight in weights]
     durations[-1] += total_duration - sum(durations)
@@ -233,43 +277,58 @@ def make_video(title, audio, output, short=False, stories=None):
         return lines[:limit]
 
     try:
-        for index, (heading, headline, summary) in enumerate(cards):
-            image = Image.new("RGB", (width, height), (11, 20, 35))
+        for index, (heading, headline, summary, english_label) in enumerate(cards):
+            accent = (42, 220, 198) if index % 2 == 0 else (255, 190, 92)
+            image = Image.new("RGB", (width, height), (7, 15, 31))
             draw = ImageDraw.Draw(image)
-            accent = (35, 183, 174) if index % 2 == 0 else (221, 171, 77)
-            draw.rectangle((0, 0, width, 22), fill=accent)
+            draw.ellipse((int(width * .62), -int(height * .35), int(width * 1.12), int(height * .25)), fill=(15, 48, 70))
+            draw.ellipse((-int(width * .28), int(height * .65), int(width * .30), int(height * 1.15)), fill=(13, 39, 58))
+            for offset in range(0, width, max(120, width // 12)):
+                draw.line((offset, 0, offset - int(height * .28), height), fill=(14, 29, 48), width=2)
             draw.rounded_rectangle(
-                (70, 105, width - 70, height - 105),
-                radius=42, fill=(19, 39, 60), outline=accent, width=4
+                (int(width*.045), int(height*.055), int(width*.955), int(height*.945)),
+                radius=max(28, width//42), fill=(12, 29, 49), outline=(34, 75, 96), width=3
             )
-            draw.text(
-                (width // 2, 205), "WealthRadar", font=heading_font,
-                fill=(255, 255, 255), anchor="mm"
+            draw.rounded_rectangle(
+                (int(width*.075), int(height*.085), int(width*.925), int(height*.19)),
+                radius=28, fill=(17, 45, 65), outline=(35, 87, 105), width=2
             )
-            draw.text(
-                (width // 2, 300), heading, font=small_font,
-                fill=accent, anchor="mm", direction="rtl"
+            draw.text((width//2, int(height*.12)), "WealthRadar", font=heading_font,
+                      fill=(247, 250, 255), anchor="mm")
+            draw.text((width//2, int(height*.165)), "MONEY  •  MARKETS  •  BUSINESS",
+                      font=english_font, fill=accent, anchor="mm")
+            draw.rounded_rectangle(
+                (int(width*.25), int(height*.235), int(width*.75), int(height*.30)),
+                radius=22, fill=(accent[0]//4, accent[1]//4, accent[2]//4)
             )
-            draw.line((width // 2 - 180, 365, width // 2 + 180, 365), fill=accent, width=5)
+            draw.text((width//2, int(height*.267)), heading, font=small_font,
+                      fill=accent, anchor="mm", direction="rtl")
+            draw.text((width//2, int(height*.325)), english_label, font=english_font,
+                      fill=(154, 184, 202), anchor="mm")
+            draw.line((int(width*.22), int(height*.365), int(width*.78), int(height*.365)),
+                      fill=accent, width=max(3, width//500))
 
-            headline_lines = wrap_text(draw, headline, heading_font, width - 220, 4)
-            y = int(height * 0.40) - len(headline_lines) * (heading_font_size + 18) // 2
+            headline_lines = wrap_text(draw, headline, heading_font, int(width*.78), 4 if short else 3)
+            y = int(height * .43) - len(headline_lines) * (heading_font_size + 18) // 2
             for line in headline_lines:
                 draw.text((width // 2, y), line, font=heading_font,
                           fill=(255, 255, 255), anchor="mm", direction="rtl")
                 y += heading_font_size + 18
 
-            body_lines = wrap_text(draw, summary, body_font, width - 240, 7)
-            y += 85
+            body_lines = wrap_text(draw, summary, body_font, int(width*.76), 5 if short else 4)
+            y += int(height*.055)
             for line in body_lines:
                 draw.text((width // 2, y), line, font=body_font,
-                          fill=(202, 216, 229), anchor="mm", direction="rtl")
-                y += body_font_size + 22
+                          fill=(198, 215, 229), anchor="mm", direction="rtl")
+                y += body_font_size + (14 if short else 12)
 
-            draw.text(
-                (width // 2, height - 190), "المال والاقتصاد ببساطة",
-                font=small_font, fill=(160, 190, 220), anchor="mm", direction="rtl"
-            )
+            footer_y = int(height*.86)
+            draw.line((int(width*.28), footer_y-int(height*.035), int(width*.72), footer_y-int(height*.035)),
+                      fill=(43, 78, 99), width=2)
+            draw.text((width // 2, footer_y), "المال والاقتصاد ببساطة",
+                      font=small_font, fill=(225, 235, 244), anchor="mm", direction="rtl")
+            draw.text((width // 2, int(height*.90)), "FOLLOW WEALTHRADAR  •  KNOW MORE",
+                      font=english_font, fill=accent, anchor="mm")
             frame = frame_dir / f"slide-{index:02d}.png"
             image.save(frame)
             frame_paths.append(frame)
@@ -295,7 +354,6 @@ def make_video(title, audio, output, short=False, stories=None):
         subprocess.run(command, check=True, capture_output=True)
     finally:
         shutil.rmtree(frame_dir, ignore_errors=True)
-
 
 def validate_video(video_path: Path, audio_path: Path, expected_short: bool = False):
     ffprobe = shutil.which("ffprobe")
