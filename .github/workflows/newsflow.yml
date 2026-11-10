@@ -7,6 +7,14 @@ on:
       - "newsflow/**"
       - "config/sources.yml"
       - ".github/workflows/newsflow.yml"
+      - "tests/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "newsflow/**"
+      - "config/sources.yml"
+      - ".github/workflows/newsflow.yml"
+      - "tests/**"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -16,6 +24,11 @@ on:
         default: false
       private_test:
         description: "Upload one long video as PRIVATE (manual run only)"
+        required: false
+        type: boolean
+        default: false
+      editorial_approved:
+        description: "I reviewed the generated editorial report and approve private upload"
         required: false
         type: boolean
         default: false
@@ -47,13 +60,19 @@ jobs:
           sudo apt-get install -y ffmpeg fonts-dejavu-core
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Compile Python modules
+        run: python -m compileall -q newsflow
+      - name: Run editorial tests
+        run: python -m unittest discover -s tests -v
       - name: Run NewsFlow
+        if: github.event_name != 'pull_request'
         env:
           NEWSFLOW_MAX_STORIES: "8"
           NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
-          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'push' && 'true' || github.event_name == 'schedule' && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
-          YOUTUBE_UPLOAD_SINGLE_LONG: ${{ github.event_name == 'push' && 'true' || 'false' }}
-          YOUTUBE_PRIVACY_STATUS: ${{ github.event_name == 'push' && 'private' || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
+          NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.editorial_approved && 'true' || 'false' }}
+          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.editorial_approved && 'true' || 'false' }}
+          YOUTUBE_UPLOAD_SINGLE_LONG: "false"
+          YOUTUBE_PRIVACY_STATUS: "private"
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}

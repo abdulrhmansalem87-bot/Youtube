@@ -17,6 +17,7 @@ import feedparser
 import yaml
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
+from newsflow.editorial import relevance, review_stories
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -57,8 +58,14 @@ def collect(max_stories: int):
         if not item["published_ts"] or 0 <= now_ts - item["published_ts"] <= 72 * 3600
     ]
     stories.sort(key=lambda item: item["published_ts"], reverse=True)
-    selected, source_counts = [], {}
+    selected, source_counts, rejected = [], {}, []
     for story in stories:
+        is_relevant, reason = relevance(story)
+        if not is_relevant:
+            rejected.append({"id": story["id"], "title": story["title"],
+                             "source": story["source"], "reasons": [reason]})
+            continue
+        story["relevance_reason"] = reason
         if source_counts.get(story["source"], 0) >= 3:
             continue
         selected.append(story)
@@ -67,7 +74,7 @@ def collect(max_stories: int):
             break
     for story in selected:
         story.pop("published_ts", None)
-    return selected
+    return selected, rejected
 
 def make_script(stories):
     parts = [
@@ -273,6 +280,38 @@ def make_video(title, audio, output, short=False, stories=None):
         shutil.rmtree(frame_dir, ignore_errors=True)
 
 
+def validate_video(video_path: Path, audio_path: Path):
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        raise RuntimeError("FFprobe غير متاح للتحقق من الفيديو")
+    probe = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries",
+         "format=duration:stream=codec_type,width,height",
+         "-of", "json", str(video_path)],
+        check=True, capture_output=True, text=True
+    )
+    data = json.loads(probe.stdout)
+    streams = data.get("streams", [])
+    if not any(stream.get("codec_type") == "video" for stream in streams):
+        raise RuntimeError("فشل فحص الفيديو: لا يوجد مسار صورة")
+    if not any(stream.get("codec_type") == "audio" for stream in streams):
+        raise RuntimeError("فشل فحص الفيديو: لا يوجد مسار صوت")
+    duration = float(data.get("format", {}).get("duration", 0))
+    audio_probe = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)],
+        check=True, capture_output=True, text=True
+    )
+    audio_duration = float(audio_probe.stdout.strip())
+    if duration <= 0 or abs(duration - audio_duration) > 2.5:
+        raise RuntimeError(
+            f"فشل فحص تزامن الصوت والصورة: video={duration:.2f}s audio={audio_duration:.2f}s"
+        )
+    if video_path.stat().st_size < 100_000:
+        raise RuntimeError("حجم الفيديو صغير بشكل غير طبيعي؛ تم إيقاف الرفع")
+    print(f"[VIDEO_QA_OK] duration={duration:.1f}s bytes={video_path.stat().st_size}")
+
+
 def create_youtube_credentials():
     from google.oauth2.credentials import Credentials
     required = ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")
@@ -358,6 +397,9 @@ def main():
     if args.private_test and args.dry_run:
         parser.error("--private-test cannot be combined with --dry-run")
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
+    editorial_approved = os.getenv("NEWSFLOW_EDITORIAL_APPROVED", "false").lower() == "true"
+    if upload_enabled and not editorial_approved:
+        parser.error("الرفع محظور: يلزم اعتماد المراجعة التحريرية صراحةً عبر NEWSFLOW_EDITORIAL_APPROVED=true.")
     if args.private_test:
         args.max_stories = 1
         if not upload_enabled:
@@ -371,8 +413,16 @@ def main():
             parser.error(str(exc))
     out = ROOT / os.getenv("NEWSFLOW_OUTPUT_DIR", "output")
     out.mkdir(parents=True, exist_ok=True)
-    stories = collect(args.max_stories)
+    stories, filtered_stories = collect(args.max_stories)
+    editorial_report = review_stories(stories)
+    editorial_report["rejected"].extend(filtered_stories)
+    editorial_report["rejected_count"] += len(filtered_stories)
+    (out / "editorial_review.json").write_text(
+        json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    stories = editorial_report["accepted"]
     (out / "stories.json").write_text(json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
     if not stories:
         print("[INFO] لم يتم العثور على أخبار في المصادر.")
         return
@@ -415,6 +465,7 @@ def main():
     for label, short in variants:
         video = bulletin / f"{label}.mp4"
         make_video(video_title, audio, video, short=short, stories=stories)
+        validate_video(video, audio)
         if args.private_test:
             youtube_upload(
                 video, video_title, description, tags,
