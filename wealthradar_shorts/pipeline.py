@@ -159,6 +159,44 @@ def _write_ass(path: Path, caption: list[str], seconds: float) -> None:
     path.write_text(content, encoding="utf-8-sig")
 
 
+
+def validate_video_probe(metadata: dict) -> None:
+    """Fail closed unless the rendered MP4 is a valid 1080x1920 short with audio."""
+    streams = metadata.get("streams", [])
+    video = next((item for item in streams if item.get("codec_type") == "video"), None)
+    audio = next((item for item in streams if item.get("codec_type") == "audio"), None)
+    try:
+        duration = float(metadata.get("format", {}).get("duration", 0))
+    except (TypeError, ValueError):
+        duration = 0.0
+    if not video:
+        raise RuntimeError("فحص الفيديو فشل: لا يوجد مسار فيديو داخل MP4.")
+    if not audio:
+        raise RuntimeError("فحص الفيديو فشل: لا يوجد مسار صوت داخل MP4.")
+    if (int(video.get("width", 0)), int(video.get("height", 0))) != (1080, 1920):
+        raise RuntimeError("فحص الفيديو فشل: المقاس المطلوب 1080x1920.")
+    if video.get("codec_name") != "h264":
+        raise RuntimeError("فحص الفيديو فشل: ترميز الصورة يجب أن يكون H.264.")
+    if audio.get("codec_name") != "aac":
+        raise RuntimeError("فحص الفيديو فشل: ترميز الصوت يجب أن يكون AAC.")
+    if not 30.0 <= duration <= 45.0:
+        raise RuntimeError(f"فحص الفيديو فشل: المدة النهائية {duration:.1f}s خارج 30–45 ثانية.")
+
+
+def validate_rendered_video(path: Path) -> float:
+    if not path.is_file() or path.stat().st_size < 100_000:
+        raise RuntimeError("فحص الفيديو فشل: ملف MP4 غير موجود أو حجمه غير صالح.")
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries",
+         "format=duration:stream=codec_type,codec_name,width,height",
+         "-of", "json", str(path)],
+        check=True, capture_output=True, text=True,
+    )
+    metadata = json.loads(result.stdout)
+    validate_video_probe(metadata)
+    return float(metadata["format"]["duration"])
+
+
 def render(plan: dict, output: Path, api_key: str) -> Path:
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
@@ -214,7 +252,8 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
               "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy",
               "-c:a", "aac", "-b:a", "192k", "-shortest",
               "-movflags", "+faststart", str(final)])
-    print(f"[SHORT_READY] {final} | 1080x1920 | {voice_duration:.1f}s")
+    final_duration = validate_rendered_video(final)
+    print(f"[SHORT_READY] {final} | 1080x1920 | {final_duration:.1f}s | H.264/AAC verified")
     return final
 
 
