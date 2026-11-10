@@ -1,14 +1,20 @@
 # RSS feeds are used for discovery and attribution, not as permission to reuse media.
 sources:
+  - name: CNBC عربية - أسواق المال
+    url: https://cnnbusinessarabic.com/rssFeed/279
+    category: أسواق المال
+  - name: CNBC عربية - أخبار الشركات
+    url: https://cnnbusinessarabic.com/rssFeed/279/203
+    category: شركات
   - name: BBC Arabic
     url: https://feeds.bbci.co.uk/arabic/rss.xml
-    category: عام
+    category: اقتصاد وأسواق
   - name: Al Jazeera
     url: https://www.aljazeera.net/aljazeerarss/ar.xml
     category: عام
+  - name: IMF
+    url: https://www.imf.org/en/News/RSS
+    category: اقتصاد عالمي
   - name: UN News Arabic
     url: https://news.un.org/feed/subscribe/ar/news/all/rss.xml
     category: دولي
-  - name: IMF
-    url: https://www.imf.org/en/News/RSS
-    category: اقتصاد
