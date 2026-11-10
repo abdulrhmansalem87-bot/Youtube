@@ -8,6 +8,7 @@ on:
       - "config/sources.yml"
       - ".github/workflows/newsflow.yml"
       - "tests/**"
+      - "content/**"
   pull_request:
     branches: [main]
     paths:
@@ -15,6 +16,7 @@ on:
       - "config/sources.yml"
       - ".github/workflows/newsflow.yml"
       - "tests/**"
+      - "content/**"
   workflow_dispatch:
     inputs:
       dry_run:
