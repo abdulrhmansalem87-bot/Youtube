@@ -117,6 +117,36 @@ def _download(url: str, destination: Path) -> None:
     with urllib.request.urlopen(request, timeout=90) as response, destination.open("wb") as output:
         shutil.copyfileobj(response, output)
 
+ 
+def _render_fallback_segment(ffmpeg: str, segment: Path, ass: Path, seconds: float, index: int) -> None:
+    """Render an original branded finance graphic when stock footage is unavailable."""
+    palettes = [
+        ("0B1220", "15304A", "18A6A6"),
+        ("101827", "243B55", "D6A84F"),
+        ("0B1726", "183B4E", "3AA6B9"),
+        ("15172B", "34345C", "D6A84F"),
+        ("0B1C24", "164B4B", "40B89A"),
+    ]
+    base, panel, accent = palettes[(index - 1) % len(palettes)]
+    subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\\:")
+    vf = (
+        f"drawbox=x=72:y=250:w=936:h=5:color=0x{accent}@0.95:t=fill,"
+        f"drawbox=x=72:y=255:w=936:h=310:color=0x{panel}@0.72:t=fill,"
+        f"drawbox=x=72:y=590:w=936:h=5:color=0x{accent}@0.65:t=fill,"
+        f"drawbox=x=120:y=1120:w=840:h=3:color=0x{accent}@0.55:t=fill,"
+        f"drawbox=x=120:y=1123:w=840:h=220:color=0x{panel}@0.48:t=fill,"
+        f"subtitles='{subtitle_path}'"
+    )
+    _run([
+        ffmpeg, "-y", "-f", "lavfi", "-i",
+        f"color=c=0x{base}:s=1080x1920:r=30:d={seconds:.2f}",
+        "-vf", vf, "-an", "-r", "30", "-c:v", "libx264",
+        "-preset", "veryfast", "-pix_fmt", "yuv420p", str(segment),
+    ])
+    print(f"[BRANDED_SCENE_FALLBACK] scene={index} | original graphics used")
+
+
+
 
 def _run(command: list[str]) -> None:
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=180)
@@ -250,20 +280,26 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
         work = Path(temp)
         segments: list[Path] = []
         for index, (scene, seconds) in enumerate(zip(plan["scenes"], scene_durations), 1):
-            source_url = find_pexels_video(scene["query"], api_key)
-            raw = work / f"source-{index:02d}.mp4"
             ass = work / f"caption-{index:02d}.ass"
             segment = work / f"segment-{index:02d}.mp4"
-            _download(source_url, raw)
             _write_ass(ass, scene["caption"], seconds)
-            subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
-            _run([
-                ffmpeg, "-y", "-stream_loop", "-1", "-i", str(raw), "-t", f"{seconds:.2f}",
-                "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
-                       f"crop=1080:1920,setsar=1,subtitles='{subtitle_path}'",
-                "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
-                "-pix_fmt", "yuv420p", str(segment),
-            ])
+            try:
+                if not api_key:
+                    raise RuntimeError("PEXELS_API_KEY is unavailable")
+                source_url = find_pexels_video(scene["query"], api_key)
+                raw = work / f"source-{index:02d}.mp4"
+                _download(source_url, raw)
+                subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\\:")
+                _run([
+                    ffmpeg, "-y", "-stream_loop", "-1", "-i", str(raw), "-t", f"{seconds:.2f}",
+                    "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
+                           f"crop=1080:1920,setsar=1,subtitles='{subtitle_path}'",
+                    "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
+                    "-pix_fmt", "yuv420p", str(segment),
+                ])
+            except Exception as exc:
+                print(f"[STOCK_FOOTAGE_UNAVAILABLE] scene={index} | {type(exc).__name__} | using branded fallback")
+                _render_fallback_segment(ffmpeg, segment, ass, seconds, index)
             segments.append(segment)
 
         concat = work / "concat.txt"
@@ -365,8 +401,6 @@ def main() -> None:
         upload_private_video(video_path, str(plan["title"]))
         return
     api_key = os.getenv("PEXELS_API_KEY", "").strip()
-    if not api_key:
-        raise SystemExit("أضف GitHub Secret باسم PEXELS_API_KEY لإنتاج مقاطع B-roll.")
     render(plan, args.output, api_key)
 
 
