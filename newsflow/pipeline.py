@@ -97,6 +97,23 @@ def make_script(stories):
     return "\n\n".join(parts)
 
 
+def make_short_script(story):
+    """Create an original, story-specific vertical-video narration."""
+    title = str(story.get("title", "")).strip()
+    summary = str(story.get("summary", "")).strip()
+    source = str(story.get("source", "المصدر الأصلي")).strip()
+    if not summary:
+        summary = "التفاصيل الكاملة تحتاج إلى مراجعة المصدر الأصلي قبل النشر."
+    return (
+        "أهلاً بكم في WealthRadar. خبر اقتصادي مهم: "
+        f"{title}. "
+        f"{summary} "
+        f"المعلومة دي بحسب {source}. "
+        "المهم نفهم إن الخبر وحده مش توصية بالشراء أو البيع؛ راجع التفاصيل والسياق قبل أي قرار مالي. "
+        "تابعوا WealthRadar للمزيد من الأخبار الاقتصادية، ولا تنسوا الاشتراك وتفعيل زر الجرس."
+    )
+
+
 def build_youtube_metadata(stories, script):
     title = f"أهم {len(stories)} أخبار اقتصادية اليوم | WealthRadar"
     text_blob = " ".join(
@@ -280,7 +297,7 @@ def make_video(title, audio, output, short=False, stories=None):
         shutil.rmtree(frame_dir, ignore_errors=True)
 
 
-def validate_video(video_path: Path, audio_path: Path):
+def validate_video(video_path: Path, audio_path: Path, expected_short: bool = False):
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
         raise RuntimeError("FFprobe غير متاح للتحقق من الفيديو")
@@ -297,6 +314,13 @@ def validate_video(video_path: Path, audio_path: Path):
     if not any(stream.get("codec_type") == "audio" for stream in streams):
         raise RuntimeError("فشل فحص الفيديو: لا يوجد مسار صوت")
     duration = float(data.get("format", {}).get("duration", 0))
+    video_stream = next(stream for stream in streams if stream.get("codec_type") == "video")
+    width = int(video_stream.get("width", 0))
+    height = int(video_stream.get("height", 0))
+    if expected_short and not (height > width):
+        raise RuntimeError("فشل فحص النسخة القصيرة: يجب أن يكون الفيديو رأسياً")
+    if expected_short and duration > 180:
+        raise RuntimeError("فشل فحص النسخة القصيرة: المدة تتجاوز 3 دقائق")
     audio_probe = subprocess.run(
         [ffprobe, "-v", "error", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)],
@@ -459,22 +483,40 @@ def main():
             print("[WARN] مدة التعليق الصوتي بعيدة عن 3 دقائق؛ راجع النص أو عدد الأخبار قبل النشر.")
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
-    variants = (("long", False),) if args.private_test or single_long_upload else (("long", False), ("short", True))
     video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
-    for label, short in variants:
-        video = bulletin / f"{label}.mp4"
-        make_video(video_title, audio, video, short=short, stories=stories)
-        validate_video(video, audio)
-        if args.private_test:
-            youtube_upload(
-                video, video_title, description, tags,
-                privacy_override="private", credentials=auth_credentials
-            )
-        elif upload_enabled:
-            youtube_upload(
-                video, video_title, description, tags, credentials=auth_credentials
-            )
+
+    long_video = bulletin / "long.mp4"
+    make_video(video_title, audio, long_video, short=False, stories=stories)
+    validate_video(long_video, audio)
+    if args.private_test:
+        youtube_upload(
+            long_video, video_title, description, tags,
+            privacy_override="private", credentials=auth_credentials
+        )
+        return
+    if upload_enabled:
+        youtube_upload(long_video, video_title, description, tags, credentials=auth_credentials)
+
+    # Shorts are separate story-specific narrations, not a vertical copy of the full bulletin.
+    if not single_long_upload:
+        shorts_dir = bulletin / "shorts"
+        shorts_dir.mkdir(exist_ok=True)
+        for index, story in enumerate(stories[:2], start=1):
+            short_script = make_short_script(story)
+            short_audio = shorts_dir / f"short-{index}.mp3"
+            short_video = shorts_dir / f"short-{index}.mp4"
+            asyncio.run(make_audio(short_script, short_audio))
+            short_title, short_description, short_tags = build_youtube_metadata([story], short_script)
+            short_title = f"{story['title'][:75]} | WealthRadar #Shorts"
+            make_video(short_title, short_audio, short_video, short=True, stories=[story])
+            validate_video(short_video, short_audio, expected_short=True)
+            print(f"[SHORT_READY] {short_video} duration-specific_story={story['id']}")
+            if upload_enabled:
+                youtube_upload(
+                    short_video, short_title, short_description, short_tags,
+                    privacy_override="private", credentials=auth_credentials
+                )
 
 
 if __name__ == "__main__":
