@@ -51,6 +51,11 @@ def collect(max_stories: int):
                 })
         except Exception as exc:
             print(f"[WARN] تعذر جلب {source.get('name')}: {exc}")
+    now_ts = datetime.now(timezone.utc).timestamp()
+    stories = [
+        item for item in stories
+        if not item["published_ts"] or 0 <= now_ts - item["published_ts"] <= 72 * 3600
+    ]
     stories.sort(key=lambda item: item["published_ts"], reverse=True)
     selected, source_counts = [], {}
     for story in stories:
@@ -345,7 +350,7 @@ def youtube_upload(
     print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status}")
 
 def main():
-    parser = argparse.ArgumentParser(description="NewsFlow AI Arabic news pipeline")
+    parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "8")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy")
