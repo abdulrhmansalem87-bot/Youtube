@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Collect stories and save drafts only"
+        description: "Collect news and render the WealthRadar video package"
         required: false
         type: boolean
-        default: true
+        default: false
       private_test:
         description: "Upload one long video as PRIVATE (manual run only)"
         required: false
