@@ -146,41 +146,126 @@ def find_font():
     return None
 
 
-def make_video(title, audio, output, short=False):
+def make_video(title, audio, output, short=False, stories=None):
     ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError("FFmpeg غير مثبت")
+    ffprobe = shutil.which("ffprobe")
+    if not ffmpeg or not ffprobe:
+        raise RuntimeError("يجب تثبيت FFmpeg وFFprobe")
     width, height = (1080, 1920) if short else (1920, 1080)
-    image = Image.new("RGB", (width, height), (16, 24, 40))
-    draw = ImageDraw.Draw(image)
     font_path = find_font()
-    font_size = 66 if short else 58
-    font = ImageFont.truetype(font_path, font_size) if font_path else ImageFont.load_default()
-    # Simple RTL-friendly title card; font availability varies by runner.
-    words, lines, line = title, [], ""
-    for word in words.split():
-        trial = (line + " " + word).strip()
-        if draw.textbbox((0, 0), trial, font=font)[2] > width - 120:
-            lines.append(line)
-            line = word
-        else:
-            line = trial
-    if line:
-        lines.append(line)
-    y = height // 2 - len(lines) * (font_size + 18) // 2
-    for item in lines[:8]:
-        draw.text((width // 2, y), item, font=font, fill="white", anchor="mm", direction="rtl")
-        y += font_size + 18
-    draw.text((width // 2, height - 90), "WealthRadar • المال والاقتصاد ببساطة", font=font, fill=(160, 190, 220), anchor="mm", direction="rtl")
-    still = output.with_suffix(".png")
-    image.save(still)
-    subprocess.run([
-        ffmpeg, "-y", "-loop", "1", "-i", str(still), "-i", str(audio),
-        "-c:v", "libx264", "-tune", "stillimage", "-c:a", "aac",
-        "-b:a", "192k", "-pix_fmt", "yuv420p", "-shortest",
-        "-vf", f"scale={width}:{height}", str(output)
-    ], check=True, capture_output=True)
-    still.unlink(missing_ok=True)
+    heading_font_size = 72 if short else 66
+    body_font_size = 48 if short else 44
+    small_font_size = 34 if short else 30
+    heading_font = ImageFont.truetype(font_path, heading_font_size) if font_path else ImageFont.load_default()
+    body_font = ImageFont.truetype(font_path, body_font_size) if font_path else ImageFont.load_default()
+    small_font = ImageFont.truetype(font_path, small_font_size) if font_path else ImageFont.load_default()
+
+    probe = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
+        check=True, capture_output=True, text=True
+    )
+    total_duration = float(probe.stdout.strip())
+    story_list = stories or []
+    cards = [("نشرة WealthRadar", title, "أهم تطورات المال والاقتصاد في موجز واحد")]
+    for index, story in enumerate(story_list, start=1):
+        cards.append((
+            f"الخبر {index} • {story.get('source', 'المصدر')}",
+            story.get("title", ""),
+            story.get("summary", "")[:520] or "راجع رابط المصدر لمعرفة التفاصيل الكاملة."
+        ))
+    cards.append((
+        "قبل أي قرار مالي",
+        "تابع المصدر الأصلي وقارن المعلومات",
+        "اشترك في WealthRadar وفعّل زر الجرس لمتابعة موجز الأخبار القادم"
+    ))
+
+    weights = [max(60, len(head) + len(body)) for head, body, _ in cards]
+    weight_total = sum(weights)
+    durations = [total_duration * weight / weight_total for weight in weights]
+    durations[-1] += total_duration - sum(durations)
+
+    frame_dir = output.parent / f"{output.stem}_frames"
+    frame_dir.mkdir(parents=True, exist_ok=True)
+    frame_paths = []
+
+    def wrap_text(draw, value, font, max_width, limit):
+        lines, current = [], ""
+        for word in str(value).split():
+            trial = (current + " " + word).strip()
+            bounds = draw.textbbox((0, 0), trial, font=font, direction="rtl")
+            if bounds[2] - bounds[0] > max_width and current:
+                lines.append(current)
+                current = word
+            else:
+                current = trial
+        if current:
+            lines.append(current)
+        return lines[:limit]
+
+    try:
+        for index, (heading, headline, summary) in enumerate(cards):
+            image = Image.new("RGB", (width, height), (11, 20, 35))
+            draw = ImageDraw.Draw(image)
+            accent = (35, 183, 174) if index % 2 == 0 else (221, 171, 77)
+            draw.rectangle((0, 0, width, 22), fill=accent)
+            draw.rounded_rectangle(
+                (70, 105, width - 70, height - 105),
+                radius=42, fill=(19, 39, 60), outline=accent, width=4
+            )
+            draw.text(
+                (width // 2, 205), "WealthRadar", font=heading_font,
+                fill=(255, 255, 255), anchor="mm"
+            )
+            draw.text(
+                (width // 2, 300), heading, font=small_font,
+                fill=accent, anchor="mm", direction="rtl"
+            )
+            draw.line((width // 2 - 180, 365, width // 2 + 180, 365), fill=accent, width=5)
+
+            headline_lines = wrap_text(draw, headline, heading_font, width - 220, 4)
+            y = int(height * 0.40) - len(headline_lines) * (heading_font_size + 18) // 2
+            for line in headline_lines:
+                draw.text((width // 2, y), line, font=heading_font,
+                          fill=(255, 255, 255), anchor="mm", direction="rtl")
+                y += heading_font_size + 18
+
+            body_lines = wrap_text(draw, summary, body_font, width - 240, 7)
+            y += 85
+            for line in body_lines:
+                draw.text((width // 2, y), line, font=body_font,
+                          fill=(202, 216, 229), anchor="mm", direction="rtl")
+                y += body_font_size + 22
+
+            draw.text(
+                (width // 2, height - 190), "المال والاقتصاد ببساطة",
+                font=small_font, fill=(160, 190, 220), anchor="mm", direction="rtl"
+            )
+            frame = frame_dir / f"slide-{index:02d}.png"
+            image.save(frame)
+            frame_paths.append(frame)
+
+        command = [ffmpeg, "-y"]
+        for frame, seconds in zip(frame_paths, durations):
+            command += ["-loop", "1", "-t", f"{seconds:.3f}", "-i", str(frame)]
+        command += ["-i", str(audio)]
+        filters = []
+        for index in range(len(frame_paths)):
+            filters.append(
+                f"[{index}:v]scale={width}:{height},setsar=1,format=yuv420p[v{index}]"
+            )
+        concat_inputs = "".join(f"[v{index}]" for index in range(len(frame_paths)))
+        filters.append(f"{concat_inputs}concat=n={len(frame_paths)}:v=1:a=0[v]")
+        command += [
+            "-filter_complex", ";".join(filters),
+            "-map", "[v]", "-map", f"{len(frame_paths)}:a:0",
+            "-c:v", "libx264", "-preset", "veryfast",
+            "-c:a", "aac", "-b:a", "192k", "-shortest",
+            "-movflags", "+faststart", str(output)
+        ]
+        subprocess.run(command, check=True, capture_output=True)
+    finally:
+        shutil.rmtree(frame_dir, ignore_errors=True)
 
 
 def create_youtube_credentials():
@@ -323,7 +408,7 @@ def main():
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
     for label, short in variants:
         video = bulletin / f"{label}.mp4"
-        make_video(video_title, audio, video, short=short)
+        make_video(video_title, audio, video, short=short, stories=stories)
         if args.private_test:
             youtube_upload(
                 video, video_title, description, tags,
