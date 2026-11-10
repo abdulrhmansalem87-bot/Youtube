@@ -19,10 +19,10 @@ on:
         type: string
         default: "wealthradar/production.example.json"
       upload_private:
-        description: "Upload the rendered Short to YouTube as PRIVATE (requires YouTube OAuth secrets)"
+        description: "Explicitly approve uploading the rendered Short to YouTube as PRIVATE"
         required: true
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
@@ -62,7 +62,7 @@ jobs:
           WEALTHRADAR_TTS_VOICE: ar-EG-ShakirNeural
         run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN"
       - name: Upload WealthRadar Short privately
-        if: ${{ !inputs.validate_only && (inputs.upload_private || github.event_name == 'push') }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
