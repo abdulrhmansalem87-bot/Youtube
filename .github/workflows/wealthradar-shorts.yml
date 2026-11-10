@@ -1,0 +1,56 @@
+name: WealthRadar Shorts
+
+on:
+  workflow_dispatch:
+    inputs:
+      validate_only:
+        description: "Validate the production plan without rendering or uploading"
+        required: true
+        type: boolean
+        default: true
+      plan_path:
+        description: "Path to the WealthRadar JSON production plan"
+        required: true
+        type: string
+        default: "wealthradar/production.example.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wealthradar-shorts
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate production plan
+        if: \${{ inputs.validate_only }}
+        run: python -m wealthradar_shorts --plan "\${{ inputs.plan_path }}" --validate-only
+      - name: Render WealthRadar Short
+        if: \${{ !inputs.validate_only }}
+        env:
+          PEXELS_API_KEY: \${{ secrets.PEXELS_API_KEY }}
+          WEALTHRADAR_TTS_VOICE: ar-EG-ShakirNeural
+        run: python -m wealthradar_shorts --plan "\${{ inputs.plan_path }}"
+      - name: Save production artifacts
+        if: \${{ always() && !inputs.validate_only }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthradar-short-\${{ github.run_number }}
+          path: output/wealthradar/
+          if-no-files-found: warn
+          retention-days: 14
