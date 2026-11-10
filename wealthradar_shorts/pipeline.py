@@ -170,23 +170,26 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
     voice = os.getenv("WEALTHRADAR_TTS_VOICE", "ar-EG-ShakirNeural")
     asyncio.run(_make_voice(narration, voice_path, voice))
     voice_duration = _duration(voice_path)
+    if not 30 <= voice_duration <= 45:
+        raise RuntimeError(f"مدة التعليق الصوتي {voice_duration:.1f}s خارج النطاق 30–45 ثانية.")
     scene_total = sum(float(scene["duration"]) for scene in plan["scenes"])
-    if abs(voice_duration - scene_total) > 2.0:
+    scale = voice_duration / scene_total
+    scene_durations = [float(scene["duration"]) * scale for scene in plan["scenes"]]
+    if any(not 1.5 <= seconds <= 2.5 for seconds in scene_durations):
         raise RuntimeError(
-            f"مدة الصوت {voice_duration:.1f}s لا تطابق المشاهد {scene_total:.1f}s. "
-            "عدّل النص أو مدد المشاهد قبل المونتاج."
+            "لا يمكن موازنة مدة المشاهد مع الصوت مع الحفاظ على إيقاع 1.5–2.5 ثانية. "
+            "عدّل النص أو مدد المشاهد."
         )
 
     with tempfile.TemporaryDirectory(prefix="wealthradar-") as temp:
         work = Path(temp)
         segments: list[Path] = []
-        for index, scene in enumerate(plan["scenes"], 1):
+        for index, (scene, seconds) in enumerate(zip(plan["scenes"], scene_durations), 1):
             source_url = find_pexels_video(scene["query"], api_key)
             raw = work / f"source-{index:02d}.mp4"
             ass = work / f"caption-{index:02d}.ass"
             segment = work / f"segment-{index:02d}.mp4"
             _download(source_url, raw)
-            seconds = float(scene["duration"])
             _write_ass(ass, scene["caption"], seconds)
             subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
             _run([
