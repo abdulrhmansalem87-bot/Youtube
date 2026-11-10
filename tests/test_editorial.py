@@ -1,0 +1,51 @@
+import unittest
+
+from newsflow.editorial import review_stories
+
+
+class EditorialReviewTests(unittest.TestCase):
+    def test_accepts_financial_story(self):
+        report = review_stories([{
+            "id": "1",
+            "title": "التضخم الأمريكي يضغط على الأسواق",
+            "summary": "ارتفع مؤشر أسعار المستهلكين مع ترقب قرارات الفائدة والأسواق.",
+            "link": "https://example.com/economy",
+            "source": "مصدر اقتصادي",
+            "category": "أسواق المال",
+            "published": "2026-11-10",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["rejected_count"], 0)
+        self.assertEqual(report["status"], "needs_human_review")
+
+    def test_rejects_sports_story(self):
+        report = review_stories([{
+            "id": "2",
+            "title": "ليفربول يفوز في مباراة مثيرة",
+            "summary": "سجل الفريق هدف الفوز في الدقائق الأخيرة.",
+            "link": "https://example.com/sport",
+            "source": "مصدر رياضي",
+            "category": "عام",
+            "published": "2026-11-10",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+        self.assertEqual(report["status"], "blocked")
+
+    def test_flags_short_summary_for_human_review(self):
+        report = review_stories([{
+            "id": "3",
+            "title": "البنك المركزي يعلن قرار الفائدة",
+            "summary": "قرار جديد للفائدة.",
+            "link": "https://example.com/banks",
+            "source": "مصدر مالي",
+            "category": "اقتصاد",
+            "published": "2026-11-10",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["warning_count"], 1)
+        self.assertTrue(report["human_approval_required"])
+
+
+if __name__ == "__main__":
+    unittest.main()
