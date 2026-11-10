@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -121,8 +122,34 @@ def _run(command: list[str]) -> None:
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=180)
 
 
-async def _make_voice(text: str, destination: Path, voice: str) -> None:
-    await edge_tts.Communicate(text, voice, rate="+8%").save(str(destination))
+async def _make_voice(text: str, destination: Path, voice: str) -> str:
+    """Generate Arabic male narration with retries and automatic voice fallback."""
+    voices = list(dict.fromkeys([
+        voice,
+        "ar-EG-ShakirNeural",
+        "ar-SA-HamedNeural",
+        "ar-AE-HamdanNeural",
+    ]))
+    failures: list[str] = []
+    for candidate in voices:
+        for attempt in range(1, 3):
+            try:
+                destination.unlink(missing_ok=True)
+                await edge_tts.Communicate(text, candidate, rate="+8%").save(str(destination))
+                if not destination.is_file() or destination.stat().st_size < 1_000:
+                    raise RuntimeError("ملف الصوت الناتج فارغ أو غير مكتمل.")
+                print(f"[VOICE_READY] {candidate} | attempt {attempt}")
+                return candidate
+            except Exception as exc:
+                destination.unlink(missing_ok=True)
+                failures.append(f"{candidate} (محاولة {attempt}): {type(exc).__name__}")
+                print(f"[VOICE_RETRY] {candidate} | attempt {attempt} failed: {type(exc).__name__}")
+                if attempt == 1:
+                    await asyncio.sleep(2)
+    raise RuntimeError(
+        "تعذر إنشاء التعليق الصوتي بعد إعادة المحاولة وتجربة الأصوات الرجالية العربية البديلة. "
+        + " | ".join(failures)
+    )
 
 
 def _duration(path: Path) -> float:
