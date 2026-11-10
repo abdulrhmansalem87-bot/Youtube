@@ -76,10 +76,21 @@ def collect(max_stories: int):
         story.pop("published_ts", None)
     return selected, rejected
 
+def make_opening_hook(stories):
+    """Lead with the strongest verified story; no invented urgency or promises."""
+    if not stories:
+        return "إيه أهم حاجة بتحرك الأسواق النهارده؟ خلينا نفهم الصورة ببساطة."
+    lead = clean_narration(stories[0].get("title", ""))
+    lead = re.sub(r"^(عاجل|آخر الأخبار|أخبار اليوم)\s*[:：-]?\s*", "", lead, flags=re.I)
+    if len(lead) > 115:
+        lead = lead[:112].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+    return f"{lead}. إيه اللي حصل، وليه الخبر ده يستحق انتباهك؟"
+
+
 def make_script(stories):
     parts = [
-        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar. "
-        "نستعرض معكم أبرز التطورات التي قد تؤثر في الأسواق وأموالكم."
+        make_opening_hook(stories),
+        "أهلاً بكم في WealthRadar. هنشرح الخبر من غير تهويل، ونفصل بين المعلومة المؤكدة وما زال يحتاج متابعة."
     ]
     for index, story in enumerate(stories, start=1):
         summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
@@ -104,18 +115,29 @@ def make_short_script(story):
     source = str(story.get("source", "المصدر الأصلي")).strip()
     if not summary:
         summary = "التفاصيل الكاملة تحتاج إلى مراجعة المصدر الأصلي قبل النشر."
+    hook = clean_narration(title)
+    if len(hook) > 105:
+        hook = hook[:102].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
     return (
-        "أهلاً بكم في WealthRadar. إليكم هذا الخبر الاقتصادي: "
-        f"{title}. "
-        f"{summary} "
-        f"وذلك وفقاً لما أورده {source}. "
-        "وتذكّروا أن هذا الخبر للمعلومات والمتابعة، ولا يمثل توصية بالشراء أو البيع. تحققوا من التفاصيل والسياق قبل اتخاذ أي قرار مالي. "
-        "تابعوا WealthRadar للمزيد من الأخبار الاقتصادية، ولا تنسوا الاشتراك في القناة وتفعيل زر الجرس."
+        f"{hook} — إيه اللي وراه؟ "
+        f"{clean_narration(summary)} "
+        f"وفقاً لما أورده {source}. "
+        "دي معلومة للمتابعة وليست توصية استثمارية؛ راجع التفاصيل قبل أي قرار. "
+        "تابع WealthRadar للمزيد."
     )
 
 
 def build_youtube_metadata(stories, script):
-    title = f"أهم {len(stories)} أخبار اقتصادية اليوم | WealthRadar"
+    # Specific, curiosity-driven title based on the actual lead story; no fake urgency.
+    lead_title = clean_narration((stories or [{}])[0].get("title", ""))
+    lead_title = re.sub(r"^(عاجل|آخر الأخبار|أخبار اليوم)\s*[:：-]?\s*", "", lead_title, flags=re.I)
+    if lead_title:
+        lead_title = lead_title.rstrip(" .،؛:؟!")
+        if len(lead_title) > 65:
+            lead_title = lead_title[:62].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+        title = f"{lead_title} | التفاصيل التي تهمك | WealthRadar"
+    else:
+        title = "أهم تطورات المال والأسواق اليوم | WealthRadar"
     text_blob = " ".join(
         f"{item.get('title', '')} {item.get('summary', '')} {item.get('category', '')}"
         for item in stories
@@ -238,7 +260,7 @@ def make_video(title, audio, output, short=False, stories=None):
     )
     total_duration = float(probe.stdout.strip())
     story_list = stories or []
-    cards = [("نشرة WealthRadar", title, "أهم تطورات المال والاقتصاد في موجز واحد", "DAILY MARKET BRIEF")]
+    cards = [("إيه الحكاية؟", lead_hook, "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر", "THE STORY BEHIND THE HEADLINE")]
     for index, story in enumerate(story_list, start=1):
         cards.append((
             f"الخبر {index:02d} • {story.get('source', 'المصدر')}",
@@ -567,7 +589,7 @@ def main():
             short_video = shorts_dir / f"short-{index}.mp4"
             asyncio.run(make_audio(short_script, short_audio))
             short_title, short_description, short_tags = build_youtube_metadata([story], short_script)
-            short_title = f"{story['title'][:75]} | WealthRadar #Shorts"
+            short_title = f"{short_title[:78].rstrip()} #Shorts"
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
             print(f"[SHORT_READY] {short_video} duration-specific_story={story['id']}")
