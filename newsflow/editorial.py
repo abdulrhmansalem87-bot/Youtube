@@ -16,14 +16,14 @@ FINANCE_TERMS = (
     "غاز", "طاقة", "تجارة", "صادرات", "واردات", "ديون", "سندات",
     "ميزانية", "إيرادات", "أرباح", "خسائر", "شركة", "شركات", "استحواذ",
     "اكتتاب", "تمويل", "ائتمان", "ضرائب", "رسوم", "تحويلات", "احتياطي",
-    "نمو", "ناتج محلي", "بطالة", "أجور", "عقارات", "صناعة", "إنتاج",
+    "ناتج محلي", "بطالة", "أجور", "عقارات", "صناعة", "إنتاج",
     "financial", "economy", "economic", "market", "markets", "stock",
     "stocks", "shares", "bank", "banking", "interest", "inflation",
     "currency", "dollar", "euro", "gold", "oil", "gas", "energy",
     "trade", "export", "import", "debt", "bond", "budget", "revenue",
     "profit", "loss", "investment", "investor", "funding", "credit",
     "tax", "remittance", "reserve", "gdp", "unemployment", "wage",
-    "real estate", "company", "companies", "earnings", "ipo",
+    "real estate", "earnings", "ipo",
 )
 SPORT_TERMS = (
     "كرة القدم", "الدوري", "مباراة", "مباريات", "هدف", "أهداف", "لاعب",
