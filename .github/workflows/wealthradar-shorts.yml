@@ -38,19 +38,19 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Validate production plan
-        if: \${{ inputs.validate_only }}
-        run: python -m wealthradar_shorts --plan "\${{ inputs.plan_path }}" --validate-only
+        if: ${{ inputs.validate_only }}
+        run: python -m wealthradar_shorts --plan "${{ inputs.plan_path }}" --validate-only
       - name: Render WealthRadar Short
-        if: \${{ !inputs.validate_only }}
+        if: ${{ !inputs.validate_only }}
         env:
-          PEXELS_API_KEY: \${{ secrets.PEXELS_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           WEALTHRADAR_TTS_VOICE: ar-EG-ShakirNeural
-        run: python -m wealthradar_shorts --plan "\${{ inputs.plan_path }}"
+        run: python -m wealthradar_shorts --plan "${{ inputs.plan_path }}"
       - name: Save production artifacts
-        if: \${{ always() && !inputs.validate_only }}
+        if: ${{ always() && !inputs.validate_only }}
         uses: actions/upload-artifact@v4
         with:
-          name: wealthradar-short-\${{ github.run_number }}
+          name: wealthradar-short-${{ github.run_number }}
           path: output/wealthradar/
           if-no-files-found: warn
           retention-days: 14
