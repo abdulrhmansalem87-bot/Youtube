@@ -1,6 +1,12 @@
 name: NewsFlow pipeline
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "newsflow/**"
+      - "config/sources.yml"
+      - ".github/workflows/newsflow.yml"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -45,8 +51,9 @@ jobs:
         env:
           NEWSFLOW_MAX_STORIES: "8"
           NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
-          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'schedule' && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
-          YOUTUBE_PRIVACY_STATUS: ${{ vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
+          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'push' && 'true' || github.event_name == 'schedule' && 'false' || vars.YOUTUBE_UPLOAD_ENABLED || 'false' }}
+          YOUTUBE_UPLOAD_SINGLE_LONG: ${{ github.event_name == 'push' && 'true' || 'false' }}
+          YOUTUBE_PRIVACY_STATUS: ${{ github.event_name == 'push' && 'private' || vars.YOUTUBE_PRIVACY_STATUS || 'private' }}
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
