@@ -148,10 +148,13 @@ def _write_ass(path: Path, caption: list[str], seconds: float) -> None:
         "OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, "
         "Alignment, MarginL, MarginR, MarginV, Encoding\n"
         "Style: Keywords,DejaVu Sans,78,&H0000D7FF,&H000000FF,&H00101010,"
-        "&H80000000,-1,0,1,7,2,5,70,70,0,1\n\n"
+        "&H80000000,-1,0,1,7,2,5,70,70,0,1\n"
+        "Style: Brand,DejaVu Sans,34,&H00FFFFFF,&H000000FF,&H00101010,"
+        "&H80000000,-1,0,1,3,1,2,40,40,90,1\n\n"
         "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, "
         "MarginV, Effect, Text\n"
         f"Dialogue: 0,0:00:00.00,0:00:{seconds:05.2f},Keywords,,0,0,0,,{text}\n"
+        f"Dialogue: 1,0:00:00.00,0:00:{seconds:05.2f},Brand,,0,0,0,,WealthRadar\n"
     )
     path.write_text(content, encoding="utf-8-sig")
 
@@ -187,7 +190,7 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
             _write_ass(ass, scene["caption"], seconds)
             subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
             _run([
-                ffmpeg, "-y", "-i", str(raw), "-t", f"{seconds:.2f}",
+                ffmpeg, "-y", "-stream_loop", "-1", "-i", str(raw), "-t", f"{seconds:.2f}",
                 "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
                        f"crop=1080:1920,setsar=1,subtitles='{subtitle_path}'",
                 "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
