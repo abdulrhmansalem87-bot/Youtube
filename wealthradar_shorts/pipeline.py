@@ -257,10 +257,70 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
     return final
 
 
+
+def upload_private_video(video_path: Path, title: str) -> str:
+    required = ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")
+    missing = [name for name in required if not os.getenv(name, "").strip()]
+    if missing:
+        raise RuntimeError(
+            "لا يمكن الرفع الخاص؛ أسرار GitHub الناقصة: " + ", ".join(missing)
+        )
+    from google.auth.transport.requests import Request
+    from google.oauth2.credentials import Credentials
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaFileUpload
+
+    credentials = Credentials(
+        token=None,
+        refresh_token=os.environ["YOUTUBE_REFRESH_TOKEN"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=os.environ["YOUTUBE_CLIENT_ID"],
+        client_secret=os.environ["YOUTUBE_CLIENT_SECRET"],
+        scopes=["https://www.googleapis.com/auth/youtube.upload"],
+    )
+    try:
+        credentials.refresh(Request())
+    except Exception as exc:
+        raise RuntimeError(
+            "فشل تجديد صلاحية YouTube OAuth. راجع Client ID وClient Secret وRefresh Token "
+            "وتأكد أنها من مشروع Google OAuth نفسه. لم يتم رفع الفيديو."
+        ) from None
+    if not credentials.valid:
+        raise RuntimeError("لم يؤكد Google صلاحية OAuth؛ لم يتم رفع الفيديو.")
+
+    youtube = build("youtube", "v3", credentials=credentials, cache_discovery=False)
+    request = youtube.videos().insert(
+        part="snippet,status",
+        body={
+            "snippet": {
+                "title": title[:100],
+                "description": "محتوى مالي تثقيفي من قناة WealthRadar.",
+                "categoryId": "27",
+                "defaultLanguage": "ar",
+                "tags": ["WealthRadar", "التمويل", "الاستثمار", "الثقافة المالية"],
+            },
+            "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False},
+        },
+        media_body=MediaFileUpload(str(video_path), mimetype="video/mp4", resumable=True),
+    )
+    response = request.execute()
+    video_id = response.get("id")
+    if not video_id:
+        raise RuntimeError("YouTube لم يُرجع معرّف الفيديو؛ تعذر تأكيد الرفع.")
+    confirmed = youtube.videos().list(part="status", id=video_id).execute()
+    items = confirmed.get("items", [])
+    if not items or items[0].get("status", {}).get("privacyStatus") != "private":
+        raise RuntimeError("لم يتم تأكيد أن الفيديو مرفوع بخصوصية Private.")
+    url = f"https://youtu.be/{video_id}"
+    print(f"[UPLOAD_PRIVATE_VERIFIED] {url}")
+    return url
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="WealthRadar Shorts producer")
     parser.add_argument("--plan", required=True, type=Path, help="JSON production plan")
     parser.add_argument("--validate-only", action="store_true")
+    parser.add_argument("--upload-private", action="store_true", help="Upload an existing rendered MP4 as private")
     parser.add_argument("--output", type=Path, default=ROOT / "output" / "wealthradar")
     args = parser.parse_args()
     plan = load_plan(args.plan)
@@ -271,6 +331,11 @@ def main() -> None:
         raise SystemExit(2)
     print("[PLAN_VALID] حزمة WealthRadar اجتازت فحص المواصفات.")
     if args.validate_only:
+        return
+    if args.upload_private:
+        video_path = args.output / "WealthRadar-Short.mp4"
+        validate_rendered_video(video_path)
+        upload_private_video(video_path, str(plan["title"]))
         return
     api_key = os.getenv("PEXELS_API_KEY", "").strip()
     if not api_key:
