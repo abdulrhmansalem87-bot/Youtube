@@ -58,10 +58,10 @@ def validate_plan(plan: dict) -> list[str]:
         if not query:
             errors.append(f"المشهد {index}: وصف B-roll بالإنجليزية مطلوب.")
         caption = scene.get("caption")
-        if not isinstance(caption, list) or not 2 <= len(caption) <= 3:
-            errors.append(f"المشهد {index}: اكتب كلمتين أو ثلاث كلمات مفتاحية.")
-        elif any(not isinstance(word, str) or not word.strip() for word in caption):
-            errors.append(f"المشهد {index}: الكلمات المفتاحية لا يمكن أن تكون فارغة.")
+        if not isinstance(caption, list) or any(not isinstance(word, str) or not word.strip() for word in caption):
+            errors.append(f"المشهد {index}: الكلمات المفتاحية غير صالحة.")
+        elif not 2 <= sum(len(_words(word)) for word in caption) <= 3:
+            errors.append(f"المشهد {index}: اكتب كلمتين أو ثلاث كلمات مفتاحية بالضبط.")
 
     if not 30 <= total <= 45:
         errors.append(f"إجمالي المشاهد {total:.1f} ثانية؛ المطلوب من 30 إلى 45 ثانية.")
