@@ -32,6 +32,20 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["rejected_count"], 1)
         self.assertEqual(report["status"], "blocked")
 
+
+    def test_rejects_generic_company_story_without_financial_angle(self):
+        report = review_stories([{
+            "id": "4",
+            "title": "شركة تعلن مبادرة مجتمعية جديدة",
+            "summary": "أطلقت الشركة مبادرة لدعم الأنشطة المجتمعية والتعليمية.",
+            "link": "https://example.com/community",
+            "source": "مصدر عام",
+            "category": "عام",
+            "published": "2026-11-10",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+
     def test_flags_short_summary_for_human_review(self):
         report = review_stories([{
             "id": "3",
