@@ -32,26 +32,37 @@ def collect(max_stories: int):
     for source in config().get("sources", []):
         try:
             parsed = feedparser.parse(source["url"])
-            for entry in parsed.entries[:30]:
+            for entry in parsed.entries[:40]:
                 link = entry.get("link", "").strip()
                 title = re.sub(r"\s+", " ", entry.get("title", "")).strip()
                 if not title or not link or link in seen:
                     continue
                 seen.add(link)
                 published = entry.get("published", entry.get("updated", ""))
+                published_struct = entry.get("published_parsed") or entry.get("updated_parsed")
+                published_ts = datetime(*published_struct[:6], tzinfo=timezone.utc).timestamp() if published_struct else 0
                 summary = re.sub(r"<[^>]+>", " ", entry.get("summary", ""))
                 summary = re.sub(r"\s+", " ", summary).strip()[:1200]
                 stories.append({
                     "id": hashlib.sha256(link.encode()).hexdigest()[:12],
                     "title": title, "link": link, "published": published,
-                    "summary": summary, "source": source["name"],
-                    "category": source.get("category", "عام"),
+                    "published_ts": published_ts, "summary": summary,
+                    "source": source["name"], "category": source.get("category", "عام"),
                 })
         except Exception as exc:
             print(f"[WARN] تعذر جلب {source.get('name')}: {exc}")
-    stories.sort(key=lambda x: x.get("published", ""), reverse=True)
-    return stories[:max_stories]
-
+    stories.sort(key=lambda item: item["published_ts"], reverse=True)
+    selected, source_counts = [], {}
+    for story in stories:
+        if source_counts.get(story["source"], 0) >= 3:
+            continue
+        selected.append(story)
+        source_counts[story["source"]] = source_counts.get(story["source"], 0) + 1
+        if len(selected) >= max_stories:
+            break
+    for story in selected:
+        story.pop("published_ts", None)
+    return selected
 
 def make_script(stories):
     parts = [
