@@ -539,3 +539,44 @@ def main():
         duration = float(probe.stdout.strip())
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
         if not 150 <= duration <= 210:
+            print("[WARN] مدة التعليق الصوتي بعيدة عن 3 دقائق؛ راجع النص أو عدد الأخبار قبل النشر.")
+
+    single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
+    video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
+    print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
+
+    long_video = bulletin / "long.mp4"
+    make_video(video_title, audio, long_video, short=False, stories=stories)
+    validate_video(long_video, audio)
+    if args.private_test:
+        youtube_upload(
+            long_video, video_title, description, tags,
+            privacy_override="private", credentials=auth_credentials
+        )
+        return
+    if upload_enabled:
+        youtube_upload(long_video, video_title, description, tags, credentials=auth_credentials)
+
+    # Shorts are separate story-specific narrations, not a vertical copy of the full bulletin.
+    if not single_long_upload:
+        shorts_dir = bulletin / "shorts"
+        shorts_dir.mkdir(exist_ok=True)
+        for index, story in enumerate(stories[:2], start=1):
+            short_script = make_short_script(story)
+            short_audio = shorts_dir / f"short-{index}.mp3"
+            short_video = shorts_dir / f"short-{index}.mp4"
+            asyncio.run(make_audio(short_script, short_audio))
+            short_title, short_description, short_tags = build_youtube_metadata([story], short_script)
+            short_title = f"{story['title'][:75]} | WealthRadar #Shorts"
+            make_video(short_title, short_audio, short_video, short=True, stories=[story])
+            validate_video(short_video, short_audio, expected_short=True)
+            print(f"[SHORT_READY] {short_video} duration-specific_story={story['id']}")
+            if upload_enabled:
+                youtube_upload(
+                    short_video, short_title, short_description, short_tags,
+                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "public"), credentials=auth_credentials
+                )
+
+
+if __name__ == "__main__":
+    main()
