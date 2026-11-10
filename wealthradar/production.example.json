@@ -1,43 +1,168 @@
 {
   "brand": "WealthRadar",
-  "title": "سرّ لا يخبرك به البنك #shorts",
-  "loop_phrase": "سر البنك",
+  "title": "سرّ التمويل الذي لا يراه الناس #shorts",
+  "loop_phrase": "سرّ التمويل",
   "narration": [
-    "سر البنك قد يغيّر طريقة تفكيرك.",
-    "لا تنظر إلى القسط وحده.",
-    "احسب الفائدة والرسوم قبل التوقيع.",
-    "سر البنك قد يغيّر قرارك."
+    "سرّ التمويل يبدأ من قيمة أصولك.",
+    "بعض المستثمرين لا يبيعون كل استثماراتهم.",
+    "قد يستخدمون أصولهم ضماناً للحصول على قرض.",
+    "بهذا يحتفظون باستثماراتهم بدل بيعها فوراً.",
+    "لكن القرض ليس مالاً مجانياً أبداً.",
+    "هناك فوائد ورسوم وشروط يجب فهمها.",
+    "إذا هبطت قيمة الأصل، تتغير المخاطر.",
+    "وقد يطلب المقرض ضمانات إضافية بسرعة.",
+    "أحياناً يضطر المستثمر للبيع بخسارة.",
+    "لذلك لا تقارن الثروة بالمظاهر فقط.",
+    "افهم التدفقات النقدية قبل أي قرار.",
+    "احسب تكلفة الاقتراض على المدى الطويل.",
+    "قارنها بالعائد المتوقع بعد المخاطر.",
+    "ولا تفترض أن الاستثمار سيرتفع دائماً.",
+    "احتفظ باحتياطي لمواجهة التقلبات المفاجئة.",
+    "واقرأ شروط القرض قبل التوقيع.",
+    "هذه هي الثقافة المالية الحقيقية.",
+    "قرار مدروس يحمي ما بنيته.",
+    "لا تستلف لتبدو غنياً أمام الناس.",
+    "سرّ التمويل هو فهم الأصول والمخاطر."
   ],
   "scenes": [
     {
       "duration": 2,
-      "query": "modern bank vault cinematic portrait",
+      "query": "wealthy investor modern office portrait",
       "caption": [
-        "سر البنك"
+        "قيمة الأصول"
       ]
     },
     {
       "duration": 2,
-      "query": "financial advisor office portrait",
+      "query": "investor reviewing portfolio laptop portrait",
       "caption": [
-        "فكّر جيداً",
-        "قبل التوقيع"
+        "استثمارات قائمة"
       ]
     },
     {
       "duration": 2,
-      "query": "calculator money closeup portrait",
+      "query": "bank collateral documents closeup portrait",
       "caption": [
-        "الفائدة",
-        "والرسوم"
+        "الأصول ضمان"
       ]
     },
     {
       "duration": 2,
-      "query": "businessman reviewing contract portrait",
+      "query": "businessman holding investment report portrait",
       "caption": [
-        "قرار مالي",
-        "ذكي"
+        "لا تبيع"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "loan contract signing closeup portrait",
+      "caption": [
+        "ليس مجانياً"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "interest rate calculator portrait",
+      "caption": [
+        "فوائد ورسوم"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "stock market decline red chart portrait",
+      "caption": [
+        "قيمة الأصل"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "bank advisor discussing collateral portrait",
+      "caption": [
+        "ضمانات إضافية"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "investor worried financial loss portrait",
+      "caption": [
+        "بيع بخسارة"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "luxury shopping versus savings portrait",
+      "caption": [
+        "المظاهر تخدع"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "cash flow business ledger portrait",
+      "caption": [
+        "تدفق نقدي"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "calculator long term loan interest portrait",
+      "caption": [
+        "تكلفة الاقتراض"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "investment return graph risk analysis portrait",
+      "caption": [
+        "عائد ومخاطر"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "volatile stock market trading screen portrait",
+      "caption": [
+        "ليس مضموناً"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "emergency savings cash envelope portrait",
+      "caption": [
+        "احتياطي مالي"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "person reading loan agreement portrait",
+      "caption": [
+        "اقرأ الشروط"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "financial literacy books desk portrait",
+      "caption": [
+        "ثقافة مالية"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "calm investor planning finances portrait",
+      "caption": [
+        "قرار مدروس"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "man rejecting luxury impulse purchase portrait",
+      "caption": [
+        "لا تتظاهر"
+      ]
+    },
+    {
+      "duration": 2,
+      "query": "wealth management assets portfolio portrait",
+      "caption": [
+        "سرّ التمويل"
       ]
     }
   ]
