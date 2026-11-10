@@ -370,10 +370,13 @@ def upload_private_video(video_path: Path, title: str) -> str:
     video_id = response.get("id")
     if not video_id:
         raise RuntimeError("YouTube لم يُرجع معرّف الفيديو؛ تعذر تأكيد الرفع.")
-    confirmed = youtube.videos().list(part="status", id=video_id).execute()
-    items = confirmed.get("items", [])
-    if not items or items[0].get("status", {}).get("privacyStatus") != "private":
-        raise RuntimeError("لم يتم تأكيد أن الفيديو مرفوع بخصوصية Private.")
+    # The insert response already includes the requested status because part="snippet,status".
+    # Avoid a follow-up videos.list call: the configured youtube.upload OAuth scope cannot read status.
+    returned_status = response.get("status", {}).get("privacyStatus")
+    if returned_status != "private":
+        raise RuntimeError(
+            "استجابة YouTube لم تؤكد أن الفيديو مرفوع بخصوصية Private؛ لن نعلن نجاح الرفع."
+        )
     url = f"https://youtu.be/{video_id}"
     print(f"[UPLOAD_PRIVATE_VERIFIED] {url}")
     return url
