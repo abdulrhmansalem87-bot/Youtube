@@ -7,7 +7,7 @@ on:
         description: "Validate the production plan without rendering or uploading"
         required: true
         type: boolean
-        default: true
+        default: false
       plan_path:
         description: "Path to the WealthRadar JSON production plan"
         required: true
@@ -17,7 +17,7 @@ on:
         description: "Upload the rendered Short to YouTube as PRIVATE (requires YouTube OAuth secrets)"
         required: true
         type: boolean
-        default: false
+        default: true
 
 permissions:
   contents: read
