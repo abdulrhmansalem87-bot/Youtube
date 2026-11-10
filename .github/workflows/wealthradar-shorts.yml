@@ -13,6 +13,11 @@ on:
         required: true
         type: string
         default: "wealthradar/production.example.json"
+      upload_private:
+        description: "Upload the rendered Short to YouTube as PRIVATE (requires YouTube OAuth secrets)"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -46,6 +51,13 @@ jobs:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           WEALTHRADAR_TTS_VOICE: ar-EG-ShakirNeural
         run: python -m wealthradar_shorts --plan "${{ inputs.plan_path }}"
+      - name: Upload WealthRadar Short privately
+        if: ${{ !inputs.validate_only && inputs.upload_private }}
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: python -m wealthradar_shorts --plan "${{ inputs.plan_path }}" --upload-private
       - name: Save production artifacts
         if: ${{ always() && !inputs.validate_only }}
         uses: actions/upload-artifact@v4
