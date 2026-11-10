@@ -71,10 +71,10 @@ jobs:
         env:
           NEWSFLOW_MAX_STORIES: "8"
           NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
-          NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.editorial_approved && 'true' || 'false' }}
-          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.editorial_approved && 'true' || 'false' }}
+          NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && inputs.editorial_approved && 'true' || 'false' }}
+          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'schedule' && 'true' || github.event_name == 'workflow_dispatch' && inputs.editorial_approved && 'true' || 'false' }}
           YOUTUBE_UPLOAD_SINGLE_LONG: "false"
-          YOUTUBE_PRIVACY_STATUS: "private"
+          YOUTUBE_PRIVACY_STATUS: "public"
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
