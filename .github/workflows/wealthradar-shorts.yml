@@ -47,22 +47,27 @@ jobs:
           sudo apt-get install -y ffmpeg fonts-dejavu-core
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Resolve production plan
+        run: |
+          PLAN_PATH="${{ inputs.plan_path }}"
+          if [ -z "$PLAN_PATH" ]; then PLAN_PATH="wealthradar/production.example.json"; fi
+          echo "WEALTHRADAR_PLAN=$PLAN_PATH" >> "$GITHUB_ENV"
       - name: Validate production plan
         if: ${{ inputs.validate_only }}
-        run: python -m wealthradar_shorts --plan "${{ inputs.plan_path }}" --validate-only
+        run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN" --validate-only
       - name: Render WealthRadar Short
         if: ${{ !inputs.validate_only }}
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           WEALTHRADAR_TTS_VOICE: ar-EG-ShakirNeural
-        run: python -m wealthradar_shorts --plan "${{ inputs.plan_path }}"
+        run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN"
       - name: Upload WealthRadar Short privately
         if: ${{ !inputs.validate_only && (inputs.upload_private || github.event_name == 'push') }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-        run: python -m wealthradar_shorts --plan "${{ inputs.plan_path }}" --upload-private
+        run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN" --upload-private
       - name: Save production artifacts
         if: ${{ always() && !inputs.validate_only }}
         uses: actions/upload-artifact@v4
