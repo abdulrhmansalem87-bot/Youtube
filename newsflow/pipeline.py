@@ -42,7 +42,7 @@ def collect(max_stories: int):
                 published_struct = entry.get("published_parsed") or entry.get("updated_parsed")
                 published_ts = datetime(*published_struct[:6], tzinfo=timezone.utc).timestamp() if published_struct else 0
                 summary = re.sub(r"<[^>]+>", " ", entry.get("summary", ""))
-                summary = re.sub(r"\s+", " ", summary).strip()[:1200]
+                summary = re.sub(r"\s+", " ", summary).strip()[:280]
                 stories.append({
                     "id": hashlib.sha256(link.encode()).hexdigest()[:12],
                     "title": title, "link": link, "published": published,
@@ -408,7 +408,8 @@ def main():
         if not 150 <= duration <= 210:
             print("[WARN] مدة التعليق الصوتي بعيدة عن 3 دقائق؛ راجع النص أو عدد الأخبار قبل النشر.")
 
-    variants = (("long", False),) if args.private_test else (("long", False), ("short", True))
+    single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
+    variants = (("long", False),) if args.private_test or single_long_upload else (("long", False), ("short", True))
     video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
     for label, short in variants:
