@@ -46,7 +46,10 @@ def story_topic_key(story: dict) -> str:
     is_gold = "ذهب" in title or "gold" in title
     is_daily = "اليوم" in title or "today" in title
     is_local = any(name.casefold() in title for name in LOCAL_GOLD_MARKET_NAMES)
-    if is_gold and is_daily and is_local:
+    is_gold_price = any(
+        term in title for term in ("سعر الذهب", "أسعار الذهب", "جنيه الذهب", "gold price")
+    )
+    if is_gold and is_local and (is_daily or is_gold_price):
         return "daily-local-gold-price"
     return str(story.get("id") or title)
 
@@ -274,6 +277,20 @@ def find_font(bold=False):
     return None
 
 
+SOURCE_DISPLAY_NAMES = {
+    "CNBC عربية - أسواق المال": "سي إن بي سي عربية - أسواق المال",
+    "CNBC عربية - أخبار الشركات": "سي إن بي سي عربية - أخبار الشركات",
+    "BBC Arabic": "بي بي سي عربي",
+    "Al Jazeera": "الجزيرة",
+    "IMF": "صندوق النقد الدولي",
+    "UN News Arabic": "أخبار الأمم المتحدة",
+}
+
+
+def source_display_name(value: str) -> str:
+    return SOURCE_DISPLAY_NAMES.get(str(value or "").strip(), "مصدر الخبر")
+
+
 def make_video(title, audio, output, short=False, stories=None):
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
@@ -288,6 +305,8 @@ def make_video(title, audio, output, short=False, stories=None):
     body_font = ImageFont.truetype(regular_path, body_font_size) if regular_path else ImageFont.load_default()
     small_font = ImageFont.truetype(bold_path or regular_path, small_font_size) if bold_path or regular_path else ImageFont.load_default()
     english_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", max(22, small_font_size - 5)) if Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf").exists() else small_font
+    brand_font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    brand_font = ImageFont.truetype(brand_font_path, heading_font_size) if Path(brand_font_path).exists() else heading_font
 
     probe = subprocess.run(
         [ffprobe, "-v", "error", "-show_entries", "format=duration",
@@ -299,7 +318,7 @@ def make_video(title, audio, output, short=False, stories=None):
     cards = [("إيه الحكاية؟", make_opening_hook(story_list), "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر", "THE STORY BEHIND THE HEADLINE")]
     for index, story in enumerate(story_list, start=1):
         cards.append((
-            f"الخبر {index:02d} • {story.get('source', 'المصدر')}",
+            f"الخبر {index:02d} • {source_display_name(story.get('source', 'المصدر'))}",
             clean_narration(story.get("title", "")),
             clean_narration(story.get("summary", "")[:520]) or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
             f"STORY {index:02d}  |  MARKET WATCH"
@@ -352,7 +371,7 @@ def make_video(title, audio, output, short=False, stories=None):
                 (int(width*.075), int(height*.085), int(width*.925), int(height*.19)),
                 radius=28, fill=(17, 45, 65), outline=(35, 87, 105), width=2
             )
-            draw.text((width//2, int(height*.12)), "WealthRadar", font=heading_font,
+            draw.text((width//2, int(height*.12)), "WealthRadar", font=brand_font,
                       fill=(247, 250, 255), anchor="mm")
             draw.text((width//2, int(height*.165)), "MONEY  •  MARKETS  •  BUSINESS",
                       font=english_font, fill=accent, anchor="mm")
@@ -501,6 +520,15 @@ def validate_youtube_auth():
     return creds
 
 
+def resolve_upload_privacy(privacy_override: str | None = None) -> str:
+    status = str(
+        privacy_override or os.getenv("YOUTUBE_PRIVACY_STATUS", "private")
+    ).strip().lower()
+    if status != "private":
+        raise ValueError("WealthRadar uploads are restricted to PRIVATE privacy.")
+    return status
+
+
 def youtube_upload(
     video_path: Path, title: str, description: str, tags: list[str],
     privacy_override: str | None = None, credentials=None
@@ -512,9 +540,7 @@ def youtube_upload(
     from googleapiclient.http import MediaFileUpload
     creds = credentials or create_youtube_credentials()
     youtube = build("youtube", "v3", credentials=creds)
-    status = privacy_override or os.getenv("YOUTUBE_PRIVACY_STATUS", "private")
-    if status not in {"private", "unlisted", "public"}:
-        raise ValueError("YOUTUBE_PRIVACY_STATUS must be private, unlisted, or public")
+    status = resolve_upload_privacy(privacy_override)
     body = {
         "snippet": {"title": title[:100], "description": description[:5000], "tags": tags,
                     "categoryId": os.getenv("YOUTUBE_CATEGORY_ID", "25"),
