@@ -225,6 +225,9 @@ def clean_narration(value):
     text = html.unescape(str(value or ""))
     text = re.sub(r"<[^>]+>", " ", text)
     text = text.replace("\u200f", " ").replace("\u200e", " ")
+    # Keep Arabic brand/story names readable; remove English-only parenthetical aliases
+    # that the Arabic card font cannot render consistently (e.g. "(Siemens Energy)").
+    text = re.sub(r"\(\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\s*\)", " ", text)
     text = re.sub(r"[|*_~]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"\.{2,}", ".", text)
