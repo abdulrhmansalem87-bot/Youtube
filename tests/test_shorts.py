@@ -22,7 +22,7 @@ class ShortScriptTests(unittest.TestCase):
             "summary": "ارتفع التضخم الأساسي في الولايات المتحدة خلال أكتوبر.",
             "source": "Reuters",
         }])
-        self.assertIn("أهلاً بكم في أهم الأخبار", script)
+        self.assertIn("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar", script)
 
     def test_short_uses_safe_fallback_when_summary_missing(self):
         script = make_short_script({"title": "تطور اقتصادي جديد", "source": "المصدر"})
