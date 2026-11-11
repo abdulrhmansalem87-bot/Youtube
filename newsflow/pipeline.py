@@ -116,20 +116,20 @@ def collect(max_stories: int):
     return selected, rejected
 
 def make_opening_hook(stories):
-    """Lead with the strongest verified story; no invented urgency or promises."""
+    """Lead with the strongest verified story in clear modern Arabic."""
     if not stories:
-        return "إيه أهم حاجة بتحرك الأسواق النهارده؟ خلينا نفهم الصورة ببساطة."
+        return "ما أبرز ما يحرك الأسواق اليوم؟ إليك الصورة ببساطة."
     lead = clean_narration(stories[0].get("title", ""))
     lead = re.sub(r"^(عاجل|آخر الأخبار|أخبار اليوم)\s*[:：-]?\s*", "", lead, flags=re.I)
     if len(lead) > 115:
         lead = lead[:112].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
-    return f"{lead}. إيه اللي حصل، وليه الخبر ده يستحق انتباهك؟"
+    return f"{lead}. ما الذي حدث؟ ولماذا يهمك الخبر؟"
 
 
 def make_script(stories):
     parts = [
         make_opening_hook(stories),
-        "أهلاً بكم في أهم الأخبار على WealthRadar. هنشرح الخبر من غير تهويل، ونفصل بين المعلومة المؤكدة وما زال يحتاج متابعة."
+        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar. سنعرض الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
     ]
     for index, story in enumerate(stories, start=1):
         summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
@@ -158,10 +158,11 @@ def make_short_script(story):
     if len(hook) > 105:
         hook = hook[:102].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
     return (
-        f"{hook} — إيه اللي وراه؟ "
+        f"{hook}. ما الذي يقف وراء الخبر؟ "
         f"{clean_narration(summary)} "
-        f"وفقاً لما أورده {source}. "
-        "دي معلومة للمتابعة وليست توصية استثمارية؛ راجع التفاصيل قبل أي قرار. "
+        f"بحسب {source}. "
+        "هذه معلومات للمتابعة، وليست توصية استثمارية. "
+        "راجع المصدر قبل اتخاذ أي قرار مالي. "
         "تابع WealthRadar للمزيد."
     )
 
