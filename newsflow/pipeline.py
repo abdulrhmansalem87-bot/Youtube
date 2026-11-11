@@ -90,7 +90,7 @@ def make_opening_hook(stories):
 def make_script(stories):
     parts = [
         make_opening_hook(stories),
-        "أهلاً بكم في WealthRadar. هنشرح الخبر من غير تهويل، ونفصل بين المعلومة المؤكدة وما زال يحتاج متابعة."
+        "أهلاً بكم في أهم الأخبار على WealthRadar. هنشرح الخبر من غير تهويل، ونفصل بين المعلومة المؤكدة وما زال يحتاج متابعة."
     ]
     for index, story in enumerate(stories, start=1):
         summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
@@ -260,7 +260,7 @@ def make_video(title, audio, output, short=False, stories=None):
     )
     total_duration = float(probe.stdout.strip())
     story_list = stories or []
-    cards = [("إيه الحكاية؟", lead_hook, "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر", "THE STORY BEHIND THE HEADLINE")]
+    cards = [("إيه الحكاية؟", make_opening_hook(story_list), "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر", "THE STORY BEHIND THE HEADLINE")]
     for index, story in enumerate(story_list, start=1):
         cards.append((
             f"الخبر {index:02d} • {story.get('source', 'المصدر')}",
