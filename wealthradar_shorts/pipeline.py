@@ -321,6 +321,33 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
 
 
 
+def verify_target_channel(youtube, expected_title: str | None = None) -> str:
+    """Fail closed unless the OAuth account owns exactly one WealthRadar channel."""
+    expected = str(
+        expected_title or os.getenv("YOUTUBE_EXPECTED_CHANNEL_TITLE", "WealthRadar")
+    ).strip().casefold()
+    try:
+        response = youtube.channels().list(
+            part="snippet", mine=True, maxResults=50
+        ).execute()
+    except Exception:
+        raise RuntimeError(
+            "تعذر التحقق من قناة WealthRadar عبر channels.list(mine=true). "
+            "لن يتم رفع أي فيديو؛ قد لا تتضمن صلاحية OAuth الحالية القراءة المطلوبة."
+        ) from None
+    matches = [
+        item for item in response.get("items", [])
+        if str(item.get("snippet", {}).get("title", "")).strip().casefold() == expected
+    ]
+    if len(matches) != 1 or not matches[0].get("id"):
+        raise RuntimeError(
+            "تعذر تأكيد قناة WealthRadar المستهدفة بشكل فريد؛ تم إيقاف الرفع."
+        )
+    channel_id = str(matches[0]["id"])
+    print(f"[CHANNEL_VERIFIED] title={expected_title or 'WealthRadar'} id={channel_id}")
+    return channel_id
+
+
 def upload_private_video(video_path: Path, title: str) -> str:
     required = ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")
     missing = [name for name in required if not os.getenv(name, "").strip()]
@@ -352,6 +379,7 @@ def upload_private_video(video_path: Path, title: str) -> str:
         raise RuntimeError("لم يؤكد Google صلاحية OAuth؛ لم يتم رفع الفيديو.")
 
     youtube = build("youtube", "v3", credentials=credentials, cache_discovery=False)
+    target_channel_id = verify_target_channel(youtube)
     request = youtube.videos().insert(
         part="snippet,status",
         body={
@@ -373,12 +401,15 @@ def upload_private_video(video_path: Path, title: str) -> str:
     # The insert response already includes the requested status because part="snippet,status".
     # Avoid a follow-up videos.list call: the configured youtube.upload OAuth scope cannot read status.
     returned_status = response.get("status", {}).get("privacyStatus")
+    returned_channel_id = response.get("snippet", {}).get("channelId")
     if returned_status != "private":
         raise RuntimeError(
             "استجابة YouTube لم تؤكد أن الفيديو مرفوع بخصوصية Private؛ لن نعلن نجاح الرفع."
         )
+    if returned_channel_id != target_channel_id:
+        raise RuntimeError("استجابة YouTube لا تطابق القناة التي تم التحقق منها؛ لن نعلن نجاح الرفع.")
     url = f"https://youtu.be/{video_id}"
-    print(f"[UPLOAD_PRIVATE_VERIFIED] {url}")
+    print(f"[UPLOAD_PRIVATE_VERIFIED] {url} channel={target_channel_id}")
     return url
 
 
