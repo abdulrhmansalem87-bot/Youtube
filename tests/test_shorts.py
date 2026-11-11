@@ -14,7 +14,7 @@ class ShortScriptTests(unittest.TestCase):
         self.assertIn(story["title"], script)
         self.assertIn(story["summary"], script)
         self.assertIn("WealthRadar", script)
-        self.assertIn("لا يمثل توصية", script)
+        self.assertIn("ليست توصية استثمارية", script)
 
     def test_short_uses_safe_fallback_when_summary_missing(self):
         script = make_short_script({"title": "تطور اقتصادي جديد", "source": "المصدر"})
