@@ -12,11 +12,11 @@ from urllib.parse import urlparse
 FINANCE_TERMS = (
     "اقتصاد", "اقتصادي", "مالية", "مالي", "أسواق", "سوق", "بورصة",
     "أسهم", "سهم", "استثمار", "مستثمر", "بنك", "مصرف", "فائدة", "تضخم",
-    "أسعار", "عملة", "عملات", "دولار", "جنيه", "يورو", "ذهب", "نفط",
+    "عملة", "عملات", "دولار", "جنيه", "يورو", "الذهب", "أسعار الذهب", "سعر الذهب", "عيار 21", "سبائك", "نفط", "النفط",
     "غاز", "طاقة", "تجارة", "صادرات", "واردات", "ديون", "سندات",
     "ميزانية", "إيرادات", "أرباح", "خسائر", "استحواذ",
     "اكتتاب", "تمويل", "ائتمان", "ضرائب", "رسوم", "تحويلات", "احتياطي",
-    "ناتج محلي", "بطالة", "أجور", "عقارات", "صناعة", "إنتاج",
+    "ناتج محلي", "بطالة", "أجور", "عقارات", "مديونية", "موازنة", "سعر الصرف", "مبيعات", "إنتاج صناعي",
     "financial", "economy", "economic", "market", "markets", "stock",
     "stocks", "shares", "bank", "banking", "interest", "inflation",
     "currency", "dollar", "euro", "gold", "oil", "gas", "energy",
@@ -42,16 +42,22 @@ def relevance(story: dict) -> tuple[bool, str]:
     title = str(story.get("title", "")).strip()
     summary = str(story.get("summary", "")).strip()
     category = str(story.get("category", "")).strip()
-    searchable = f"{title} {summary}"
-    finance_hit = _has_term(searchable, FINANCE_TERMS)
-    sport_hit = _has_term(searchable, SPORT_TERMS)
-    if sport_hit and not finance_hit:
+    title_hits = {term for term in FINANCE_TERMS if term.casefold() in title.casefold()}
+    all_hits = {term for term in FINANCE_TERMS if term.casefold() in f"{title} {summary}".casefold()}
+    sport_hit = _has_term(f"{title} {summary}", SPORT_TERMS)
+
+    # A broad word such as "economic" in a political or lifestyle story is not
+    # enough. Require a finance signal in the headline or at least two distinct
+    # finance signals in the article summary.
+    if sport_hit and not title_hits:
         return False, "محتوى رياضي لا يرتبط مباشرة بالمال أو الاقتصاد"
-    if finance_hit:
-        return True, "يتضمن مؤشرات أو موضوعات مالية واقتصادية"
-    if category and category not in GENERIC_CATEGORIES and _has_term(category, FINANCE_TERMS):
-        return True, "تصنيف المصدر اقتصادي أو مالي"
-    return False, "لا توجد صلة مالية أو اقتصادية واضحة في العنوان أو الملخص"
+    if title_hits:
+        return True, "يتضمن العنوان مؤشراً مالياً أو اقتصادياً واضحاً"
+    if len(all_hits) >= 2:
+        return True, "يتضمن الملخص أكثر من مؤشر مالي أو اقتصادي"
+    if category and category not in GENERIC_CATEGORIES and len(all_hits) >= 1:
+        return True, "التصنيف والملخص يشيران معاً إلى صلة مالية"
+    return False, "الصلة المالية غير كافية أو لا تظهر بوضوح في العنوان والملخص"
 
 
 def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
