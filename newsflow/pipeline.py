@@ -89,23 +89,51 @@ def make_opening_hook(stories):
 
 def make_script(stories):
     parts = [
-        make_opening_hook(stories),
-        "أهلاً بكم في WealthRadar. هنشرح الخبر من غير تهويل، ونفصل بين المعلومة المؤكدة وما زال يحتاج متابعة."
+        make_opening_hook(stories)
+        + " أهلاً بكم في أهم الأخبار، معكم WealthRadar. "
+        + "هنشرح أبرز التطورات بهدوء، ونفرّق بين الأرقام المؤكدة وما زال يحتاج متابعة."
     ]
     for index, story in enumerate(stories, start=1):
-        summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
+        summary = clean_narration(story.get("summary", "")) or (
+            "لم يرفق المصدر ملخصاً كافياً؛ راجعوا الرابط الأصلي قبل اعتماد التفاصيل."
+        )
         parts.append(
-            f"الخبر {index}: {story['title']}. "
-            f"{summary} بحسب {story['source']}. "
-            "تابعوا رابط المصدر في وصف الفيديو للتفاصيل."
+            f"الخبر {index}: {clean_narration(story.get('title', ''))}. "
+            f"{summary} بحسب {story.get('source', 'المصدر الأصلي')}. "
+            "ستجدون رابط المصدر في وصف الفيديو."
         )
     parts.append(
-        "كانت هذه أبرز أخبار المال والاقتصاد لهذا اليوم. "
-        "تذكّروا أن الأخبار والمعلومات الواردة من المصادر قد تتغير، "
-        "وأن هذا الموجز لا يمثل نصيحة استثمارية. "
-        "ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس."
+        "كانت هذه أبرز أخبار المال والاقتصاد اليوم. "
+        "تذكّروا أن الأرقام والتطورات قد تتغير مع صدور بيانات جديدة، "
+        "وأن هذا الموجز للمعلومات والمتابعة ولا يمثل نصيحة استثمارية. "
+        "اشتركوا في WealthRadar وفعّلوا زر الجرس حتى يصلكم كل جديد."
     )
     return "\n\n".join(parts)
+
+
+def build_video_cards(stories):
+    story_list = stories or []
+    lead_hook = make_opening_hook(story_list)
+    cards = [
+        ("إيه الحكاية؟", lead_hook,
+         "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر",
+         "THE STORY BEHIND THE HEADLINE")
+    ]
+    for index, story in enumerate(story_list, start=1):
+        cards.append((
+            f"الخبر {index:02d} • {story.get('source', 'المصدر')}",
+            clean_narration(story.get("title", "")),
+            clean_narration(story.get("summary", "")[:520])
+            or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
+            f"STORY {index:02d}  |  MARKET WATCH"
+        ))
+    cards.append((
+        "قبل أي قرار مالي",
+        "تابع المصدر الأصلي وقارن المعلومات",
+        "اشترك في WealthRadar وفعّل زر الجرس لمتابعة موجز الأخبار القادم",
+        "FOLLOW • SUBSCRIBE • STAY INFORMED"
+    ))
+    return cards
 
 
 def make_short_script(story):
@@ -260,20 +288,7 @@ def make_video(title, audio, output, short=False, stories=None):
     )
     total_duration = float(probe.stdout.strip())
     story_list = stories or []
-    cards = [("إيه الحكاية؟", lead_hook, "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر", "THE STORY BEHIND THE HEADLINE")]
-    for index, story in enumerate(story_list, start=1):
-        cards.append((
-            f"الخبر {index:02d} • {story.get('source', 'المصدر')}",
-            clean_narration(story.get("title", "")),
-            clean_narration(story.get("summary", "")[:520]) or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
-            f"STORY {index:02d}  |  MARKET WATCH"
-        ))
-    cards.append((
-        "قبل أي قرار مالي",
-        "تابع المصدر الأصلي وقارن المعلومات",
-        "اشترك في WealthRadar وفعّل زر الجرس لمتابعة موجز الأخبار القادم",
-        "FOLLOW • SUBSCRIBE • STAY INFORMED"
-    ))
+    cards = build_video_cards(story_list)
 
     weights = [max(60, len(head) + len(body)) for _, head, body, _ in cards]
     weight_total = sum(weights)
@@ -496,9 +511,10 @@ def youtube_upload(
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
-    parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "8")))
+    parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy")
     args = parser.parse_args()
+    args.max_stories = min(max(args.max_stories, 1), 4)
     if args.private_test and args.dry_run:
         parser.error("--private-test cannot be combined with --dry-run")
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
@@ -561,7 +577,10 @@ def main():
         duration = float(probe.stdout.strip())
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
         if not 150 <= duration <= 210:
-            print("[WARN] مدة التعليق الصوتي بعيدة عن 3 دقائق؛ راجع النص أو عدد الأخبار قبل النشر.")
+            raise RuntimeError(
+                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف 150–210 ثانية؛ "
+                "تم إيقاف بناء الفيديو بدلاً من إخراج نشرة بطول غير مناسب."
+            )
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
     video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
