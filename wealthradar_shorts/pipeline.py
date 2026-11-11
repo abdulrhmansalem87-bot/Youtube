@@ -118,34 +118,25 @@ def _download(url: str, destination: Path) -> None:
         shutil.copyfileobj(response, output)
 
  
-def _render_fallback_segment(ffmpeg: str, segment: Path, ass: Path, seconds: float, index: int) -> None:
-    """Render an original branded finance graphic when stock footage is unavailable."""
-    palettes = [
-        ("0B1220", "15304A", "18A6A6"),
-        ("101827", "243B55", "D6A84F"),
-        ("0B1726", "183B4E", "3AA6B9"),
-        ("15172B", "34345C", "D6A84F"),
-        ("0B1C24", "164B4B", "40B89A"),
-    ]
-    base, panel, accent = palettes[(index - 1) % len(palettes)]
-    subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
-    vf = (
-        f"drawbox=x=72:y=250:w=936:h=5:color=0x{accent}@0.95:t=fill,"
-        f"drawbox=x=72:y=255:w=936:h=310:color=0x{panel}@0.72:t=fill,"
-        f"drawbox=x=72:y=590:w=936:h=5:color=0x{accent}@0.65:t=fill,"
-        f"drawbox=x=120:y=1120:w=840:h=3:color=0x{accent}@0.55:t=fill,"
-        f"drawbox=x=120:y=1123:w=840:h=220:color=0x{panel}@0.48:t=fill,"
-        f"subtitles='{subtitle_path}'"
+def require_pexels_api_key(api_key: str) -> str:
+    value = str(api_key or "").strip()
+    if not value:
+        raise RuntimeError(
+            "PEXELS_API_KEY is unavailable; refusing to render without licensed B-roll."
+        )
+    return value
+
+
+def stock_footage_error(index: int, exc: Exception) -> RuntimeError:
+    status = getattr(exc, "code", None)
+    detail = f"HTTP {status}" if status is not None else type(exc).__name__
+    reason = getattr(exc, "reason", None)
+    if reason:
+        detail += f" ({str(reason)[:120]})"
+    return RuntimeError(
+        f"تعذر الحصول على B-roll مرخّص للمشهد {index} ({detail}). "
+        "أُوقف إنتاج الفيديو؛ الخلفيات الثابتة غير مسموح بها."
     )
-    _run([
-        ffmpeg, "-y", "-f", "lavfi", "-i",
-        f"color=c=0x{base}:s=1080x1920:r=30:d={seconds:.2f}",
-        "-vf", vf, "-an", "-r", "30", "-c:v", "libx264",
-        "-preset", "veryfast", "-pix_fmt", "yuv420p", str(segment),
-    ])
-    print(f"[BRANDED_SCENE_FALLBACK] scene={index} | original graphics used")
-
-
 
 
 def _run(command: list[str]) -> None:
@@ -255,6 +246,7 @@ def validate_rendered_video(path: Path) -> float:
 
 
 def render(plan: dict, output: Path, api_key: str) -> Path:
+    api_key = require_pexels_api_key(api_key)
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:
@@ -298,8 +290,10 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
                     "-pix_fmt", "yuv420p", str(segment),
                 ])
             except Exception as exc:
-                print(f"[STOCK_FOOTAGE_UNAVAILABLE] scene={index} | {type(exc).__name__} | using branded fallback")
-                _render_fallback_segment(ffmpeg, segment, ass, seconds, index)
+                failure = stock_footage_error(index, exc)
+                status = getattr(exc, "code", type(exc).__name__)
+                print(f"[STOCK_FOOTAGE_FATAL] scene={index} | {status}")
+                raise failure from None
             segments.append(segment)
 
         concat = work / "concat.txt"

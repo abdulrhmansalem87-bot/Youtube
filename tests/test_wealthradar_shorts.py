@@ -1,7 +1,14 @@
 import unittest
 
-from wealthradar_shorts.pipeline import validate_plan, validate_video_probe, verify_target_channel
+from urllib.error import HTTPError
 
+from wealthradar_shorts.pipeline import (
+    require_pexels_api_key,
+    stock_footage_error,
+    validate_plan,
+    validate_video_probe,
+    verify_target_channel,
+)
 
 def valid_plan():
     return {
@@ -75,6 +82,18 @@ class WealthRadarChannelVerificationTests(unittest.TestCase):
                 return type("Channels", (), {"list": lambda self, **kwargs: Request()})()
         with self.assertRaisesRegex(RuntimeError, "لن يتم رفع أي فيديو"):
             verify_target_channel(Service())
+
+
+class WealthRadarBrollSafetyTests(unittest.TestCase):
+    def test_missing_pexels_key_blocks_rendering(self):
+        with self.assertRaisesRegex(RuntimeError, "licensed B-roll"):
+            require_pexels_api_key("")
+
+    def test_http_error_is_fatal_and_never_uses_static_fallback(self):
+        exc = HTTPError("https://api.pexels.com/videos/search", 401, "Unauthorized", None, None)
+        error = stock_footage_error(3, exc)
+        self.assertIn("HTTP 401", str(error))
+        self.assertIn("الخلفيات الثابتة غير مسموح بها", str(error))
 
 
 class WealthRadarRenderedVideoTests(unittest.TestCase):
