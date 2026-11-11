@@ -46,6 +46,19 @@ EXPLICIT_FINANCE_CATEGORIES = {
     "أسواق المال", "اقتصاد", "اقتصادي", "اقتصاد عالمي",
     "financial markets", "finance", "financial", "markets", "business",
 }
+POLITICAL_TITLE_TERMS = (
+    "هزيمة", "صراع سياسي", "صراع انتخابي", "انتخابات", "الانتخابات",
+    "الكونغرس", "ترمب", "ترامب", "رئيس", "الرئيس", "سياسي", "سياسية",
+    "politics", "political", "election", "congress", "president",
+)
+GENERIC_ECONOMIC_TERMS = {
+    "اقتصاد", "اقتصادي", "اقتصادية", "مالية", "مالي",
+    "financial", "finance", "economy", "economic",
+}
+DIRECT_FINANCE_TITLE_TERMS = tuple(
+    term for term in FINANCE_TITLE_TERMS
+    if term.casefold() not in GENERIC_ECONOMIC_TERMS
+) + ("أسواق", "الأسواق", "السوق", "سوق")
 
 
 def _has_term(text: str, terms: tuple[str, ...]) -> bool:
@@ -60,7 +73,11 @@ def relevance(story: dict) -> tuple[bool, str]:
     title_finance_hit = _has_term(title, FINANCE_TITLE_TERMS)
     summary_finance_hit = _has_term(summary, FINANCE_SUMMARY_TERMS)
     sport_hit = _has_term(title, SPORT_TERMS)
+    political_hit = _has_term(title, POLITICAL_TITLE_TERMS)
+    direct_finance_hit = _has_term(title, DIRECT_FINANCE_TITLE_TERMS)
 
+    if political_hit and not direct_finance_hit:
+        return False, "عنوان سياسي عام؛ الإشارة الاقتصادية غير كافية لتصنيفه خبراً مالياً"
     if sport_hit and not title_finance_hit:
         return False, "عنوان رياضي لا يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
     if title_finance_hit:
