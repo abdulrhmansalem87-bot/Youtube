@@ -99,6 +99,19 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["accepted_count"], 1)
         self.assertEqual(report["rejected_count"], 0)
 
+    def test_rejects_figurative_gold_in_nonfinancial_title(self):
+        report = review_stories([{
+            "id": "8",
+            "title": "ذهب الصحراء.. فوائد زيت التين الشوكي",
+            "summary": "يتناول التقرير الاستخدامات التقليدية لزيت التين الشوكي.",
+            "link": "https://example.com/lifestyle",
+            "source": "مصدر عام",
+            "category": "عام",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
