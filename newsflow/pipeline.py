@@ -530,6 +530,33 @@ def resolve_upload_privacy(privacy_override: str | None = None) -> str:
     return status
 
 
+def verify_target_channel(youtube, expected_title: str | None = None) -> str:
+    """Verify the authenticated account owns exactly one WealthRadar channel before upload."""
+    expected = str(
+        expected_title or os.getenv("YOUTUBE_EXPECTED_CHANNEL_TITLE", "WealthRadar")
+    ).strip().casefold()
+    try:
+        response = youtube.channels().list(
+            part="snippet", mine=True, maxResults=50
+        ).execute()
+    except Exception:
+        raise RuntimeError(
+            "تعذر التحقق من قناة WealthRadar عبر channels.list(mine=true). "
+            "لن يتم رفع أي فيديو؛ قد لا تتضمن صلاحية OAuth الحالية القراءة المطلوبة."
+        ) from None
+    matches = [
+        item for item in response.get("items", [])
+        if str(item.get("snippet", {}).get("title", "")).strip().casefold() == expected
+    ]
+    if len(matches) != 1 or not matches[0].get("id"):
+        raise RuntimeError(
+            "تعذر تأكيد قناة WealthRadar المستهدفة بشكل فريد؛ تم إيقاف الرفع."
+        )
+    channel_id = str(matches[0]["id"])
+    print(f"[CHANNEL_VERIFIED] title={expected_title or 'WealthRadar'} id={channel_id}")
+    return channel_id
+
+
 def youtube_upload(
     video_path: Path, title: str, description: str, tags: list[str],
     privacy_override: str | None = None, credentials=None
@@ -542,6 +569,7 @@ def youtube_upload(
     creds = credentials or create_youtube_credentials()
     youtube = build("youtube", "v3", credentials=creds)
     status = resolve_upload_privacy(privacy_override)
+    target_channel_id = verify_target_channel(youtube)
     body = {
         "snippet": {"title": title[:100], "description": description[:5000], "tags": tags,
                     "categoryId": os.getenv("YOUTUBE_CATEGORY_ID", "25"),
@@ -557,9 +585,12 @@ def youtube_upload(
     if not video_id:
         raise RuntimeError("YouTube لم يُرجع معرّف الفيديو بعد الرفع")
     returned_status = response.get("status", {}).get("privacyStatus")
+    returned_channel_id = response.get("snippet", {}).get("channelId")
     if returned_status != status:
         raise RuntimeError("استجابة YouTube لم تؤكد الخصوصية المطلوبة؛ لن نعلن نجاح التحقق.")
-    print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status}")
+    if returned_channel_id != target_channel_id:
+        raise RuntimeError("استجابة YouTube لا تطابق القناة التي تم التحقق منها؛ لن نعلن نجاح الرفع.")
+    print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status} channel={target_channel_id}")
 
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
