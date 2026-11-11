@@ -15,7 +15,7 @@
 
 أهلاً بكم في أهم الأخبار على WealthRadar.
 
-نبدأ من الولايات المتحدة. بيانات التضخم الأساسي لشهر أكتوبر أظهرت زيادة شهرية قدرها 0.3%، أعلى من توقعات كانت عند 0.2%، بحسب Reuters في 11 نوفمبر. النتيجة رفعت عوائد السندات الأمريكية لأجل عامين بنحو 18 نقطة أساس خلال الليل، وعززت توقعات استمرار تشديد السياسة النقدية. الأسواق كانت تسعّر زيادة ربع نقطة في ديسمبر باعتبارها شبه مؤكدة، مع احتمال محدود يبلغ نحو 10% لزيادة أكبر بنصف نقطة. الدولار استفاد من ارتفاع العوائد، بينما هبط الذهب 2.6% خلال الليل قبل تعافٍ محدود. المعنى هنا أن أي قراءة تضخم أعلى من المتوقع قد تجعل الاقتراض أغلى وتضغط على الأصول التي لا تدر عائداً.
+نبدأ من الولايات المتحدة. بيانات التضخم الأساسي لشهر أكتوبر أظهرت زيادة شهرية قدرها 0.3%، أعلى من توقعات كانت عند 0.2%، بحسب Reuters في 11 نوفمبر. النتيجة رفعت عوائد السندات الأمريكية لأجل عامين بنحو 18 نقطة أساس خلال الليل، وعززت توقعات استمرار تشديد السياسة النقدية. ومكتب إحصاءات العمل الأمريكي لم ينشر التغير السنوي المعتاد لبعض المؤشرات، لأن بيانات أكتوبر 2025 لم تُجمع خلال توقف حكومي سابق؛ لذلك لا نضيف رقماً سنوياً غير منشور. الأسواق كانت تسعّر زيادة ربع نقطة في ديسمبر باعتبارها شبه مؤكدة، مع احتمال محدود يبلغ نحو 10% لزيادة أكبر بنصف نقطة. الدولار استفاد من ارتفاع العوائد، بينما هبط الذهب 2.6% خلال الليل قبل تعافٍ محدود. المعنى هنا أن أي قراءة تضخم أعلى من المتوقع قد تجعل الاقتراض أغلى وتضغط على الأصول التي لا تدر عائداً.
 
 ننتقل إلى النفط. خام برنت ارتفع 1.1% إلى 92.53 دولار للبرميل، وصعد الخام الأمريكي 0.8% إلى 86.71 دولار، وفق الأسعار التي أوردتها Reuters عند 04:20 بتوقيت غرينتش يوم 11 نوفمبر. السبب ليس عاملًا واحدًا؛ فالسوق يوازن بين آمال التهدئة السياسية ومخاوف استمرار الهجمات على السفن في مضيق هرمز. وذكرت Reuters أن 37 سفينة تعرضت لهجمات خلال أكتوبر، وهو أعلى عدد شهري منذ بداية الحرب في الشرق الأوسط وفق البيانات التي استشهد بها التقرير. لذلك تظل كلفة التأمين والشحن وأمن الإمدادات عناصر مؤثرة في سعر الطاقة.
 
@@ -46,7 +46,7 @@
 1. Reuters — [Bonds reel as hot inflation fuels jumbo Fed hike fears](https://www.reuters.com/business/media-telecom/global-markets-global-markets-2026-11-11/) — 11 نوفمبر 2026.
 2. Reuters — [Oil rebounds as Hormuz shipping attacks blunt hopes for Iran truce](https://www.reuters.com/business/energy/oil-rises-two-month-low-hormuz-shipping-attacks-offset-iran-truce-hopes-2026-11-11/) — 11 نوفمبر 2026.
 3. Reuters — [Indian stocks hit eight-month high as foreign investors return](https://www.reuters.com/world/india/indian-stocks-poised-higher-open-softer-crude-robust-foreign-buying-2026-11-11/) — 11 نوفمبر 2026.
-4. Reuters — [SoftBank books $7 billion quarterly loss on US data centre hit, financing costs](https://www.reuters.com/world/asia-pacific/softbank-swings-7-billion-net-loss-second-quarter-2026-11-10/) — 10 نوفمبر 2026.
+4. Reuters — [SoftBank books $7 billion quarterly loss on US data centre hit, financing costs](https://www.reuters.com/world/asia-pacific/softbank-swings-7-billion-net-loss-second-quarter-2026-11-10/) — 10 نوفمبر 2026.\n5. U.S. Bureau of Labor Statistics — [Consumer Price Index, October 2026](https://www.bls.gov/news.release/archives/cpi_11102026.htm) — 10 نوفمبر 2026.
 
 ## مراجعة ما قبل النشر
 - [ ] مطابقة الأرقام مع صفحات المصادر في لحظة النشر.
