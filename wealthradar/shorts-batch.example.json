@@ -1,0 +1,10 @@
+{
+  "brand": "WealthRadar",
+  "description": "Example batch manifest. Add one validated production plan per item.",
+  "plans": [
+    {
+      "id": "short-01",
+      "path": "wealthradar/production.example.json"
+    }
+  ]
+}
