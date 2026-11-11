@@ -69,7 +69,7 @@ jobs:
       - name: Run NewsFlow
         if: github.event_name != 'pull_request'
         env:
-          NEWSFLOW_MAX_STORIES: "8"
+          NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
           # Scheduled and ordinary push runs may build drafts/videos but must never upload.
           NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
