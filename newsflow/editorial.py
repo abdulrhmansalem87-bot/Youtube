@@ -92,8 +92,11 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
             })
             continue
         story_warnings = []
-        if not str(story.get("summary", "")).strip() or len(str(story.get("summary", "")).strip()) < 45:
+        summary_text = str(story.get("summary", "")).strip()
+        if not summary_text or len(summary_text) < 45:
             story_warnings.append("ملخص المصدر قصير؛ يلزم فتح الرابط ومراجعة التفاصيل")
+        elif summary_text.endswith(("...", "…", "[...]")):
+            story_warnings.append("ملخص RSS يبدو مبتوراً؛ افتح المصدر الكامل قبل اعتماد الخبر")
         if not story.get("published"):
             story_warnings.append("تاريخ النشر غير متاح؛ يلزم التحقق من حداثة الخبر")
         if story_warnings:
