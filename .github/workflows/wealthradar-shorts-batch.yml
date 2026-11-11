@@ -60,7 +60,7 @@ jobs:
                   raise SystemExit(f"Invalid or missing plan path for {plan_id}: {raw_path}")
               matrix.append({"id": plan_id, "path": path.as_posix()})
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
-              output.write("value=" + json.dumps({"include": matrix}, separators=(",", ":")) + "\\n")
+              output.write("value=" + json.dumps({"include": matrix}, separators=(",", ":")) + "\n")
           print(f"Prepared {len(matrix)} independent Short jobs.")
           PY
 
