@@ -1,10 +1,15 @@
 import unittest
 
 from newsflow.editorial import review_stories
-from newsflow.pipeline import make_script
+from newsflow.pipeline import make_script, clean_narration
 
 
 class EditorialReviewTests(unittest.TestCase):
+    def test_clean_narration_removes_english_parenthetical_aliases(self):
+        cleaned = clean_narration("سيمنز إنرجي (Siemens Energy) تعلن نتائجها، مع دعم من صندوق النقد (IMF).")
+        self.assertNotIn("Siemens Energy", cleaned)
+        self.assertIn("(IMF)", cleaned)
+
     def test_bulletin_uses_required_opening_and_closing(self):
         script = make_script([{
             "title": "أرباح الشركة ترتفع خلال الربع الثالث",
