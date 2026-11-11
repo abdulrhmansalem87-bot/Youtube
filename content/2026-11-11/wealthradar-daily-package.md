@@ -43,10 +43,11 @@
 - **هاشتاجات:** #WealthRadar #أخبار_اقتصادية #الأسواق_العالمية #التضخم #الذهب #النفط
 
 ## المصادر المباشرة
-1. Reuters — [Bonds reel as hot inflation fuels jumbo Fed hike fears](https://www.reuters.com/business/media-telecom/global-markets-global-markets-2026-11-11/) — 11 نوفمبر 2026.
+1. Reuters — [Stocks rally as CoreWeave soothes, bonds reel on rate hike fears](https://www.reuters.com/business/media-telecom/global-markets-global-markets-2026-11-11/) — 11 نوفمبر 2026.
 2. Reuters — [Oil rebounds as Hormuz shipping attacks blunt hopes for Iran truce](https://www.reuters.com/business/energy/oil-rises-two-month-low-hormuz-shipping-attacks-offset-iran-truce-hopes-2026-11-11/) — 11 نوفمبر 2026.
 3. Reuters — [Indian stocks hit eight-month high as foreign investors return](https://www.reuters.com/world/india/indian-stocks-poised-higher-open-softer-crude-robust-foreign-buying-2026-11-11/) — 11 نوفمبر 2026.
-4. Reuters — [SoftBank books $7 billion quarterly loss on US data centre hit, financing costs](https://www.reuters.com/world/asia-pacific/softbank-swings-7-billion-net-loss-second-quarter-2026-11-10/) — 10 نوفمبر 2026.\n5. U.S. Bureau of Labor Statistics — [Consumer Price Index, October 2026](https://www.bls.gov/news.release/archives/cpi_11102026.htm) — 10 نوفمبر 2026.
+4. Reuters — [SoftBank books $7 billion quarterly loss on US data centre hit, financing costs](https://www.reuters.com/world/asia-pacific/softbank-swings-7-billion-net-loss-second-quarter-2026-11-10/) — 10 نوفمبر 2026.
+5. U.S. Bureau of Labor Statistics — [Consumer Price Index, October 2026](https://www.bls.gov/news.release/archives/cpi_11102026.htm) — 10 نوفمبر 2026.
 
 ## مراجعة ما قبل النشر
 - [ ] مطابقة الأرقام مع صفحات المصادر في لحظة النشر.

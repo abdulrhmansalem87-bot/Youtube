@@ -28,6 +28,55 @@ def config():
         return yaml.safe_load(f)
 
 
+MAX_BULLETIN_STORIES = 4
+LOCAL_GOLD_MARKET_NAMES = (
+    "مصر", "السعودية", "الإمارات", "الأردن", "العراق", "الكويت",
+    "قطر", "البحرين", "عمان", "المغرب", "لبنان",
+    "egypt", "saudi arabia", "uae", "jordan", "iraq", "kuwait",
+    "qatar", "bahrain", "oman", "morocco", "lebanon",
+)
+
+
+def clamp_max_stories(value: int) -> int:
+    return min(max(int(value), 1), MAX_BULLETIN_STORIES)
+
+
+def story_topic_key(story: dict) -> str:
+    title = str(story.get("title", "")).casefold()
+    is_gold = "ذهب" in title or "gold" in title
+    is_daily = "اليوم" in title or "today" in title
+    is_local = any(name.casefold() in title for name in LOCAL_GOLD_MARKET_NAMES)
+    if is_gold and is_daily and is_local:
+        return "daily-local-gold-price"
+    return str(story.get("id") or title)
+
+
+def select_stories(stories: list[dict], max_stories: int):
+    selected, source_counts, rejected, seen_topics = [], {}, [], set()
+    for story in stories:
+        is_relevant, reason = relevance(story)
+        if not is_relevant:
+            rejected.append({
+                "id": story.get("id"), "title": story.get("title"),
+                "source": story.get("source"), "reasons": [reason],
+            })
+            continue
+        topic_key = story_topic_key(story)
+        if topic_key in seen_topics:
+            continue
+        source = story.get("source", "مصدر غير محدد")
+        if source_counts.get(source, 0) >= 3:
+            continue
+        item = dict(story)
+        item["relevance_reason"] = reason
+        selected.append(item)
+        seen_topics.add(topic_key)
+        source_counts[source] = source_counts.get(source, 0) + 1
+        if len(selected) >= clamp_max_stories(max_stories):
+            break
+    return selected, rejected
+
+
 def collect(max_stories: int):
     stories, seen = [], set()
     for source in config().get("sources", []):
@@ -58,20 +107,7 @@ def collect(max_stories: int):
         if not item["published_ts"] or 0 <= now_ts - item["published_ts"] <= 72 * 3600
     ]
     stories.sort(key=lambda item: item["published_ts"], reverse=True)
-    selected, source_counts, rejected = [], {}, []
-    for story in stories:
-        is_relevant, reason = relevance(story)
-        if not is_relevant:
-            rejected.append({"id": story["id"], "title": story["title"],
-                             "source": story["source"], "reasons": [reason]})
-            continue
-        story["relevance_reason"] = reason
-        if source_counts.get(story["source"], 0) >= 3:
-            continue
-        selected.append(story)
-        source_counts[story["source"]] = source_counts.get(story["source"], 0) + 1
-        if len(selected) >= max_stories:
-            break
+    selected, rejected = select_stories(stories, max_stories)
     for story in selected:
         story.pop("published_ts", None)
     return selected, rejected
@@ -501,10 +537,10 @@ def youtube_upload(
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
-    parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "5")))
+    parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy")
     args = parser.parse_args()
-    args.max_stories = min(max(args.max_stories, 1), 5)
+    args.max_stories = clamp_max_stories(args.max_stories)
     if args.private_test and args.dry_run:
         parser.error("--private-test cannot be combined with --dry-run")
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
