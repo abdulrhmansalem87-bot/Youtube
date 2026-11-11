@@ -1,6 +1,6 @@
 import unittest
 
-from wealthradar_shorts.pipeline import validate_plan, validate_video_probe
+from wealthradar_shorts.pipeline import validate_plan, validate_video_probe, verify_target_channel
 
 
 def valid_plan():
@@ -46,6 +46,35 @@ class WealthRadarPlanTests(unittest.TestCase):
         plan = valid_plan()
         plan["narration"][-1] = "وهكذا تنتهي الحكاية."
         self.assertTrue(any("أول جملة وآخر جملة" in item for item in validate_plan(plan)))
+
+
+class WealthRadarChannelVerificationTests(unittest.TestCase):
+    def test_verifies_exact_wealthradar_channel(self):
+        class Request:
+            def execute(self):
+                return {"items": [{"id": "UC123", "snippet": {"title": "WealthRadar"}}]}
+        class Channels:
+            def list(self, **kwargs):
+                self.kwargs = kwargs
+                return Request()
+        class Service:
+            def __init__(self):
+                self.channel_service = Channels()
+            def channels(self):
+                return self.channel_service
+        service = Service()
+        self.assertEqual(verify_target_channel(service), "UC123")
+        self.assertTrue(service.channel_service.kwargs["mine"])
+
+    def test_refuses_wrong_channel_or_insufficient_read_scope(self):
+        class Request:
+            def execute(self):
+                raise RuntimeError("403 insufficientPermissions")
+        class Service:
+            def channels(self):
+                return type("Channels", (), {"list": lambda self, **kwargs: Request()})()
+        with self.assertRaisesRegex(RuntimeError, "لن يتم رفع أي فيديو"):
+            verify_target_channel(Service())
 
 
 class WealthRadarRenderedVideoTests(unittest.TestCase):
