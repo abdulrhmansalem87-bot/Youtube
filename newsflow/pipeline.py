@@ -106,7 +106,7 @@ def make_script(stories):
         "كانت هذه أبرز أخبار المال والاقتصاد اليوم. "
         "تذكّروا أن الأرقام والتطورات قد تتغير مع صدور بيانات جديدة، "
         "وأن هذا الموجز للمعلومات والمتابعة ولا يمثل نصيحة استثمارية. "
-        "اشتركوا في WealthRadar وفعّلوا زر الجرس حتى يصلكم كل جديد."
+        "ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس حتى يصلكم كل جديد."
     )
     return "\n\n".join(parts)
 
@@ -415,6 +415,8 @@ def validate_video(video_path: Path, audio_path: Path, expected_short: bool = Fa
     height = int(video_stream.get("height", 0))
     if expected_short and not (height > width):
         raise RuntimeError("فشل فحص النسخة القصيرة: يجب أن يكون الفيديو رأسياً")
+    if not expected_short and not (width > height):
+        raise RuntimeError("فشل فحص الفيديو الرئيسي: يجب أن يكون الفيديو أفقياً بنسبة عرض مناسبة")
     if expected_short and duration > 180:
         raise RuntimeError("فشل فحص النسخة القصيرة: المدة تتجاوز 3 دقائق")
     audio_probe = subprocess.run(
