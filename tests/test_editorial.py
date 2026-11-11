@@ -60,6 +60,24 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["warning_count"], 1)
         self.assertTrue(report["human_approval_required"])
 
+    def test_flags_truncated_rss_summary_for_human_review(self):
+        for suffix in ("...", "…"):
+            with self.subTest(suffix=suffix):
+                report = review_stories([{
+                    "id": "truncated",
+                    "title": "أرباح الشركة ترتفع خلال الربع الثالث",
+                    "summary": "أظهرت النتائج المالية ارتفاع الأرباح والإيرادات مقارنة بالفترة نفسها من العام الماضي" + suffix,
+                    "link": "https://example.com/results",
+                    "source": "مصدر مالي",
+                    "category": "أسواق المال",
+                    "published": "2026-11-11",
+                }])
+                self.assertEqual(report["accepted_count"], 1)
+                self.assertEqual(report["warning_count"], 1)
+                self.assertIn("مبتور", report["warnings"][0]["warnings"][0])
+                self.assertTrue(report["human_approval_required"])
+
+
     def test_rejects_political_story_with_incidental_cost_reference(self):
         report = review_stories([{
             "id": "5",
