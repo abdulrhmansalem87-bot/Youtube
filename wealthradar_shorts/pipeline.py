@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import asyncio
 import json
 import os
@@ -14,6 +15,11 @@ import urllib.request
 from pathlib import Path
 
 import edge_tts
+
+from newsflow.youtube_safety import (
+    content_marker, ensure_not_duplicate, upsert_upload_record,
+    verify_private_video, verify_wealthradar_channel,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN = ("مسودة", "نيوزفلو", "newsflow", "draft", "ai-generated")
@@ -105,11 +111,26 @@ def find_pexels_video(query: str, api_key: str) -> str:
             width, height = int(item.get("width") or 0), int(item.get("height") or 0)
             link = item.get("link")
             if link and height > width and width >= 720:
-                candidates.append((width * height, link))
+                user = video.get("user") or {}
+            candidates.append((width * height, {
+                "download_url": link,
+                "page_url": str(video.get("url", "")),
+                "creator": str(user.get("name", "")),
+                "creator_url": str(user.get("url", "")),
+            }))
     if not candidates:
         raise RuntimeError(f"لم يعثر Pexels على مقطع رأسي مناسب لعبارة: {query}")
-    candidates.sort(reverse=True)
+    candidates.sort(key=lambda item: item[0], reverse=True)
     return candidates[0][1]
+
+
+def require_stock_video(query: str, api_key: str) -> dict:
+    try:
+        return find_pexels_video(query, api_key)
+    except Exception as exc:
+        raise RuntimeError(
+            f"تعذر توفير B-roll مرخص للمشهد: {query}. أُوقف الإنتاج بدلاً من استبداله بشاشة ثابتة."
+        ) from exc
 
 
 def _download(url: str, destination: Path) -> None:
@@ -118,36 +139,6 @@ def _download(url: str, destination: Path) -> None:
         shutil.copyfileobj(response, output)
 
  
-def _render_fallback_segment(ffmpeg: str, segment: Path, ass: Path, seconds: float, index: int) -> None:
-    """Render an original branded finance graphic when stock footage is unavailable."""
-    palettes = [
-        ("0B1220", "15304A", "18A6A6"),
-        ("101827", "243B55", "D6A84F"),
-        ("0B1726", "183B4E", "3AA6B9"),
-        ("15172B", "34345C", "D6A84F"),
-        ("0B1C24", "164B4B", "40B89A"),
-    ]
-    base, panel, accent = palettes[(index - 1) % len(palettes)]
-    subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
-    vf = (
-        f"drawbox=x=72:y=250:w=936:h=5:color=0x{accent}@0.95:t=fill,"
-        f"drawbox=x=72:y=255:w=936:h=310:color=0x{panel}@0.72:t=fill,"
-        f"drawbox=x=72:y=590:w=936:h=5:color=0x{accent}@0.65:t=fill,"
-        f"drawbox=x=120:y=1120:w=840:h=3:color=0x{accent}@0.55:t=fill,"
-        f"drawbox=x=120:y=1123:w=840:h=220:color=0x{panel}@0.48:t=fill,"
-        f"subtitles='{subtitle_path}'"
-    )
-    _run([
-        ffmpeg, "-y", "-f", "lavfi", "-i",
-        f"color=c=0x{base}:s=1080x1920:r=30:d={seconds:.2f}",
-        "-vf", vf, "-an", "-r", "30", "-c:v", "libx264",
-        "-preset", "veryfast", "-pix_fmt", "yuv420p", str(segment),
-    ])
-    print(f"[BRANDED_SCENE_FALLBACK] scene={index} | original graphics used")
-
-
-
-
 def _run(command: list[str]) -> None:
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=180)
 
@@ -279,27 +270,29 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
     with tempfile.TemporaryDirectory(prefix="wealthradar-") as temp:
         work = Path(temp)
         segments: list[Path] = []
+        source_manifest = []
         for index, (scene, seconds) in enumerate(zip(plan["scenes"], scene_durations), 1):
             ass = work / f"caption-{index:02d}.ass"
             segment = work / f"segment-{index:02d}.mp4"
             _write_ass(ass, scene["caption"], seconds)
-            try:
-                if not api_key:
-                    raise RuntimeError("PEXELS_API_KEY is unavailable")
-                source_url = find_pexels_video(scene["query"], api_key)
-                raw = work / f"source-{index:02d}.mp4"
-                _download(source_url, raw)
-                subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
-                _run([
-                    ffmpeg, "-y", "-stream_loop", "-1", "-i", str(raw), "-t", f"{seconds:.2f}",
-                    "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
-                           f"crop=1080:1920,setsar=1,subtitles='{subtitle_path}'",
-                    "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
-                    "-pix_fmt", "yuv420p", str(segment),
-                ])
-            except Exception as exc:
-                print(f"[STOCK_FOOTAGE_UNAVAILABLE] scene={index} | {type(exc).__name__} | using branded fallback")
-                _render_fallback_segment(ffmpeg, segment, ass, seconds, index)
+            if not api_key:
+                raise RuntimeError("PEXELS_API_KEY غير متاح؛ أُوقف الإنتاج لعدم استخدام صور ثابتة بديلاً عن B-roll.")
+            source = require_stock_video(scene["query"], api_key)
+            raw = work / f"source-{index:02d}.mp4"
+            _download(source["download_url"], raw)
+            subtitle_path = str(ass.resolve()).replace("\\", "/").replace(":", r"\:")
+            _run([
+                ffmpeg, "-y", "-stream_loop", "-1", "-i", str(raw), "-t", f"{seconds:.2f}",
+                "-vf", f"scale=1080:1920:force_original_aspect_ratio=increase,"
+                       f"crop=1080:1920,setsar=1,subtitles='{subtitle_path}'",
+                "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
+                "-pix_fmt", "yuv420p", str(segment),
+            ])
+            source_manifest.append({
+                "scene": index, "query": scene["query"], "provider": "Pexels",
+                "license": "Pexels License", "page_url": source["page_url"],
+                "creator": source["creator"], "creator_url": source["creator_url"],
+            })
             segments.append(segment)
 
         concat = work / "concat.txt"
@@ -316,12 +309,16 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
               "-c:a", "aac", "-b:a", "192k", "-shortest",
               "-movflags", "+faststart", str(final)])
     final_duration = validate_rendered_video(final)
+    (output / "video_sources.json").write_text(
+        json.dumps({"provider": "Pexels", "scenes": source_manifest}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(f"[SHORT_READY] {final} | 1080x1920 | {final_duration:.1f}s | H.264/AAC verified")
     return final
 
 
 
-def upload_private_video(video_path: Path, title: str) -> str:
+def upload_private_video(video_path: Path, title: str, content_id: str) -> dict:
     required = ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")
     missing = [name for name in required if not os.getenv(name, "").strip()]
     if missing:
@@ -339,25 +336,31 @@ def upload_private_video(video_path: Path, title: str) -> str:
         token_uri="https://oauth2.googleapis.com/token",
         client_id=os.environ["YOUTUBE_CLIENT_ID"],
         client_secret=os.environ["YOUTUBE_CLIENT_SECRET"],
-        scopes=["https://www.googleapis.com/auth/youtube.upload"],
+        scopes=[
+            "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.readonly",
+        ],
     )
     try:
         credentials.refresh(Request())
-    except Exception as exc:
+    except Exception:
         raise RuntimeError(
-            "فشل تجديد صلاحية YouTube OAuth. راجع Client ID وClient Secret وRefresh Token "
-            "وتأكد أنها من مشروع Google OAuth نفسه. لم يتم رفع الفيديو."
+            "فشل تجديد صلاحية YouTube OAuth. لم يتم رفع الفيديو."
         ) from None
     if not credentials.valid:
         raise RuntimeError("لم يؤكد Google صلاحية OAuth؛ لم يتم رفع الفيديو.")
 
     youtube = build("youtube", "v3", credentials=credentials, cache_discovery=False)
-    request = youtube.videos().insert(
+    channel_id, uploads_playlist = verify_wealthradar_channel(youtube)
+    marker = content_marker(content_id)
+    ensure_not_duplicate(youtube, uploads_playlist, content_id)
+    description = "محتوى مالي تثقيفي من قناة WealthRadar.\n\n" + marker
+    response = youtube.videos().insert(
         part="snippet,status",
         body={
             "snippet": {
                 "title": title[:100],
-                "description": "محتوى مالي تثقيفي من قناة WealthRadar.",
+                "description": description,
                 "categoryId": "27",
                 "defaultLanguage": "ar",
                 "tags": ["WealthRadar", "التمويل", "الاستثمار", "الثقافة المالية"],
@@ -365,21 +368,41 @@ def upload_private_video(video_path: Path, title: str) -> str:
             "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False},
         },
         media_body=MediaFileUpload(str(video_path), mimetype="video/mp4", resumable=True),
-    )
-    response = request.execute()
+    ).execute()
     video_id = response.get("id")
     if not video_id:
         raise RuntimeError("YouTube لم يُرجع معرّف الفيديو؛ تعذر تأكيد الرفع.")
-    # The insert response already includes the requested status because part="snippet,status".
-    # Avoid a follow-up videos.list call: the configured youtube.upload OAuth scope cannot read status.
-    returned_status = response.get("status", {}).get("privacyStatus")
-    if returned_status != "private":
-        raise RuntimeError(
-            "استجابة YouTube لم تؤكد أن الفيديو مرفوع بخصوصية Private؛ لن نعلن نجاح الرفع."
-        )
     url = f"https://youtu.be/{video_id}"
-    print(f"[UPLOAD_PRIVATE_VERIFIED] {url}")
-    return url
+    record = {
+        "date": time.strftime("%Y-%m-%d", time.gmtime()),
+        "title": title,
+        "video_id": video_id,
+        "url": url,
+        "privacy": response.get("status", {}).get("privacyStatus"),
+        "target_channel_id": channel_id,
+        "editorial_review_status": "plan_validated",
+        "upload_status": "insert_response_received",
+    }
+    upsert_upload_record(video_path.parent, record)
+    response_channel_id = response.get("snippet", {}).get("channelId")
+    if record["privacy"] != "private" or (
+        response_channel_id and response_channel_id != channel_id
+    ):
+        record["upload_status"] = "verification_failed"
+        upsert_upload_record(video_path.parent, record)
+        raise RuntimeError("استجابة الإدراج لم تؤكد القناة والخصوصية المطلوبة؛ راجع سجل الرفع.")
+    try:
+        confirmed = verify_private_video(youtube, video_id, channel_id)
+    except Exception:
+        record["upload_status"] = "verification_failed"
+        upsert_upload_record(video_path.parent, record)
+        raise
+    record["privacy"] = confirmed.get("status", {}).get("privacyStatus")
+    record["confirmed_channel_id"] = confirmed.get("snippet", {}).get("channelId")
+    record["upload_status"] = "verified_private"
+    upsert_upload_record(video_path.parent, record)
+    print(f"[UPLOAD_PRIVATE_VERIFIED] {url} privacy=private channel={channel_id}")
+    return record
 
 
 def main() -> None:
@@ -401,7 +424,10 @@ def main() -> None:
     if args.upload_private:
         video_path = args.output / "WealthRadar-Short.mp4"
         validate_rendered_video(video_path)
-        upload_private_video(video_path, str(plan["title"]))
+        content_id = hashlib.sha256(
+            json.dumps(plan, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:32]
+        upload_private_video(video_path, str(plan["title"]), content_id)
         return
     api_key = os.getenv("PEXELS_API_KEY", "").strip()
     render(plan, args.output, api_key)
