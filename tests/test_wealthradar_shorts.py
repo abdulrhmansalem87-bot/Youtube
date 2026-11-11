@@ -1,6 +1,7 @@
 import unittest
+from unittest.mock import patch
 
-from wealthradar_shorts.pipeline import validate_plan, validate_video_probe
+from wealthradar_shorts.pipeline import require_stock_video, validate_plan, validate_video_probe
 
 
 def valid_plan():
@@ -46,6 +47,11 @@ class WealthRadarPlanTests(unittest.TestCase):
         plan = valid_plan()
         plan["narration"][-1] = "وهكذا تنتهي الحكاية."
         self.assertTrue(any("أول جملة وآخر جملة" in item for item in validate_plan(plan)))
+
+    def test_broll_failure_stops_instead_of_using_static_fallback(self):
+        with patch("wealthradar_shorts.pipeline.find_pexels_video", side_effect=RuntimeError("not found")):
+            with self.assertRaisesRegex(RuntimeError, "B-roll مرخص"):
+                require_stock_video("financial market trading screen portrait", "test-key")
 
 
 class WealthRadarRenderedVideoTests(unittest.TestCase):
