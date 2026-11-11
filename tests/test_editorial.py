@@ -1,9 +1,20 @@
 import unittest
 
 from newsflow.editorial import review_stories
+from newsflow.pipeline import make_script
 
 
 class EditorialReviewTests(unittest.TestCase):
+    def test_bulletin_uses_required_opening_and_closing(self):
+        script = make_script([{
+            "title": "أرباح الشركة ترتفع خلال الربع الثالث",
+            "summary": "ارتفعت الأرباح والإيرادات مقارنة بالفترة نفسها من العام الماضي.",
+            "source": "مصدر مالي",
+        }])
+        self.assertIn("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar", script)
+        self.assertTrue(script.endswith("ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس."))
+        self.assertNotIn("إيه اللي حصل", script)
+
     def test_accepts_financial_story(self):
         report = review_stories([{
             "id": "1",
@@ -90,6 +101,33 @@ class EditorialReviewTests(unittest.TestCase):
         }])
         self.assertEqual(report["accepted_count"], 0)
         self.assertEqual(report["rejected_count"], 1)
+
+    def test_rejects_political_commentary_with_incidental_market_reference(self):
+        report = review_stories([{
+            "id": "politics",
+            "title": "صحافة روسية: هزيمة ترمب تنذر بصراع سياسي وأزمة اقتصادية",
+            "summary": "تتناول مواقع روسية خسارة الجمهوريين السيطرة على الكونغرس، ومخاوف من اضطراب أسهم الذكاء الاصطناعي وأزمة مالية عالمية.",
+            "link": "https://example.com/politics/trump-defeat",
+            "source": "مصدر عام",
+            "category": "عام",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+
+    def test_accepts_political_story_with_direct_financial_policy(self):
+        report = review_stories([{
+            "id": "budget",
+            "title": "الكونغرس يقر ميزانية بقيمة تريليوني دولار",
+            "summary": "يتضمن القرار تمويلاً عاماً وتعديلات على الإنفاق الحكومي.",
+            "link": "https://example.com/politics/budget",
+            "source": "مصدر عام",
+            "category": "سياسة",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["rejected_count"], 0)
+
 
     def test_rejects_sports_story_with_incidental_market_reference(self):
         report = review_stories([{
