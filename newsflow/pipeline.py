@@ -18,6 +18,10 @@ import yaml
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from newsflow.editorial import relevance, review_stories
+from newsflow.youtube_safety import (
+    content_marker, ensure_not_duplicate, upsert_upload_record,
+    verify_private_video, verify_wealthradar_channel,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -126,7 +130,7 @@ def make_opening_hook(stories):
 def make_script(stories):
     parts = [
         make_opening_hook(stories),
-        "أهلاً بكم في أهم الأخبار على WealthRadar. هنشرح الخبر من غير تهويل، ونفصل بين المعلومة المؤكدة وما زال يحتاج متابعة."
+        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar. نوضح ما تأكد، وما زال قيد المتابعة."
     ]
     for index, story in enumerate(stories, start=1):
         summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
@@ -352,7 +356,7 @@ def make_video(title, audio, output, short=False, stories=None):
                 (int(width*.075), int(height*.085), int(width*.925), int(height*.19)),
                 radius=28, fill=(17, 45, 65), outline=(35, 87, 105), width=2
             )
-            draw.text((width//2, int(height*.12)), "WealthRadar", font=heading_font,
+            draw.text((width//2, int(height*.12)), "WealthRadar", font=english_font,
                       fill=(247, 250, 255), anchor="mm")
             draw.text((width//2, int(height*.165)), "MONEY  •  MARKETS  •  BUSINESS",
                       font=english_font, fill=accent, anchor="mm")
@@ -362,13 +366,12 @@ def make_video(title, audio, output, short=False, stories=None):
             )
             draw.text((width//2, int(height*.267)), heading, font=small_font,
                       fill=accent, anchor="mm", direction="rtl")
-            draw.text((width//2, int(height*.325)), english_label, font=english_font,
-                      fill=(154, 184, 202), anchor="mm")
             draw.line((int(width*.22), int(height*.365), int(width*.78), int(height*.365)),
                       fill=accent, width=max(3, width//500))
 
             headline_lines = wrap_text(draw, headline, heading_font, int(width*.78), 4 if short else 3)
-            y = int(height * .43) - len(headline_lines) * (heading_font_size + 18) // 2
+            title_center = .50 if short else .48
+            y = int(height * title_center) - len(headline_lines) * (heading_font_size + 18) // 2
             for line in headline_lines:
                 draw.text((width // 2, y), line, font=heading_font,
                           fill=(255, 255, 255), anchor="mm", direction=("rtl" if re.search(r"[\u0600-\u06ff]", line) else "ltr"))
@@ -472,6 +475,7 @@ def create_youtube_credentials():
         client_secret=os.environ["YOUTUBE_CLIENT_SECRET"],
         scopes=[
             "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.readonly",
         ],
     )
 
@@ -503,23 +507,35 @@ def validate_youtube_auth():
 
 def youtube_upload(
     video_path: Path, title: str, description: str, tags: list[str],
-    privacy_override: str | None = None, credentials=None
+    privacy_override: str | None = None, credentials=None,
+    editorial_review_status: str = "unknown",
 ):
     if os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() != "true":
         print("[SAFE] رفع يوتيوب معطل. الفيديو محفوظ كـ Artifact.")
-        return
+        return None
+    status = privacy_override or os.getenv("YOUTUBE_PRIVACY_STATUS", "private")
+    if status != "private":
+        raise ValueError("سياسة WealthRadar تسمح برفع PRIVATE فقط؛ تم حظر أي خصوصية أخرى.")
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
+
     creds = credentials or create_youtube_credentials()
-    youtube = build("youtube", "v3", credentials=creds)
-    status = privacy_override or os.getenv("YOUTUBE_PRIVACY_STATUS", "private")
-    if status not in {"private", "unlisted", "public"}:
-        raise ValueError("YOUTUBE_PRIVACY_STATUS must be private, unlisted, or public")
+    youtube = build("youtube", "v3", credentials=creds, cache_discovery=False)
+    channel_id, uploads_playlist = verify_wealthradar_channel(youtube)
+    content_id = hashlib.sha256(
+        (title + "\n" + description + "\n" + "\n".join(tags)).encode("utf-8")
+    ).hexdigest()[:32]
+    marker = content_marker(content_id)
+    ensure_not_duplicate(youtube, uploads_playlist, content_id)
+
+    full_description = description.rstrip() + "\n\n" + marker
     body = {
-        "snippet": {"title": title[:100], "description": description[:5000], "tags": tags,
-                    "categoryId": os.getenv("YOUTUBE_CATEGORY_ID", "25"),
-                    "defaultLanguage": "ar", "defaultAudioLanguage": "ar"},
-        "status": {"privacyStatus": status, "selfDeclaredMadeForKids": False},
+        "snippet": {
+            "title": title[:100], "description": full_description[:5000], "tags": tags,
+            "categoryId": os.getenv("YOUTUBE_CATEGORY_ID", "25"),
+            "defaultLanguage": "ar", "defaultAudioLanguage": "ar",
+        },
+        "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False},
     }
     request = youtube.videos().insert(
         part="snippet,status", body=body,
@@ -528,11 +544,40 @@ def youtube_upload(
     response = request.execute()
     video_id = response.get("id")
     if not video_id:
-        raise RuntimeError("YouTube لم يُرجع معرّف الفيديو بعد الرفع")
-    returned_status = response.get("status", {}).get("privacyStatus")
-    if returned_status != status:
-        raise RuntimeError("استجابة YouTube لم تؤكد الخصوصية المطلوبة؛ لن نعلن نجاح التحقق.")
-    print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status}")
+        raise RuntimeError("YouTube لم يُرجع معرّف الفيديو بعد الرفع.")
+    url = f"https://youtu.be/{video_id}"
+    record = {
+        "date": datetime.now(timezone.utc).date().isoformat(),
+        "title": title,
+        "video_id": video_id,
+        "url": url,
+        "privacy": response.get("status", {}).get("privacyStatus"),
+        "target_channel_id": channel_id,
+        "editorial_review_status": editorial_review_status,
+        "upload_status": "insert_response_received",
+    }
+    output_dir = ROOT / os.getenv("NEWSFLOW_OUTPUT_DIR", "output")
+    upsert_upload_record(output_dir, record)
+    response_channel_id = response.get("snippet", {}).get("channelId")
+    if record["privacy"] != "private" or (
+        response_channel_id and response_channel_id != channel_id
+    ):
+        record["upload_status"] = "verification_failed"
+        upsert_upload_record(output_dir, record)
+        raise RuntimeError("استجابة الإدراج لم تؤكد القناة والخصوصية المطلوبة؛ راجع سجل الرفع.")
+    try:
+        confirmed = verify_private_video(youtube, video_id, channel_id)
+    except Exception:
+        record["upload_status"] = "verification_failed"
+        upsert_upload_record(output_dir, record)
+        raise
+    record["privacy"] = confirmed.get("status", {}).get("privacyStatus")
+    record["confirmed_channel_id"] = confirmed.get("snippet", {}).get("channelId")
+    record["upload_status"] = "verified_private"
+    upsert_upload_record(output_dir, record)
+    print(f"[UPLOAD_VERIFIED] {url} privacy=private channel={channel_id}")
+    return record
+
 
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
@@ -618,11 +663,12 @@ def main():
     if args.private_test:
         youtube_upload(
             long_video, video_title, description, tags,
-            privacy_override="private", credentials=auth_credentials
+            privacy_override="private", credentials=auth_credentials,
+            editorial_review_status=editorial_report["status"],
         )
         return
     if upload_enabled:
-        youtube_upload(long_video, video_title, description, tags, credentials=auth_credentials)
+        youtube_upload(long_video, video_title, description, tags, credentials=auth_credentials, editorial_review_status=editorial_report["status"])
 
     # Shorts are separate story-specific narrations, not a vertical copy of the full bulletin.
     if not single_long_upload:
@@ -641,7 +687,9 @@ def main():
             if upload_enabled:
                 youtube_upload(
                     short_video, short_title, short_description, short_tags,
-                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "public"), credentials=auth_credentials
+                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "private"),
+                    credentials=auth_credentials,
+                    editorial_review_status=editorial_report["status"],
                 )
 
 
