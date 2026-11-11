@@ -90,7 +90,7 @@ def make_opening_hook(stories):
 def make_script(stories):
     parts = [
         make_opening_hook(stories),
-        "أهلاً بكم في WealthRadar. هنشرح الخبر من غير تهويل، ونفصل بين المعلومة المؤكدة وما زال يحتاج متابعة."
+        "أهلاً بكم في أهم الأخبار على WealthRadar. هنشرح الخبر من غير تهويل، ونفصل بين المعلومة المؤكدة وما زال يحتاج متابعة."
     ]
     for index, story in enumerate(stories, start=1):
         summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
@@ -260,7 +260,7 @@ def make_video(title, audio, output, short=False, stories=None):
     )
     total_duration = float(probe.stdout.strip())
     story_list = stories or []
-    cards = [("إيه الحكاية؟", lead_hook, "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر", "THE STORY BEHIND THE HEADLINE")]
+    cards = [("إيه الحكاية؟", make_opening_hook(story_list), "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر", "THE STORY BEHIND THE HEADLINE")]
     for index, story in enumerate(story_list, start=1):
         cards.append((
             f"الخبر {index:02d} • {story.get('source', 'المصدر')}",
@@ -398,8 +398,13 @@ def validate_video(video_path: Path, audio_path: Path, expected_short: bool = Fa
     video_stream = next(stream for stream in streams if stream.get("codec_type") == "video")
     width = int(video_stream.get("width", 0))
     height = int(video_stream.get("height", 0))
-    if expected_short and not (height > width):
-        raise RuntimeError("فشل فحص النسخة القصيرة: يجب أن يكون الفيديو رأسياً")
+    expected_dimensions = (1080, 1920) if expected_short else (1920, 1080)
+    if (width, height) != expected_dimensions:
+        orientation = "رأسياً" if expected_short else "أفقياً"
+        raise RuntimeError(
+            f"فشل فحص أبعاد الفيديو: يجب أن يكون {orientation} بمقاس "
+            f"{expected_dimensions[0]}×{expected_dimensions[1]}، والموجود {width}×{height}"
+        )
     if expected_short and duration > 180:
         raise RuntimeError("فشل فحص النسخة القصيرة: المدة تتجاوز 3 دقائق")
     audio_probe = subprocess.run(
@@ -496,9 +501,10 @@ def youtube_upload(
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
-    parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "8")))
+    parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "5")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy")
     args = parser.parse_args()
+    args.max_stories = min(max(args.max_stories, 1), 5)
     if args.private_test and args.dry_run:
         parser.error("--private-test cannot be combined with --dry-run")
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
@@ -560,8 +566,11 @@ def main():
         )
         duration = float(probe.stdout.strip())
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
-        if not 150 <= duration <= 210:
-            print("[WARN] مدة التعليق الصوتي بعيدة عن 3 دقائق؛ راجع النص أو عدد الأخبار قبل النشر.")
+        if not args.private_test and not 150 <= duration <= 210:
+            raise RuntimeError(
+                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف 150–210 ثانية؛ "
+                "تم إيقاف بناء الفيديو بدلاً من إخراج نشرة بطول غير مناسب."
+            )
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
     video_title, description, tags = build_youtube_metadata(stories, bulletin_script)

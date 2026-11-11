@@ -1,7 +1,8 @@
 """Editorial relevance and pre-publication checks for WealthRadar.
 
-These deterministic checks filter obvious off-topic items and flag missing metadata.
-They do not independently verify facts; human approval remains required before upload.
+The title must have a direct financial/economic angle, or the item must come
+from an explicitly financial category and its summary must support that angle.
+These checks do not independently verify facts; human approval remains required.
 """
 from __future__ import annotations
 
@@ -9,28 +10,42 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 
-FINANCE_TERMS = (
-    "اقتصاد", "اقتصادي", "مالية", "مالي", "أسواق", "سوق", "بورصة",
-    "أسهم", "سهم", "استثمار", "مستثمر", "بنك", "مصرف", "فائدة", "تضخم",
-    "أسعار", "عملة", "عملات", "دولار", "جنيه", "يورو", "ذهب", "نفط",
-    "غاز", "طاقة", "تجارة", "صادرات", "واردات", "ديون", "سندات",
-    "ميزانية", "إيرادات", "أرباح", "خسائر", "استحواذ",
-    "اكتتاب", "تمويل", "ائتمان", "ضرائب", "رسوم", "تحويلات", "احتياطي",
-    "ناتج محلي", "بطالة", "أجور", "عقارات", "صناعة", "إنتاج",
-    "financial", "economy", "economic", "market", "markets", "stock",
-    "stocks", "shares", "bank", "banking", "interest", "inflation",
-    "currency", "dollar", "euro", "gold", "oil", "gas", "energy",
-    "trade", "export", "import", "debt", "bond", "budget", "revenue",
-    "profit", "loss", "investment", "investor", "funding", "credit",
-    "tax", "remittance", "reserve", "gdp", "unemployment", "wage",
-    "real estate", "earnings", "ipo",
+FINANCE_TITLE_TERMS = (
+    "اقتصاد", "اقتصادي", "اقتصادية", "مالية", "مالي", "أسواق المال",
+    "سوق المال", "سوق العمل", "بورصة", "أسهم", "سهم", "استثمار",
+    "مستثمر", "بنك", "مصرف", "فائدة", "سعر الفائدة", "أسعار الفائدة",
+    "تضخم", "معدل التضخم", "مؤشر أسعار المستهلكين", "القوة الشرائية",
+    "عملة", "عملات", "دولار", "جنيه", "يورو", "الذهب", "نفط", "غاز",
+    "طاقة", "تجارة", "صادرات", "واردات", "ديون", "سندات", "ميزانية",
+    "إيرادات", "أرباح", "خسائر", "استحواذ", "اكتتاب", "تمويل", "ائتمان",
+    "ضرائب", "رسوم", "تحويلات", "احتياطي", "ناتج محلي", "بطالة", "أجور",
+    "عقارات", "عقود آجلة", "مشتقات", "عائد", "عوائد", "توزيعات",
+    "مبيعات", "نتائج مالية", "نتائج أعمال", "توقعات الأرباح", "الإنفاق",
+    "قروض", "قرض", "تكلفة المعيشة", "غلاء المعيشة", "تسريح العمال",
+    "financial", "finance", "economy", "economic", "market", "markets",
+    "stock", "stocks", "shares", "bank", "banking", "interest rate",
+    "inflation", "currency", "dollar", "euro", "gold", "oil", "gas",
+    "energy", "trade", "export", "import", "debt", "bond", "budget",
+    "revenue", "profit", "loss", "investment", "investor", "funding",
+    "credit", "tax", "remittance", "reserve", "gdp", "unemployment",
+    "wage", "real estate", "earnings", "ipo", "futures", "yield",
+    "dividend", "buyback", "quarterly results", "earnings forecast",
+)
+FINANCE_SUMMARY_TERMS = (
+    *FINANCE_TITLE_TERMS,
+    "أسعار", "سوق", "أسواق", "صناعة", "إنتاج", "مؤشر", "مؤشرات",
+    "market value", "market share", "cost", "costs", "price", "prices",
+    "sales", "jobs", "employment",
 )
 SPORT_TERMS = (
     "كرة القدم", "الدوري", "مباراة", "مباريات", "هدف", "أهداف", "لاعب",
     "لاعبين", "مدرب", "منتخب", "ليفربول", "ريال مدريد", "برشلونة",
     "football", "soccer", "match", "goal", "player", "coach", "league",
 )
-GENERIC_CATEGORIES = {"عام", "دولي", "اقتصاد وأسواق", "أخبار عامة"}
+EXPLICIT_FINANCE_CATEGORIES = {
+    "أسواق المال", "اقتصاد", "اقتصادي", "اقتصاد عالمي",
+    "financial markets", "finance", "financial", "markets", "business",
+}
 
 
 def _has_term(text: str, terms: tuple[str, ...]) -> bool:
@@ -41,17 +56,18 @@ def _has_term(text: str, terms: tuple[str, ...]) -> bool:
 def relevance(story: dict) -> tuple[bool, str]:
     title = str(story.get("title", "")).strip()
     summary = str(story.get("summary", "")).strip()
-    category = str(story.get("category", "")).strip()
-    searchable = f"{title} {summary}"
-    finance_hit = _has_term(searchable, FINANCE_TERMS)
-    sport_hit = _has_term(searchable, SPORT_TERMS)
-    if sport_hit and not finance_hit:
-        return False, "محتوى رياضي لا يرتبط مباشرة بالمال أو الاقتصاد"
-    if finance_hit:
-        return True, "يتضمن مؤشرات أو موضوعات مالية واقتصادية"
-    if category and category not in GENERIC_CATEGORIES and _has_term(category, FINANCE_TERMS):
-        return True, "تصنيف المصدر اقتصادي أو مالي"
-    return False, "لا توجد صلة مالية أو اقتصادية واضحة في العنوان أو الملخص"
+    category = str(story.get("category", "")).strip().casefold()
+    title_finance_hit = _has_term(title, FINANCE_TITLE_TERMS)
+    summary_finance_hit = _has_term(summary, FINANCE_SUMMARY_TERMS)
+    sport_hit = _has_term(title, SPORT_TERMS)
+
+    if sport_hit and not title_finance_hit:
+        return False, "عنوان رياضي لا يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
+    if title_finance_hit:
+        return True, "عنوان الخبر يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
+    if category in EXPLICIT_FINANCE_CATEGORIES and summary_finance_hit:
+        return True, "تصنيف المصدر مالي والملخص يدعم الصلة الاقتصادية"
+    return False, "لا توجد صلة مالية أو اقتصادية مباشرة وواضحة في العنوان"
 
 
 def review_stories(stories: list[dict], now: datetime | None = None) -> dict:

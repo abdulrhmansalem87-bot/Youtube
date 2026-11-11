@@ -60,6 +60,58 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["warning_count"], 1)
         self.assertTrue(report["human_approval_required"])
 
+    def test_rejects_political_story_with_incidental_cost_reference(self):
+        report = review_stories([{
+            "id": "5",
+            "title": "روبيو يتحدث عن مسار المفاوضات مع إيران",
+            "summary": "تطرقت التغطية إلى تكلفة التصعيد والإنفاق العسكري.",
+            "link": "https://example.com/politics",
+            "source": "مصدر عام",
+            "category": "اقتصاد وأسواق",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+
+    def test_rejects_sports_story_with_incidental_market_reference(self):
+        report = review_stories([{
+            "id": "6",
+            "title": "فان دايك يفتح الباب أمام الرحيل عن ليفربول",
+            "summary": "يتحدث التقرير عن القيمة السوقية للنادي وتفاعل الجماهير.",
+            "link": "https://example.com/football",
+            "source": "مصدر رياضي",
+            "category": "عام",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+
+    def test_accepts_financial_summary_from_explicit_market_category(self):
+        report = review_stories([{
+            "id": "7",
+            "title": "شركة تعلن نتائجها الفصلية الجديدة",
+            "summary": "ارتفعت الأرباح والإيرادات مقارنة بالفترة نفسها من العام الماضي.",
+            "link": "https://example.com/results",
+            "source": "مصدر مالي",
+            "category": "أسواق المال",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["rejected_count"], 0)
+
+    def test_rejects_figurative_gold_in_nonfinancial_title(self):
+        report = review_stories([{
+            "id": "8",
+            "title": "ذهب الصحراء.. فوائد زيت التين الشوكي",
+            "summary": "يتناول التقرير الاستخدامات التقليدية لزيت التين الشوكي.",
+            "link": "https://example.com/lifestyle",
+            "source": "مصدر عام",
+            "category": "عام",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

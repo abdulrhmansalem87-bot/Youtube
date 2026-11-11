@@ -1,6 +1,6 @@
 import unittest
 
-from newsflow.pipeline import make_short_script
+from newsflow.pipeline import make_script, make_short_script
 
 
 class ShortScriptTests(unittest.TestCase):
@@ -15,6 +15,14 @@ class ShortScriptTests(unittest.TestCase):
         self.assertIn(story["summary"], script)
         self.assertIn("WealthRadar", script)
         self.assertIn("ليست توصية استثمارية", script)
+
+    def test_main_script_uses_requested_channel_opening(self):
+        script = make_script([{
+            "title": "التضخم الأمريكي يضغط على الأسواق",
+            "summary": "ارتفع التضخم الأساسي في الولايات المتحدة خلال أكتوبر.",
+            "source": "Reuters",
+        }])
+        self.assertIn("أهلاً بكم في أهم الأخبار", script)
 
     def test_short_uses_safe_fallback_when_summary_missing(self):
         script = make_short_script({"title": "تطور اقتصادي جديد", "source": "المصدر"})
