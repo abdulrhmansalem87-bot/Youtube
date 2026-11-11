@@ -3,9 +3,12 @@ import unittest
 from urllib.error import HTTPError
 
 from wealthradar_shorts.pipeline import (
-    require_pexels_api_key, stock_footage_error, validate_plan, validate_video_probe,
-), verify_target_channel
-
+    require_pexels_api_key,
+    stock_footage_error,
+    validate_plan,
+    validate_video_probe,
+    verify_target_channel,
+)
 
 def valid_plan():
     return {
