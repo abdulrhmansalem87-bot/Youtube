@@ -93,7 +93,15 @@ class WealthRadarBrollSafetyTests(unittest.TestCase):
         exc = HTTPError("https://api.pexels.com/videos/search", 401, "Unauthorized", None, None)
         error = stock_footage_error(3, exc)
         self.assertIn("HTTP 401", str(error))
+        self.assertIn("PEXELS_API_KEY", str(error))
         self.assertIn("الخلفيات الثابتة غير مسموح بها", str(error))
+
+    def test_http_403_explains_account_or_key_restrictions(self):
+        exc = HTTPError("https://api.pexels.com/videos/search", 403, "Forbidden", None, None)
+        error = stock_footage_error(1, exc)
+        self.assertIn("HTTP 403", str(error))
+        self.assertIn("قيود المفتاح", str(error))
+        self.assertIn("لا يمكن تجاوز الرفض برمجياً", str(error))
 
 
 class WealthRadarRenderedVideoTests(unittest.TestCase):

@@ -17,6 +17,8 @@ class EditorialReviewTests(unittest.TestCase):
             "source": "مصدر مالي",
         }])
         self.assertIn("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar", script)
+        self.assertIn("سننقل ما ورد في المصادر", script)
+        self.assertNotIn("الوقائع المؤكدة", script)
         self.assertTrue(script.endswith("ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس."))
         self.assertNotIn("إيه اللي حصل", script)
 
