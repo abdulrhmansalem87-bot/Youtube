@@ -138,3 +138,24 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
         "warnings": warnings,
         "reviewed_at": now.isoformat(),
     }
+
+
+def upload_review_blockers(report: dict, editorial_approved: bool) -> list[str]:
+    """Fail closed unless editorial warnings are cleared and facts are verified."""
+    blockers = []
+    if not editorial_approved:
+        blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
+    if report.get("status") != "needs_human_review":
+        blockers.append("تقرير المراجعة ليس في حالة قابلة للمراجعة")
+    try:
+        accepted_count = int(report.get("accepted_count", 0) or 0)
+        warning_count = int(report.get("warning_count", 0) or 0)
+    except (TypeError, ValueError):
+        accepted_count, warning_count = 0, 1
+    if accepted_count <= 0:
+        blockers.append("لا توجد أخبار مقبولة")
+    if warning_count > 0 or report.get("warnings"):
+        blockers.append("توجد تحذيرات تحريرية غير محسومة")
+    if report.get("fact_checking") != "verified":
+        blockers.append("التحقق المستقل من الوقائع لم يكتمل")
+    return blockers
