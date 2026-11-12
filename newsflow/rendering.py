@@ -106,7 +106,10 @@ def _fit_block(
     for shortening_round in range(3):
         for size in range(max_size, min_size - 1, -2):
             font = ImageFont.truetype(font_path, size)
-            lines = wrap_text(draw, candidate, font, max_width)
+            try:
+                lines = wrap_text(draw, candidate, font, max_width)
+            except ValueError:
+                continue
             if len(lines) > max_lines:
                 continue
             line_height = size + line_gap
@@ -144,7 +147,10 @@ def render_card_image(
         width=max(2, width // 700),
     )
 
-    brand_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 52 if width > height else 62)
+    brand_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    if not Path(brand_path).is_file():
+        brand_path = _font_path(True)
+    brand_font = ImageFont.truetype(brand_path, 52 if width > height else 62)
     small_ar_font = ImageFont.truetype(_font_path(True), 34 if width > height else 42)
     draw.text((width // 2, int(height * .12)), "WealthRadar", font=brand_font, fill=(248, 251, 255), anchor="mm")
     tagline = "أهم الأخبار المالية والاقتصادية"
