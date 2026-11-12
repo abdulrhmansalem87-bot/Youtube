@@ -54,14 +54,22 @@ def main() -> None:
             "body": "نوضح ما حدث، ولماذا يهمك، ونفصل الوقائع عن التوقعات مع الإشارة إلى المصدر.",
         },
     ]
-    for name, short in (("landscape", False), ("portrait", True)):
+    cases = (
+        ("landscape", False, False),
+        ("portrait-long", False, True),
+        ("portrait-short", True, True),
+    )
+    for name, short, portrait in cases:
         video = OUT / f"{name}.mp4"
         cache = OUT / ".render_cache" / name
         render_cards_video(
-            cards, [SCENE_SECONDS] * len(cards), audio, video, short=short,
+            cards, [SCENE_SECONDS] * len(cards), audio, video,
+            short=short, portrait=portrait,
             commit_sha="mobile-preview", cache_dir=cache,
         )
-        validate_video(video, audio, expected_short=short)
+        validate_video(
+            video, audio, expected_short=short, expected_portrait=portrait
+        )
         for index, second in enumerate(SCENE_TIMES, start=1):
             image = OUT / f"{name}-{index:02d}.png"
             run([ffmpeg, "-y", "-ss", str(second), "-i", str(video), "-frames:v", "1", str(image)])
