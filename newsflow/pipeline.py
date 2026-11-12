@@ -17,7 +17,7 @@ import feedparser
 import yaml
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
-from newsflow.editorial import relevance, review_stories
+from newsflow.editorial import relevance, review_stories, upload_review_blockers
 from newsflow.rendering import render_cards_video
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -543,6 +543,11 @@ def main():
     stories = editorial_report["accepted"]
     (out / "stories.json").write_text(json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
+    upload_blockers = upload_review_blockers(editorial_report, editorial_approved)
+    if upload_enabled and upload_blockers:
+        print("[SAFE] PRIVATE upload blocked: " + " | ".join(upload_blockers)
+              + ". Generated video will remain an Artifact.")
+        upload_enabled = False
     if not stories:
         print("[INFO] لم يتم العثور على أخبار في المصادر.")
         return
@@ -586,13 +591,16 @@ def main():
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
-    make_video(video_title, audio, long_video, short=False, portrait=True, stories=stories)
-    validate_video(long_video, audio, expected_portrait=True)
+    make_video(video_title, audio, long_video, short=False, portrait=False, stories=stories)
+    validate_video(long_video, audio, expected_portrait=False)
     if args.private_test:
-        youtube_upload(
-            long_video, video_title, description, tags,
-            privacy_override="private", credentials=auth_credentials
-        )
+        if upload_enabled:
+            youtube_upload(
+                long_video, video_title, description, tags,
+                privacy_override="private", credentials=auth_credentials
+            )
+        else:
+            print("[SAFE] PRIVATE upload skipped; generated video remains an Artifact.")
         return
     if upload_enabled:
         youtube_upload(long_video, video_title, description, tags, credentials=auth_credentials)
@@ -614,7 +622,7 @@ def main():
             if upload_enabled:
                 youtube_upload(
                     short_video, short_title, short_description, short_tags,
-                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "public"), credentials=auth_credentials
+                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "private"), credentials=auth_credentials
                 )
 
 
