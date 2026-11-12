@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -28,7 +29,7 @@ def config():
         return yaml.safe_load(f)
 
 
-MAX_BULLETIN_STORIES = 4
+MAX_BULLETIN_STORIES = 8
 LOCAL_GOLD_MARKET_NAMES = (
     "مصر", "السعودية", "الإمارات", "الأردن", "العراق", "الكويت",
     "قطر", "البحرين", "عمان", "المغرب", "لبنان",
@@ -39,6 +40,17 @@ LOCAL_GOLD_MARKET_NAMES = (
 
 def clamp_max_stories(value: int) -> int:
     return min(max(int(value), 1), MAX_BULLETIN_STORIES)
+
+
+def validate_audio_duration(duration: float) -> float:
+    """Accept content-driven durations; reject only invalid/non-positive audio."""
+    try:
+        value = float(duration)
+    except (TypeError, ValueError):
+        raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.") from None
+    if not math.isfinite(value) or value <= 0:
+        raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.")
+    return value
 
 
 def story_topic_key(story: dict) -> str:
@@ -128,8 +140,9 @@ def make_opening_hook(stories):
 
 def make_script(stories):
     parts = [
+        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar.",
         make_opening_hook(stories),
-        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar. سنعرض الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
+        "سنستعرض الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
     ]
     for index, story in enumerate(stories, start=1):
         summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
@@ -666,13 +679,8 @@ def main():
              "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
             check=True, capture_output=True, text=True
         )
-        duration = float(probe.stdout.strip())
-        print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
-        if not args.private_test and not 150 <= duration <= 210:
-            raise RuntimeError(
-                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف 150–210 ثانية؛ "
-                "تم إيقاف بناء الفيديو بدلاً من إخراج نشرة بطول غير مناسب."
-            )
+        duration = validate_audio_duration(probe.stdout.strip())
+        print(f"[AUDIO_DURATION] {duration:.1f} seconds (duration follows editorial content)")
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
     video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
