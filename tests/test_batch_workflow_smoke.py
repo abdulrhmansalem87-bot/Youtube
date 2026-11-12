@@ -122,6 +122,8 @@ class ShortsBatchWorkflowSmokeTests(unittest.TestCase):
 
     def test_dashboard_artifact_is_required_and_retained(self):
         steps = self.dashboard["jobs"]["dashboard"]["steps"]
+        build = next(item for item in steps if item.get("name") == "Build dashboard and GitHub run summary")
+        self.assertNotIn("GITHUB_STEP_SUMMARY", build.get("env", {}))
         artifact = next(item for item in steps if item.get("uses") == "actions/upload-artifact@v4")
         self.assertEqual(artifact["with"]["path"], "control-center/")
         self.assertEqual(artifact["with"]["if-no-files-found"], "error")
