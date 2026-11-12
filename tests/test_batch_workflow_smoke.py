@@ -23,7 +23,13 @@ class ShortsBatchWorkflowSmokeTests(unittest.TestCase):
     def prepare_script(self):
         steps = self.batch["jobs"]["prepare"]["steps"]
         step = next(item for item in steps if item.get("id") == "matrix")
-        return step["run"]
+        script = step["run"]
+        lines = script.splitlines()
+        if lines and lines[0].strip() == "python - <<'PY'":
+            if lines[-1].strip() != "PY":
+                raise AssertionError("Batch prepare heredoc is not properly closed.")
+            script = "\n".join(lines[1:-1])
+        return script
 
     def test_matrix_keeps_sibling_jobs_independent_and_artifacts_unique(self):
         produce = self.batch["jobs"]["produce"]
