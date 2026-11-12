@@ -1,0 +1,134 @@
+{
+  "brand": "WealthRadar",
+  "title": "الذهب ليس بلا مخاطر #shorts",
+  "loop_phrase": "سعر الذهب",
+  "narration": [
+    "سعر الذهب يتحرك لأكثر من سبب.",
+    "الدولار والعوائد يؤثران في المعدن.",
+    "ارتفاع الفائدة يزيد تكلفة الاحتفاظ بالذهب.",
+    "راقب السوق ولا تطارد الحركة.",
+    "سعر الذهب لا يضمن الربح."
+  ],
+  "scenes": [
+    {
+      "duration": 2.2,
+      "query": "gold bullion closeup",
+      "caption": [
+        "سبائك",
+        "ذهب"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "gold market trading screen",
+      "caption": [
+        "سوق",
+        "الذهب"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "currency exchange board",
+      "caption": [
+        "سعر",
+        "الدولار"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "bond yields financial screen",
+      "caption": [
+        "عوائد",
+        "السندات"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "gold coins on desk",
+      "caption": [
+        "عملات",
+        "ذهبية"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "central bank building",
+      "caption": [
+        "بنك",
+        "مركزي"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "financial news newsroom",
+      "caption": [
+        "أخبار",
+        "مالية"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "gold price chart",
+      "caption": [
+        "سعر",
+        "الذهب"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "investor analyzing market",
+      "caption": [
+        "تحليل",
+        "السوق"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "gold jewelry shop",
+      "caption": [
+        "محل",
+        "ذهب"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "global economy dashboard",
+      "caption": [
+        "اقتصاد",
+        "عالمي"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "market data monitor",
+      "caption": [
+        "بيانات",
+        "السوق"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "gold bar weighing scale",
+      "caption": [
+        "وزن",
+        "الذهب"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "currency market screen",
+      "caption": [
+        "سوق",
+        "العملات"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "investor planning portfolio",
+      "caption": [
+        "تخطيط",
+        "استثمار"
+      ]
+    }
+  ]
+}
