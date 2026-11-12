@@ -298,7 +298,9 @@ def source_display_name(value: str) -> str:
     return SOURCE_DISPLAY_NAMES.get(str(value or "").strip(), "مصدر الخبر")
 
 
-def make_video(title, audio, output, short=False, stories=None):
+def make_video(title, audio, output, short=False, stories=None, portrait=None):
+    # A vertical long-form video is still a regular video; only Shorts have a 180s cap.
+    portrait = short if portrait is None else portrait
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
         raise RuntimeError("FFprobe غير متاح للتحقق من مدة الصوت")
@@ -334,12 +336,20 @@ def make_video(title, audio, output, short=False, stories=None):
 
     cache_dir = output.parent / ".render_cache" / output.stem
     render_cards_video(
-        cards, durations, audio, output, short=short,
+        cards, durations, audio, output, short=short, portrait=portrait,
         commit_sha=os.getenv("GITHUB_SHA", "local"), cache_dir=cache_dir,
     )
     print(f"[RENDER_RESUME] scenes={len(cards)} cache={cache_dir}")
 
-def validate_video(video_path: Path, audio_path: Path, expected_short: bool = False):
+def validate_video(
+    video_path: Path,
+    audio_path: Path,
+    expected_short: bool = False,
+    expected_portrait: bool | None = None,
+):
+    expected_portrait = expected_short if expected_portrait is None else expected_portrait
+    if expected_short and not expected_portrait:
+        raise RuntimeError("يجب أن تكون مقاطع Shorts رأسية.")
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
         raise RuntimeError("FFprobe غير متاح للتحقق من الفيديو")
@@ -359,9 +369,9 @@ def validate_video(video_path: Path, audio_path: Path, expected_short: bool = Fa
     video_stream = next(stream for stream in streams if stream.get("codec_type") == "video")
     width = int(video_stream.get("width", 0))
     height = int(video_stream.get("height", 0))
-    expected_dimensions = (1080, 1920) if expected_short else (1920, 1080)
+    expected_dimensions = (1080, 1920) if expected_portrait else (1920, 1080)
     if (width, height) != expected_dimensions:
-        orientation = "رأسياً" if expected_short else "أفقياً"
+        orientation = "رأسياً" if expected_portrait else "أفقياً"
         raise RuntimeError(
             f"فشل فحص أبعاد الفيديو: يجب أن يكون {orientation} بمقاس "
             f"{expected_dimensions[0]}×{expected_dimensions[1]}، والموجود {width}×{height}"
@@ -565,10 +575,10 @@ def main():
         )
         duration = float(probe.stdout.strip())
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
-        if not args.private_test and not 150 <= duration <= 210:
+        if not args.private_test and not 180 < duration <= 300:
             raise RuntimeError(
-                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف 150–210 ثانية؛ "
-                "تم إيقاف بناء الفيديو بدلاً من إخراج نشرة بطول غير مناسب."
+                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف 181–300 ثانية؛ "
+                "الفيديو الرئيسي رأسي وطويل، لذلك يجب أن يتجاوز 3 دقائق حتى لا يُصنّف Shorts."
             )
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
@@ -576,8 +586,8 @@ def main():
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
-    make_video(video_title, audio, long_video, short=False, stories=stories)
-    validate_video(long_video, audio)
+    make_video(video_title, audio, long_video, short=False, portrait=True, stories=stories)
+    validate_video(long_video, audio, expected_portrait=True)
     if args.private_test:
         youtube_upload(
             long_video, video_title, description, tags,
