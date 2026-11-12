@@ -24,6 +24,8 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Compile Python
         run: python -m compileall -q newsflow
+      - name: Compile mobile preview script
+        run: python -m py_compile scripts/render_mobile_preview.py
       - name: Validate source configuration
         run: python -c "import yaml; yaml.safe_load(open('config/sources.yml', encoding='utf-8'))"
       - name: Test WealthRadar Shorts validation
