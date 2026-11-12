@@ -1,10 +1,12 @@
 import unittest
+from unittest.mock import patch
 
 from urllib.error import HTTPError
 
 from wealthradar_shorts.pipeline import (
     require_pexels_api_key,
     stock_footage_error,
+    validate_pexels_access,
     validate_plan,
     validate_video_probe,
     verify_target_channel,
@@ -94,6 +96,16 @@ class WealthRadarBrollSafetyTests(unittest.TestCase):
         error = stock_footage_error(3, exc)
         self.assertIn("HTTP 401", str(error))
         self.assertIn("الخلفيات الثابتة غير مسموح بها", str(error))
+
+
+    def test_pexels_403_preflight_fails_before_tts_without_exposing_key(self):
+        secret = "do-not-print-pexels-key"
+        exc = HTTPError("https://api.pexels.com/videos/search", 403, "Forbidden", None, None)
+        with patch("wealthradar_shorts.pipeline._request_json", side_effect=exc):
+            with self.assertRaisesRegex(RuntimeError, "HTTP 403") as caught:
+                validate_pexels_access(secret)
+        self.assertNotIn(secret, str(caught.exception))
+        self.assertIn("قبل إنشاء الصوت", str(caught.exception))
 
 
 class WealthRadarRenderedVideoTests(unittest.TestCase):
