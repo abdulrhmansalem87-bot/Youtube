@@ -226,6 +226,8 @@ def clean_narration(value):
     text = html.unescape(str(value or ""))
     text = re.sub(r"<[^>]+>", " ", text)
     text = text.replace("\u200f", " ").replace("\u200e", " ")
+    # Normalize punctuation and Persian-only letters that can render inconsistently in Arabic fonts.
+    text = text.replace('"', '').replace("چ", "ج")
     # Keep Arabic brand/story names readable; remove English-only parenthetical aliases
     # that the Arabic card font cannot render consistently (e.g. "(Siemens Energy)").
     text = re.sub(r"\(\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\s*\)", " ", text)
