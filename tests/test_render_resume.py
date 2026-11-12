@@ -109,6 +109,27 @@ class ResumableRenderTests(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertTrue(self.output.is_file())
 
+    def test_changed_audio_rebuilds_only_final_mux_and_reuses_scene_segments(self):
+        segment_calls = []
+        mux_calls = []
+
+        def render_segment(frame, output, duration, width, height, ffmpeg):
+            segment_calls.append(output.name)
+            output.write_bytes(b"segment-" + output.name.encode())
+
+        def muxer(segments, audio, output, ffmpeg):
+            mux_calls.append(audio.read_bytes())
+            self.fake_mux(segments, audio, output, ffmpeg)
+
+        self.render(render_segment, muxer=muxer)
+        self.audio.write_bytes(b"audio-content-changed-with-same-duration")
+        self.render(render_segment, muxer=muxer)
+
+        self.assertEqual(segment_calls, [
+            "segment-000.mp4", "segment-001.mp4", "segment-002.mp4"
+        ])
+        self.assertEqual(mux_calls, [b"audio-placeholder", b"audio-content-changed-with-same-duration"])
+
     def test_arabic_layout_fits_landscape_and_portrait_safe_regions(self):
         card = {
             "heading": "الخبر الأول، أسواق المال",
