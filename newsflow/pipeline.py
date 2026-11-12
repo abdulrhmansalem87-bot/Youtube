@@ -129,7 +129,7 @@ def make_opening_hook(stories):
 def make_script(stories):
     parts = [
         make_opening_hook(stories),
-        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar. سنعرض الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
+        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar. سننقل ما ورد في المصادر، ونفصل المعلومات المنشورة عن التحليل والتوقع."
     ]
     for index, story in enumerate(stories, start=1):
         summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
