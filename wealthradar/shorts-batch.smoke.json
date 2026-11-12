@@ -1,0 +1,14 @@
+{
+  "brand": "WealthRadar",
+  "description": "Two-plan smoke manifest for independent matrix jobs; not an editorial production package.",
+  "plans": [
+    {
+      "id": "smoke-finance-a",
+      "path": "tests/fixtures/shorts/short-a.json"
+    },
+    {
+      "id": "smoke-finance-b",
+      "path": "tests/fixtures/shorts/short-b.json"
+    }
+  ]
+}
