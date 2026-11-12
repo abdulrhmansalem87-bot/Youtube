@@ -116,7 +116,7 @@ def collect(max_stories: int):
     return selected, rejected
 
 def make_opening_hook(stories):
-    """Lead with the strongest verified story in clear modern Arabic."""
+    """Lead with the most relevant collected story; fact-checking is a separate gate."""
     if not stories:
         return "ما أبرز ما يحرك الأسواق اليوم؟ إليك الصورة ببساطة."
     lead = clean_narration(stories[0].get("title", ""))
