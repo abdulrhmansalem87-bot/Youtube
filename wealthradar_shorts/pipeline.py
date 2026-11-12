@@ -96,6 +96,31 @@ def _request_json(url: str, api_key: str) -> dict:
         return json.loads(response.read().decode("utf-8"))
 
 
+def validate_pexels_access(api_key: str) -> None:
+    """Check the licensed-footage API before generating voice or downloading scenes."""
+    value = require_pexels_api_key(api_key)
+    params = urllib.parse.urlencode({
+        "query": "business finance",
+        "orientation": "portrait",
+        "per_page": 1,
+    })
+    try:
+        payload = _request_json(f"{PEXELS_API}?{params}", value)
+    except urllib.error.HTTPError as exc:
+        status = int(getattr(exc, "code", 0) or 0)
+        if status in {401, 403}:
+            raise RuntimeError(
+                f"Pexels رفض مفتاح الوصول (HTTP {status}). راجع صلاحية المفتاح وحالة الحساب لدى Pexels؛ "
+                "لم تتم طباعة المفتاح، وتم إيقاف الإنتاج قبل إنشاء الصوت."
+            ) from None
+        raise RuntimeError(
+            f"فشل الفحص المسبق لخدمة Pexels (HTTP {status}); لم يبدأ إنتاج الصوت أو الفيديو."
+        ) from None
+    if not isinstance(payload.get("videos"), list):
+        raise RuntimeError("استجابة Pexels غير صالحة؛ أوقفنا الإنتاج قبل إنشاء الصوت.")
+    print("[PEXELS_PREFLIGHT_OK] licensed-footage API access confirmed")
+
+
 def find_pexels_video(query: str, api_key: str) -> str:
     params = urllib.parse.urlencode({"query": query, "orientation": "portrait", "per_page": 12})
     payload = _request_json(f"{PEXELS_API}?{params}", api_key)
@@ -247,6 +272,7 @@ def validate_rendered_video(path: Path) -> float:
 
 def render(plan: dict, output: Path, api_key: str) -> Path:
     api_key = require_pexels_api_key(api_key)
+    validate_pexels_access(api_key)
     ffmpeg = shutil.which("ffmpeg")
     ffprobe = shutil.which("ffprobe")
     if not ffmpeg or not ffprobe:

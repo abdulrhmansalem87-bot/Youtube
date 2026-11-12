@@ -107,6 +107,26 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["accepted_count"], 0)
         self.assertEqual(report["rejected_count"], 1)
 
+    def test_rejects_defamation_lawsuit_with_large_dollar_amount_as_nonfinancial(self):
+        report = review_stories([{
+            "id": "defamation",
+            "title": 'القضاء الفيدرالي يسمح بالمضي قدماً في دعوى تشهير رفعها ترامب ضد "بي بي سي" بقيمة 10 مليارات دولار',
+            "summary": "المحكمة ترفض الجزء الآخر من الدعوى الذي زعم فيه انتهاك قانون في ولاية فلوريدا.",
+            "link": "https://example.com/legal/defamation",
+            "source": "BBC Arabic",
+            "category": "اقتصاد وأسواق",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+        self.assertIn("دعوى غير مالية", report["rejected"][0]["reasons"][0])
+
+    def test_clean_narration_normalizes_ascii_quotes_and_persian_cheh(self):
+        cleaned = clean_narration('شركة "إي إف چي" تعلن نتائجها')
+        self.assertNotIn('"', cleaned)
+        self.assertIn("إي إف جي", cleaned)
+        self.assertNotIn("چ", cleaned)
+
     def test_rejects_political_commentary_with_incidental_market_reference(self):
         report = review_stories([{
             "id": "politics",

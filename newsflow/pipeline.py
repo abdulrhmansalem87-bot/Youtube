@@ -18,6 +18,7 @@ import yaml
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from newsflow.editorial import relevance, review_stories
+from newsflow.rendering import render_cards_video
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -225,6 +226,8 @@ def clean_narration(value):
     text = html.unescape(str(value or ""))
     text = re.sub(r"<[^>]+>", " ", text)
     text = text.replace("\u200f", " ").replace("\u200e", " ")
+    # Normalize punctuation and Persian-only letters that can render inconsistently in Arabic fonts.
+    text = text.replace('"', '').replace("چ", "ج")
     # Keep Arabic brand/story names readable; remove English-only parenthetical aliases
     # that the Arabic card font cannot render consistently (e.g. "(Siemens Energy)").
     text = re.sub(r"\(\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+\s*\)", " ", text)
@@ -295,149 +298,58 @@ def source_display_name(value: str) -> str:
     return SOURCE_DISPLAY_NAMES.get(str(value or "").strip(), "مصدر الخبر")
 
 
-def make_video(title, audio, output, short=False, stories=None):
-    ffmpeg = shutil.which("ffmpeg")
+def make_video(title, audio, output, short=False, stories=None, portrait=None):
+    # A vertical long-form video is still a regular video; only Shorts have a 180s cap.
+    portrait = short if portrait is None else portrait
     ffprobe = shutil.which("ffprobe")
-    if not ffmpeg or not ffprobe:
-        raise RuntimeError("يجب تثبيت FFmpeg وFFprobe")
-    width, height = (1080, 1920) if short else (1920, 1080)
-    regular_path, bold_path = find_font(False), find_font(True)
-    heading_font_size = 76 if short else 72
-    body_font_size = 45 if short else 42
-    small_font_size = 31 if short else 28
-    heading_font = ImageFont.truetype(bold_path or regular_path, heading_font_size) if bold_path or regular_path else ImageFont.load_default()
-    body_font = ImageFont.truetype(regular_path, body_font_size) if regular_path else ImageFont.load_default()
-    small_font = ImageFont.truetype(bold_path or regular_path, small_font_size) if bold_path or regular_path else ImageFont.load_default()
-    english_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", max(22, small_font_size - 5)) if Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf").exists() else small_font
-    brand_font_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    brand_font = ImageFont.truetype(brand_font_path, heading_font_size) if Path(brand_font_path).exists() else heading_font
-
+    if not ffprobe:
+        raise RuntimeError("FFprobe غير متاح للتحقق من مدة الصوت")
     probe = subprocess.run(
         [ffprobe, "-v", "error", "-show_entries", "format=duration",
          "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
-        check=True, capture_output=True, text=True
+        check=True, capture_output=True, text=True,
     )
     total_duration = float(probe.stdout.strip())
     story_list = stories or []
-    cards = [("إيه الحكاية؟", make_opening_hook(story_list), "أهم تطورات المال والأسواق.. من غير تهويل وبالمصادر", "THE STORY BEHIND THE HEADLINE")]
+    cards = [{
+        "heading": "المقدمة",
+        "title": make_opening_hook(story_list),
+        "body": "أهم تطورات المال والأسواق، من غير تهويل وبالمصادر",
+    }]
     for index, story in enumerate(story_list, start=1):
-        cards.append((
-            f"الخبر {index:02d} • {source_display_name(story.get('source', 'المصدر'))}",
-            clean_narration(story.get("title", "")),
-            clean_narration(story.get("summary", "")[:520]) or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
-            f"STORY {index:02d}  |  MARKET WATCH"
-        ))
-    cards.append((
-        "قبل أي قرار مالي",
-        "تابع المصدر الأصلي وقارن المعلومات",
-        "اشترك في WealthRadar وفعّل زر الجرس لمتابعة موجز الأخبار القادم",
-        "FOLLOW • SUBSCRIBE • STAY INFORMED"
-    ))
+        cards.append({
+            "heading": f"الخبر {index:02d}، {source_display_name(story.get('source', 'المصدر'))}",
+            "title": clean_narration(story.get("title", "")),
+            "body": clean_narration(story.get("summary", "")[:520])
+                    or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
+        })
+    cards.append({
+        "heading": "الخلاصة",
+        "title": "قبل أي قرار مالي",
+        "body": "تابع المصدر الأصلي وقارن المعلومات. اشترك في WealthRadar وفعّل زر الجرس لمتابعة الموجز القادم.",
+    })
 
-    weights = [max(60, len(head) + len(body)) for _, head, body, _ in cards]
+    weights = [max(90, len(card["title"]) + len(card["body"])) for card in cards]
     weight_total = sum(weights)
     durations = [total_duration * weight / weight_total for weight in weights]
     durations[-1] += total_duration - sum(durations)
 
-    frame_dir = output.parent / f"{output.stem}_frames"
-    frame_dir.mkdir(parents=True, exist_ok=True)
-    frame_paths = []
+    cache_dir = output.parent / ".render_cache" / output.stem
+    render_cards_video(
+        cards, durations, audio, output, short=short, portrait=portrait,
+        commit_sha=os.getenv("GITHUB_SHA", "local"), cache_dir=cache_dir,
+    )
+    print(f"[RENDER_RESUME] scenes={len(cards)} cache={cache_dir}")
 
-    def wrap_text(draw, value, font, max_width, limit):
-        lines, current = [], ""
-        direction = "rtl" if re.search(r"[\u0600-\u06ff]", str(value)) else "ltr"
-        for word in str(value).split():
-            trial = (current + " " + word).strip()
-            bounds = draw.textbbox((0, 0), trial, font=font, direction=direction)
-            if bounds[2] - bounds[0] > max_width and current:
-                lines.append(current)
-                current = word
-            else:
-                current = trial
-        if current:
-            lines.append(current)
-        return lines[:limit]
-
-    try:
-        for index, (heading, headline, summary, english_label) in enumerate(cards):
-            accent = (42, 220, 198) if index % 2 == 0 else (255, 190, 92)
-            image = Image.new("RGB", (width, height), (7, 15, 31))
-            draw = ImageDraw.Draw(image)
-            draw.ellipse((int(width * .62), -int(height * .35), int(width * 1.12), int(height * .25)), fill=(15, 48, 70))
-            draw.ellipse((-int(width * .28), int(height * .65), int(width * .30), int(height * 1.15)), fill=(13, 39, 58))
-            for offset in range(0, width, max(120, width // 12)):
-                draw.line((offset, 0, offset - int(height * .28), height), fill=(14, 29, 48), width=2)
-            draw.rounded_rectangle(
-                (int(width*.045), int(height*.055), int(width*.955), int(height*.945)),
-                radius=max(28, width//42), fill=(12, 29, 49), outline=(34, 75, 96), width=3
-            )
-            draw.rounded_rectangle(
-                (int(width*.075), int(height*.085), int(width*.925), int(height*.19)),
-                radius=28, fill=(17, 45, 65), outline=(35, 87, 105), width=2
-            )
-            draw.text((width//2, int(height*.12)), "WealthRadar", font=brand_font,
-                      fill=(247, 250, 255), anchor="mm")
-            draw.text((width//2, int(height*.165)), "MONEY  •  MARKETS  •  BUSINESS",
-                      font=english_font, fill=accent, anchor="mm")
-            draw.rounded_rectangle(
-                (int(width*.25), int(height*.235), int(width*.75), int(height*.30)),
-                radius=22, fill=(accent[0]//4, accent[1]//4, accent[2]//4)
-            )
-            draw.text((width//2, int(height*.267)), heading, font=small_font,
-                      fill=accent, anchor="mm", direction="rtl")
-            draw.text((width//2, int(height*.325)), english_label, font=english_font,
-                      fill=(154, 184, 202), anchor="mm")
-            draw.line((int(width*.22), int(height*.365), int(width*.78), int(height*.365)),
-                      fill=accent, width=max(3, width//500))
-
-            headline_lines = wrap_text(draw, headline, heading_font, int(width*.78), 4 if short else 3)
-            y = int(height * .43) - len(headline_lines) * (heading_font_size + 18) // 2
-            for line in headline_lines:
-                draw.text((width // 2, y), line, font=heading_font,
-                          fill=(255, 255, 255), anchor="mm", direction=("rtl" if re.search(r"[\u0600-\u06ff]", line) else "ltr"))
-                y += heading_font_size + 18
-
-            body_lines = wrap_text(draw, summary, body_font, int(width*.76), 5 if short else 4)
-            y += int(height*.055)
-            for line in body_lines:
-                draw.text((width // 2, y), line, font=body_font,
-                          fill=(198, 215, 229), anchor="mm", direction=("rtl" if re.search(r"[\u0600-\u06ff]", line) else "ltr"))
-                y += body_font_size + (14 if short else 12)
-
-            footer_y = int(height*.86)
-            draw.line((int(width*.28), footer_y-int(height*.035), int(width*.72), footer_y-int(height*.035)),
-                      fill=(43, 78, 99), width=2)
-            draw.text((width // 2, footer_y), "المال والاقتصاد ببساطة",
-                      font=small_font, fill=(225, 235, 244), anchor="mm", direction="rtl")
-            draw.text((width // 2, int(height*.90)), "FOLLOW WEALTHRADAR  •  KNOW MORE",
-                      font=english_font, fill=accent, anchor="mm")
-            frame = frame_dir / f"slide-{index:02d}.png"
-            image.save(frame)
-            frame_paths.append(frame)
-
-        command = [ffmpeg, "-y"]
-        for frame, seconds in zip(frame_paths, durations):
-            command += ["-loop", "1", "-t", f"{seconds:.3f}", "-i", str(frame)]
-        command += ["-i", str(audio)]
-        filters = []
-        for index in range(len(frame_paths)):
-            filters.append(
-                f"[{index}:v]scale={width}:{height},setsar=1,format=yuv420p[v{index}]"
-            )
-        concat_inputs = "".join(f"[v{index}]" for index in range(len(frame_paths)))
-        filters.append(f"{concat_inputs}concat=n={len(frame_paths)}:v=1:a=0[v]")
-        command += [
-            "-filter_complex", ";".join(filters),
-            "-map", "[v]", "-map", f"{len(frame_paths)}:a:0",
-            "-c:v", "libx264", "-preset", "veryfast",
-            "-c:a", "aac", "-b:a", "192k", "-shortest",
-            "-movflags", "+faststart", str(output)
-        ]
-        subprocess.run(command, check=True, capture_output=True)
-    finally:
-        shutil.rmtree(frame_dir, ignore_errors=True)
-
-def validate_video(video_path: Path, audio_path: Path, expected_short: bool = False):
+def validate_video(
+    video_path: Path,
+    audio_path: Path,
+    expected_short: bool = False,
+    expected_portrait: bool | None = None,
+):
+    expected_portrait = expected_short if expected_portrait is None else expected_portrait
+    if expected_short and not expected_portrait:
+        raise RuntimeError("يجب أن تكون مقاطع Shorts رأسية.")
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
         raise RuntimeError("FFprobe غير متاح للتحقق من الفيديو")
@@ -457,9 +369,9 @@ def validate_video(video_path: Path, audio_path: Path, expected_short: bool = Fa
     video_stream = next(stream for stream in streams if stream.get("codec_type") == "video")
     width = int(video_stream.get("width", 0))
     height = int(video_stream.get("height", 0))
-    expected_dimensions = (1080, 1920) if expected_short else (1920, 1080)
+    expected_dimensions = (1080, 1920) if expected_portrait else (1920, 1080)
     if (width, height) != expected_dimensions:
-        orientation = "رأسياً" if expected_short else "أفقياً"
+        orientation = "رأسياً" if expected_portrait else "أفقياً"
         raise RuntimeError(
             f"فشل فحص أبعاد الفيديو: يجب أن يكون {orientation} بمقاس "
             f"{expected_dimensions[0]}×{expected_dimensions[1]}، والموجود {width}×{height}"
@@ -663,10 +575,10 @@ def main():
         )
         duration = float(probe.stdout.strip())
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
-        if not args.private_test and not 150 <= duration <= 210:
+        if not args.private_test and not 180 < duration <= 300:
             raise RuntimeError(
-                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف 150–210 ثانية؛ "
-                "تم إيقاف بناء الفيديو بدلاً من إخراج نشرة بطول غير مناسب."
+                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف 181–300 ثانية؛ "
+                "الفيديو الرئيسي رأسي وطويل، لذلك يجب أن يتجاوز 3 دقائق حتى لا يُصنّف Shorts."
             )
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
@@ -674,8 +586,8 @@ def main():
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
-    make_video(video_title, audio, long_video, short=False, stories=stories)
-    validate_video(long_video, audio)
+    make_video(video_title, audio, long_video, short=False, portrait=True, stories=stories)
+    validate_video(long_video, audio, expected_portrait=True)
     if args.private_test:
         youtube_upload(
             long_video, video_title, description, tags,

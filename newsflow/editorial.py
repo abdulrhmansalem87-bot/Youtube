@@ -55,6 +55,25 @@ GENERIC_ECONOMIC_TERMS = {
     "اقتصاد", "اقتصادي", "اقتصادية", "مالية", "مالي",
     "financial", "finance", "economy", "economic",
 }
+
+LEGAL_NONFINANCE_TITLE_TERMS = (
+    "دعوى", "قضية", "تشهير", "محكمة", "محكمه", "محاكمة",
+    "lawsuit", "defamation", "court", "trial", "sues", "sued",
+)
+DIRECT_FINANCE_EVENT_TERMS = (
+    "أسهم", "سهم", "بورصة", "استثمار", "بنك", "مصرف", "فائدة",
+    "تضخم", "سندات", "ميزانية", "إيرادات", "أرباح", "خسائر",
+    "استحواذ", "اكتتاب", "تمويل", "ائتمان", "ضرائب", "ناتج محلي",
+    "بطالة", "أجور", "عقارات", "عوائد", "مبيعات", "نتائج مالية",
+    "نتائج أعمال", "قروض", "ديون", "تجارة", "صادرات", "واردات",
+    "نفط", "غاز", "طاقة", "سلع", "أسعار", "financial", "finance",
+    "economy", "economic", "market", "stock", "stocks", "shares",
+    "bank", "banking", "interest rate", "inflation", "bond", "budget",
+    "revenue", "profit", "earnings", "investment", "funding", "credit",
+    "debt", "tax", "gdp", "unemployment", "wage", "real estate",
+    "yield", "dividend", "oil", "gas", "energy", "trade", "export",
+    "import", "quarterly results",
+)
 DIRECT_FINANCE_TITLE_TERMS = tuple(
     term for term in FINANCE_TITLE_TERMS
     if term.casefold() not in GENERIC_ECONOMIC_TERMS
@@ -75,7 +94,13 @@ def relevance(story: dict) -> tuple[bool, str]:
     sport_hit = _has_term(title, SPORT_TERMS)
     political_hit = _has_term(title, POLITICAL_TITLE_TERMS)
     direct_finance_hit = _has_term(title, DIRECT_FINANCE_TITLE_TERMS)
+    legal_nonfinance_hit = _has_term(title, LEGAL_NONFINANCE_TITLE_TERMS)
+    finance_event_hit = _has_term(title, DIRECT_FINANCE_EVENT_TERMS)
 
+    # A dollar amount alone does not turn a political or defamation lawsuit into
+    # a financial story. Legal headlines need a real market/economic event term.
+    if legal_nonfinance_hit and not finance_event_hit:
+        return False, "عنوان قضائي أو دعوى غير مالية؛ ذكر مبلغ بالدولار وحده لا يكفي"
     if political_hit and not direct_finance_hit:
         return False, "عنوان سياسي عام؛ الإشارة الاقتصادية غير كافية لتصنيفه خبراً مالياً"
     if sport_hit and not title_finance_hit:
