@@ -702,7 +702,7 @@ def main():
             if upload_enabled:
                 youtube_upload(
                     short_video, short_title, short_description, short_tags,
-                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "public"), credentials=auth_credentials
+                    privacy_override="private", credentials=auth_credentials
                 )
 
 
