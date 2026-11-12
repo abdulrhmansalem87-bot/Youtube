@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+# Running this file directly sets sys.path[0] to scripts/, not the repository root.
+# Add the root explicitly so imports work identically in local runs and GitHub Actions.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from newsflow.pipeline import validate_video
 from newsflow.rendering import render_cards_video
 
 
-ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "output" / "mobile-preview"
 
 
