@@ -307,6 +307,14 @@ def _write_manifest(path: Path, manifest: dict) -> None:
     os.replace(temporary, path)
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def render_video_resumable(
     cards: list[dict],
     durations: list[float],
@@ -423,9 +431,13 @@ def render_video_resumable(
             _write_manifest(manifest_path, manifest)
             raise
 
+    audio_sha256 = _file_sha256(audio)
     final_fingerprint = hashlib.sha256(
-        json.dumps({"segments": fingerprints, "audio_duration": round(sum(durations), 3)},
-                   sort_keys=True).encode("utf-8")
+        json.dumps({
+            "segments": fingerprints,
+            "audio_duration": round(sum(durations), 3),
+            "audio_sha256": audio_sha256,
+        }, sort_keys=True).encode("utf-8")
     ).hexdigest()
     if output.is_file() and manifest.get("status") == "complete" and manifest.get("final_fingerprint") == final_fingerprint:
         return output
@@ -452,11 +464,15 @@ def render_cards_video(
     short: bool = False,
     commit_sha: str = "local",
     cache_dir: Path | None = None,
+    portrait: bool | None = None,
 ) -> Path:
-    width, height = (1080, 1920) if short else (1920, 1080)
+    # Orientation is independent of YouTube Shorts classification: a long-form
+    # video can be portrait without being subject to the 180-second Shorts limit.
+    portrait = short if portrait is None else portrait
+    width, height = (1080, 1920) if portrait else (1920, 1080)
     if cache_dir is None:
         cache_dir = output.parent / ".render_cache" / output.stem
     return render_video_resumable(
         cards, durations, audio, output, width, height, cache_dir,
-        commit_sha=commit_sha, short=short,
+        commit_sha=commit_sha, short=portrait,
     )
