@@ -16,7 +16,8 @@ class EditorialReviewTests(unittest.TestCase):
             "summary": "ارتفعت الأرباح والإيرادات مقارنة بالفترة نفسها من العام الماضي.",
             "source": "مصدر مالي",
         }])
-        self.assertIn("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar", script)
+        self.assertTrue(script.startswith("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar."))
+        self.assertLess(script.index("أهلاً بكم"), script.index("ما الذي حدث؟"))
         self.assertTrue(script.endswith("ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس."))
         self.assertNotIn("إيه اللي حصل", script)
 
