@@ -33,7 +33,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_STEP_SUMMARY: ${{ github.step_summary }}
           DASHBOARD_OUTPUT: control-center
         run: python scripts/build_control_center.py
       - name: Save dashboard
