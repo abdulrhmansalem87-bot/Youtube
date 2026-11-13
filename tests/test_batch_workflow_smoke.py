@@ -59,6 +59,7 @@ class ShortsBatchWorkflowSmokeTests(unittest.TestCase):
 
         upload = next(item for item in steps if item.get("name") == "Upload this Short privately")
         self.assertIn("success()", upload["if"])
+        self.assertIn("!inputs.validation_only", upload["if"])
         self.assertIn("inputs.upload_private", upload["if"])
         self.assertIn("inputs.editorial_approved", upload["if"])
         self.assertIn("--upload-private", upload["run"])
