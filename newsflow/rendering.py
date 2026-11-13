@@ -269,6 +269,27 @@ def _probe_segment(path: Path, duration: float, width: int, height: int, ffprobe
     return bool(video and int(video.get("width", 0)) == width and int(video.get("height", 0)) == height
                 and abs(actual - duration) <= 0.75)
 
+def _probe_final_video(path: Path, duration: float, width: int, height: int, ffprobe: str) -> bool:
+    """Validate the muxed deliverable, not just its video track."""
+    if not path.is_file() or path.stat().st_size < 100_000:
+        return False
+    result = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration:stream=codec_type,width,height",
+         "-of", "json", str(path)],
+        check=True, capture_output=True, text=True,
+    )
+    metadata = json.loads(result.stdout)
+    streams = metadata.get("streams", [])
+    video = next((item for item in streams if item.get("codec_type") == "video"), None)
+    has_audio = any(item.get("codec_type") == "audio" for item in streams)
+    actual = float(metadata.get("format", {}).get("duration", 0))
+    return bool(
+        video and has_audio
+        and int(video.get("width", 0)) == width
+        and int(video.get("height", 0)) == height
+        and abs(actual - duration) <= 2.5
+    )
+
 
 def _render_segment(frame: Path, output: Path, duration: float, width: int, height: int, ffmpeg: str) -> None:
     temporary = output.with_name(output.stem + ".partial.mp4")
@@ -348,6 +369,7 @@ def render_video_resumable(
     segment_renderer: Callable | None = None,
     segment_validator: Callable | None = None,
     muxer: Callable | None = None,
+    final_validator: Callable | None = None,
 ) -> Path:
     """Render independent scene segments and safely reuse validated segments on retry."""
     if not cards or len(cards) != len(durations):
@@ -370,6 +392,7 @@ def render_video_resumable(
     segment_renderer = segment_renderer or _render_segment
     segment_validator = segment_validator or _probe_segment
     muxer = muxer or _mux_segments
+    final_validator = final_validator or _probe_final_video
     cache_dir.mkdir(parents=True, exist_ok=True)
     frames_dir = cache_dir / "frames"
     segments_dir = cache_dir / "segments"
@@ -380,6 +403,8 @@ def render_video_resumable(
         manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
     except (OSError, json.JSONDecodeError):
         manifest = {}
+    previous_status = manifest.get("status")
+    previous_final_fingerprint = manifest.get("final_fingerprint")
     if not isinstance(manifest.get("segments"), dict):
         manifest["segments"] = {}
     else:
@@ -461,11 +486,24 @@ def render_video_resumable(
             "audio_sha256": audio_sha256,
         }, sort_keys=True).encode("utf-8")
     ).hexdigest()
-    if output.is_file() and manifest.get("status") == "complete" and manifest.get("final_fingerprint") == final_fingerprint:
-        return output
+    if (
+        output.is_file()
+        and previous_status == "complete"
+        and previous_final_fingerprint == final_fingerprint
+    ):
+        try:
+            if final_validator(output, sum(durations), width, height, ffprobe):
+                manifest["status"] = "complete"
+                _write_manifest(manifest_path, manifest)
+                return output
+        except Exception:
+            # A damaged or unreadable final mux is rebuilt from the preserved scenes.
+            pass
 
     try:
         muxer(segment_paths, audio, output, ffmpeg)
+        if not final_validator(output, sum(durations), width, height, ffprobe):
+            raise RuntimeError("فشل التحقق من الفيديو النهائي أو مسار الصوت بعد التجميع.")
         manifest["status"] = "complete"
         manifest["final_fingerprint"] = final_fingerprint
         manifest["output_bytes"] = output.stat().st_size if output.is_file() else 0
