@@ -33,6 +33,10 @@ class ResumableRenderTests(unittest.TestCase):
         return path.is_file() and path.read_bytes().startswith(b"segment-")
 
     @staticmethod
+    def fake_final_validate(path, duration, width, height, ffprobe):
+        return path.is_file() and path.read_bytes().startswith(b"final-video")
+
+    @staticmethod
     def fake_mux(segments, audio, output, ffmpeg):
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_bytes(b"final-video")
@@ -51,6 +55,7 @@ class ResumableRenderTests(unittest.TestCase):
             segment_renderer=segment_renderer,
             segment_validator=self.fake_validate,
             muxer=muxer or self.fake_mux,
+            final_validator=self.fake_final_validate,
         )
 
     def test_late_scene_failure_resumes_without_rebuilding_successful_scenes(self):
@@ -108,6 +113,29 @@ class ResumableRenderTests(unittest.TestCase):
         self.render(render_segment)
         self.assertEqual(calls, [])
         self.assertTrue(self.output.is_file())
+
+    def test_corrupt_completed_mux_is_rebuilt_without_rebuilding_cached_scenes(self):
+        scene_calls = []
+        mux_calls = []
+
+        def render_segment(frame, output, duration, width, height, ffmpeg):
+            scene_calls.append(output.name)
+            output.write_bytes(b"segment-" + output.name.encode())
+
+        def muxer(segments, audio, output, ffmpeg):
+            mux_calls.append(True)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"final-video")
+
+        self.render(render_segment, muxer=muxer)
+        self.assertEqual(len(mux_calls), 1)
+        self.output.write_bytes(b"corrupt-final-mp4")
+
+        scene_calls.clear()
+        self.render(render_segment, muxer=muxer)
+        self.assertEqual(scene_calls, [])
+        self.assertEqual(len(mux_calls), 2)
+        self.assertEqual(self.output.read_bytes(), b"final-video")
 
     def test_changed_audio_rebuilds_only_final_mux_and_reuses_scene_segments(self):
         segment_calls = []
