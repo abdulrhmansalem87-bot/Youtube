@@ -125,19 +125,26 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
                 "source": story.get("source"), "reasons": reasons,
             })
             continue
-        story_warnings = []
         summary_text = str(story.get("summary", "")).strip()
+        completeness_reasons = []
         if not summary_text or len(summary_text) < 45:
-            story_warnings.append("ملخص المصدر قصير؛ يلزم فتح الرابط ومراجعة التفاصيل")
+            completeness_reasons.append(
+                "ملخص المصدر قصير أو غير مكتمل؛ يجب مراجعة النص الكامل قبل إدراج الخبر"
+            )
         elif summary_text.endswith(("...", "…", "[...]")):
-            story_warnings.append("ملخص RSS يبدو مبتوراً؛ افتح المصدر الكامل قبل اعتماد الخبر")
+            completeness_reasons.append(
+                "ملخص RSS مبتور؛ استُبعد الخبر حتى مراجعة المصدر الكامل"
+            )
         if not story.get("published"):
-            story_warnings.append("تاريخ النشر غير متاح؛ يلزم التحقق من حداثة الخبر")
-        if story_warnings:
-            warnings.append({
+            completeness_reasons.append(
+                "تاريخ النشر غير متاح؛ استُبعد الخبر حتى التحقق من حداثته"
+            )
+        if completeness_reasons:
+            rejected.append({
                 "id": story.get("id"), "title": title,
-                "source": story.get("source"), "warnings": story_warnings,
+                "source": story.get("source"), "reasons": completeness_reasons,
             })
+            continue
         item = dict(story)
         item["relevance_reason"] = relevance_reason
         accepted.append(item)
