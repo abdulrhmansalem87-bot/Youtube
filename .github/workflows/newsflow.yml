@@ -9,6 +9,7 @@ on:
       - ".github/workflows/newsflow.yml"
       - "tests/**"
       - "content/**"
+      - "scripts/**"
   pull_request:
     branches: [main]
     paths:
@@ -17,6 +18,7 @@ on:
       - ".github/workflows/newsflow.yml"
       - "tests/**"
       - "content/**"
+      - "scripts/**"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -31,6 +33,11 @@ on:
         default: false
       editorial_approved:
         description: "I reviewed the generated editorial report and approve private upload"
+        required: false
+        type: boolean
+        default: false
+      visual_qa_approved:
+        description: "I reviewed the actual phone preview from a prior run and approve a PRIVATE test only"
         required: false
         type: boolean
         default: false
@@ -64,16 +71,36 @@ jobs:
         run: pip install -r requirements.txt
       - name: Compile Python modules
         run: python -m compileall -q newsflow
-      - name: Run editorial tests
+      - name: Run editorial and render tests
         run: python -m unittest discover -s tests -v
+      - name: Render real-story landscape and portrait phone previews
+        if: github.event_name == 'pull_request'
+        run: python scripts/render_mobile_preview.py
+      - name: Restore resumable scene cache
+        if: github.event_name != 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            output/bulletin/.render_cache
+            output/bulletin/shorts/.render_cache
+          key: wealthradar-scenes-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            wealthradar-scenes-${{ runner.os }}-
+      - name: Report restored scene cache
+        if: github.event_name != 'pull_request'
+        run: |
+          count=$(find output/bulletin/.render_cache output/bulletin/shorts/.render_cache -type f -name manifest.json 2>/dev/null | wc -l)
+          echo "[RENDER_CACHE_RESTORE] manifests=$count"
       - name: Run NewsFlow
         if: github.event_name != 'pull_request'
         env:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
+          NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
+          NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.visual_qa_approved && 'true' || 'false' }}
           # Scheduled and ordinary push runs may build drafts/videos but must never upload.
           NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
-          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
+          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && 'true' || 'false' }}
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
           YOUTUBE_PRIVACY_STATUS: "private"
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
@@ -88,6 +115,22 @@ jobs:
             python -m newsflow --dry-run
           else
             python -m newsflow
+          fi
+      - name: Save resumable scene cache
+        if: always() && github.event_name != 'pull_request'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            output/bulletin/.render_cache
+            output/bulletin/shorts/.render_cache
+          key: wealthradar-scenes-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Capture actual rendered video frames for phone QA
+        if: always() && github.event_name != 'pull_request'
+        run: |
+          if [ -s output/bulletin/long.mp4 ]; then
+            python scripts/capture_video_qa.py --video output/bulletin/long.mp4 --output output/mobile-qa
+          else
+            echo "[ACTUAL_VIDEO_QA_SKIPPED] no long.mp4 was produced"
           fi
       - name: Upload generated files
         if: always()
