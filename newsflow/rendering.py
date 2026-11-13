@@ -11,7 +11,7 @@ from typing import Callable
 
 from PIL import Image, ImageDraw, ImageFont, features
 
-RENDERER_VERSION = "wealthradar-mobile-safe-v2"
+RENDERER_VERSION = "wealthradar-mobile-safe-v3"
 ARABIC_REGULAR = (
     "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
     "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
@@ -29,6 +29,19 @@ def _font_path(bold: bool = False) -> str:
         if Path(candidate).is_file():
             return candidate
     raise RuntimeError("لم يتم العثور على خط عربي مناسب؛ أوقفنا الإنتاج حتى لا تظهر حروف مكسورة.")
+
+
+def _font_path_for_text(text: str, bold: bool = False) -> str:
+    # Noto Sans Arabic is excellent for Arabic but does not include Latin letters.
+    # Use DejaVu for mixed Arabic/Latin strings to prevent missing-glyph squares.
+    if re.search(r"[A-Za-z]", str(text or "")):
+        candidate = (
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+            if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        )
+        if Path(candidate).is_file():
+            return candidate
+    return _font_path(bold)
 
 
 def _require_arabic_shaping() -> None:
@@ -174,6 +187,8 @@ def render_card_image(
         horizontal_width = int(width * .82)
 
     heading = _clean_visual_text(card.get("heading", f"الخبر {index + 1}"))
+    heading_font_path = _font_path_for_text(heading, bold=True)
+    heading_font = ImageFont.truetype(heading_font_path, 34 if width > height else 42)
     draw.rounded_rectangle(
         (int(width * .22), pill_top, int(width * .78), pill_bottom),
         radius=max(18, width // 60),
@@ -181,12 +196,13 @@ def render_card_image(
         outline=(accent[0] // 2, accent[1] // 2, accent[2] // 2),
         width=2,
     )
-    draw.text((width // 2, (pill_top + pill_bottom) // 2), heading, font=small_ar_font,
+    draw.text((width // 2, (pill_top + pill_bottom) // 2), heading, font=heading_font,
               fill=accent, anchor="mm", **_text_kwargs(heading))
 
     title = _shorten_at_word(card.get("title", ""), 105 if width > height else 88)
     body = _shorten_at_word(card.get("body", ""), 210 if width > height else 230)
-    bold_path, regular_path = _font_path(True), _font_path(False)
+    bold_path = _font_path_for_text(title, bold=True)
+    regular_path = _font_path_for_text(body, bold=False)
     headline_font, headline_wrapped, headline_line_height = _fit_block(
         draw, title, bold_path, headline_sizes, headline_min, horizontal_width,
         headline_height, headline_lines, headline_gap,
@@ -233,6 +249,9 @@ def render_card_image(
         "safe_width": horizontal_width,
         "headline_region": [headline_top, headline_top + headline_height],
         "body_region": [body_top, body_top + body_height],
+        "heading_font_path": Path(heading_font_path).name,
+        "headline_font_path": Path(bold_path).name,
+        "body_font_path": Path(regular_path).name,
     }
 
 
