@@ -1,13 +1,28 @@
 import unittest
 
-from newsflow.pipeline import clamp_max_stories, select_stories, source_display_name
+from newsflow.pipeline import clamp_max_stories, select_stories, source_display_name, validate_audio_duration
 
 
 class PipelineSelectionTests(unittest.TestCase):
-    def test_bulletin_is_capped_at_four_stories(self):
-        self.assertEqual(clamp_max_stories(8), 4)
-        self.assertEqual(clamp_max_stories(4), 4)
+    def test_bulletin_is_capped_at_eight_stories(self):
+        self.assertEqual(clamp_max_stories(8), 8)
+        self.assertEqual(clamp_max_stories(9), 8)
         self.assertEqual(clamp_max_stories(0), 1)
+
+    def test_eight_relevant_stories_can_be_selected(self):
+        stories = []
+        sources = ["CNBC", "BBC", "IMF"]
+        for index in range(8):
+            stories.append({
+                "id": str(index),
+                "title": f"التضخم والأسواق المالية الخبر رقم {index}",
+                "summary": "تطور اقتصادي ومالي يؤثر على الأسواق والمستثمرين.",
+                "source": sources[index % len(sources)],
+                "category": "أسواق المال",
+            })
+        selected, rejected = select_stories(stories, 8)
+        self.assertEqual(len(selected), 8)
+        self.assertEqual(rejected, [])
 
     def test_actual_egypt_gold_headline_deduplicates_other_local_gold_prices(self):
         stories = [
@@ -78,6 +93,19 @@ class PipelineSelectionTests(unittest.TestCase):
         selected, rejected = select_stories(stories, 4)
         self.assertEqual([item["id"] for item in selected], ["gold-egypt", "oil-earnings"])
         self.assertEqual(rejected, [])
+
+
+class AudioDurationTests(unittest.TestCase):
+    def test_duration_follows_content_without_fixed_window(self):
+        for duration in (45, 150, 210, 300, 480):
+            with self.subTest(duration=duration):
+                self.assertEqual(validate_audio_duration(duration), float(duration))
+
+    def test_rejects_invalid_or_nonpositive_durations(self):
+        for duration in (0, -1, float("nan"), "not-a-duration"):
+            with self.subTest(duration=duration):
+                with self.assertRaisesRegex(RuntimeError, "مدة التعليق الصوتي غير صالحة"):
+                    validate_audio_duration(duration)
 
 
 if __name__ == "__main__":
