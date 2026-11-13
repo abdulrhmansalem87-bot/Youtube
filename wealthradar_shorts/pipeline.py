@@ -73,6 +73,17 @@ def validate_plan(plan: dict) -> list[str]:
         errors.append("أضف loop_phrase واربط بها أول جملة وآخر جملة.")
     elif loop_phrase not in narration[0] or loop_phrase not in narration[-1]:
         errors.append("يجب أن تظهر loop_phrase في أول جملة وآخر جملة لتحقيق Loop.")
+    description = str(plan.get("description", "")).strip()
+    tags = plan.get("tags")
+    keywords = plan.get("keywords")
+    if len(description) < 80:
+        errors.append("وصف النشر SEO مطلوب (80 حرفاً على الأقل).")
+    if not isinstance(tags, list) or len(tags) < 5 or any(not str(tag).strip() for tag in tags):
+        errors.append("أضف 5 وسوم YouTube صالحة على الأقل.")
+    if not isinstance(keywords, list) or len(keywords) < 5 or any(not str(word).strip() for word in keywords):
+        errors.append("أضف 5 كلمات مفتاحية صالحة على الأقل.")
+    if len(",".join(str(tag) for tag in tags)) > 500:
+        errors.append("إجمالي وسوم YouTube يتجاوز حد 500 حرف.")
 
     visible_text = " ".join([title, *[str(x) for x in narration]])
     visible_text += " " + " ".join(
@@ -418,10 +429,10 @@ def upload_private_video(video_path: Path, title: str) -> str:
         body={
             "snippet": {
                 "title": title[:100],
-                "description": "محتوى مالي تثقيفي من قناة WealthRadar.",
+                "description": str(plan.get("description", "محتوى مالي تثقيفي من قناة WealthRadar."))[:5000],
                 "categoryId": "27",
                 "defaultLanguage": "ar",
-                "tags": ["WealthRadar", "التمويل", "الاستثمار", "الثقافة المالية"],
+                "tags": [str(tag)[:100] for tag in plan.get("tags", ["WealthRadar", "التمويل", "الاستثمار", "الثقافة المالية"])][:30],
             },
             "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False},
         },
