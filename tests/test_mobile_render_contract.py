@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class MobileRenderContractTests(unittest.TestCase):
     def test_main_video_is_landscape_and_shorts_remain_vertical(self):
         source = (ROOT / "newsflow" / "pipeline.py").read_text(encoding="utf-8")
-        self.assertIn("main_portrait = os.getenv(\"NEWSFLOW_MAIN_VIDEO_PORTRAIT\", \"false\").lower() == \"true\"", source)
+        self.assertIn("main_portrait = os.getenv(\"NEWSFLOW_MAIN_VIDEO_PORTRAIT\", \"true\").lower() == \"true\"", source)
         self.assertIn("make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=stories)", source)
         self.assertIn("validate_video(long_video, audio, expected_portrait=main_portrait)", source)
         self.assertIn("duration <= 180", source)
