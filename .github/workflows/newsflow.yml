@@ -97,7 +97,8 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           NEWSFLOW_MAX_STORIES: "4"
-          NEWSFLOW_LOOKBACK_HOURS: "4"
+          NEWSFLOW_LOOKBACK_HOURS: ${{ github.event.schedule == '0 20 * * *' && '3' || '4' }}
+          NEWSFLOW_STRICT_FRESHNESS: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
           FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
           FISH_AUDIO_MODEL: s2.1-pro-free
