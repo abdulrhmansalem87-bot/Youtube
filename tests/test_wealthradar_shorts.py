@@ -9,6 +9,7 @@ from wealthradar_shorts.pipeline import (
     require_pexels_api_key,
     stock_footage_error,
     require_owner_identity_metadata,
+    upload_private_video,
     validate_plan,
     validate_video_probe,
     verify_target_channel,
@@ -114,6 +115,12 @@ class WealthRadarUploadIdentityTests(unittest.TestCase):
             video = Path(directory) / "WealthRadar-Short.mp4"
             with self.assertRaisesRegex(RuntimeError, "سجل مصادر الرندر غير موجود"):
                 require_owner_identity_metadata(video)
+
+    def test_private_upload_blocks_missing_identity_before_oauth(self):
+        with tempfile.TemporaryDirectory() as directory:
+            video = Path(directory) / "WealthRadar-Short.mp4"
+            with self.assertRaisesRegex(RuntimeError, "سجل مصادر الرندر غير موجود"):
+                upload_private_video(video, "test")
 
     def test_rejects_tts_and_missing_presenter(self):
         with tempfile.TemporaryDirectory() as directory:
