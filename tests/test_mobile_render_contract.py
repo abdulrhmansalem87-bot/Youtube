@@ -22,6 +22,8 @@ class MobileRenderContractTests(unittest.TestCase):
         self.assertIn("actions/cache/restore@v4", workflow)
         self.assertIn("actions/cache/save@v4", workflow)
         self.assertIn("phone-comparison.png", (ROOT / "scripts" / "render_mobile_preview.py").read_text(encoding="utf-8"))
+        self.assertIn("for short in output/bulletin/shorts/short-*.mp4", workflow)
+        self.assertIn("NEWSFLOW_REQUIRE_EDITORIAL_PACKAGE", workflow)
 
     def test_opening_hook_fits_phone_card_and_ellipsis_has_no_missing_glyph(self):
         hook = make_opening_hook([{
