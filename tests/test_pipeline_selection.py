@@ -1,6 +1,6 @@
 import unittest
 
-from newsflow.pipeline import clamp_max_stories, select_stories, source_display_name, validate_audio_duration
+from newsflow.pipeline import clamp_max_stories, make_script, select_stories, source_display_name, validate_audio_duration
 
 
 class PipelineSelectionTests(unittest.TestCase):
@@ -53,6 +53,16 @@ class PipelineSelectionTests(unittest.TestCase):
         selected, rejected = select_stories(stories, 4)
         self.assertEqual([item["id"] for item in selected], ["gold-egypt", "ports"])
         self.assertEqual(rejected, [])
+
+    def test_single_story_bulletin_contains_substantive_context_for_long_form_audio(self):
+        script = make_script([{
+            "title": "وكالة الطاقة: تسارع سحب النفط من احتياطي الطوارئ",
+            "summary": "قالت الوكالة إن السحب من الاحتياطي مستمر حتى فبراير 2027.",
+            "source": "الجزيرة",
+        }])
+        self.assertGreaterEqual(len(script.split()), 300)
+        self.assertIn("التمييز بين التوقعات والتحقق الفعلي", script)
+        self.assertIn("لا نبني قراراً مالياً على عنوان منفرد", script)
 
     def test_source_names_are_rendered_in_arabic(self):
         self.assertEqual(source_display_name("Al Jazeera"), "الجزيرة")
