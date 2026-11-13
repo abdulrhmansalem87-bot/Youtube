@@ -133,9 +133,18 @@ def stock_footage_error(index: int, exc: Exception) -> RuntimeError:
     reason = getattr(exc, "reason", None)
     if reason:
         detail += f" ({str(reason)[:120]})"
+    if status == 401:
+        action = "رفض Pexels مفتاح API؛ تحقق من أن PEXELS_API_KEY صحيح ونشط."
+    elif status == 403:
+        action = (
+            "Pexels رفض الوصول؛ تحقق من قيود المفتاح أو حالة الحساب/الحصة "
+            "من لوحة Pexels. لا يمكن تجاوز الرفض برمجياً."
+        )
+    else:
+        action = "راجع اتصال Pexels وحالة الخدمة ثم أعد المحاولة."
     return RuntimeError(
         f"تعذر الحصول على B-roll مرخّص للمشهد {index} ({detail}). "
-        "أُوقف إنتاج الفيديو؛ الخلفيات الثابتة غير مسموح بها."
+        f"{action} أُوقف إنتاج الفيديو؛ الخلفيات الثابتة غير مسموح بها."
     )
 
 
