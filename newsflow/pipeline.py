@@ -30,7 +30,7 @@ def config():
         return yaml.safe_load(f)
 
 
-MAX_BULLETIN_STORIES = 8
+MAX_BULLETIN_STORIES = 4
 LOCAL_GOLD_MARKET_NAMES = (
     "مصر", "السعودية", "الإمارات", "الأردن", "العراق", "الكويت",
     "قطر", "البحرين", "عمان", "المغرب", "لبنان",
