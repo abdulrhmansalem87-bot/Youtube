@@ -19,6 +19,9 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertIn("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar", script)
         self.assertTrue(script.endswith("ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس."))
         self.assertNotIn("إيه اللي حصل", script)
+        self.assertIn("كيف نقرأ الصورة؟", script)
+        self.assertEqual(script.count("روابط المصادر في وصف الفيديو"), 1)
+        self.assertNotIn("تابعوا رابط المصدر في وصف الفيديو للتفاصيل", script)
 
     def test_accepts_financial_story(self):
         report = review_stories([{
