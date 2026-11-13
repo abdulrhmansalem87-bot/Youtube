@@ -54,5 +54,5 @@ class ShortScriptTests(unittest.TestCase):
         self.assertIn("WealthRadar", title)
 
 
-if __name == "__main__":
+if __name__ == "__main__":
     unittest.main()

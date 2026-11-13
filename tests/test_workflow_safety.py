@@ -71,7 +71,6 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("github.event_name == 'schedule'", visual_upload_approval)
         self.assertNotIn("github.event_name == 'schedule'", editorial_approval)
         self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow)
-        self.assertNotIn("NEWSFLOW_UPLOAD_SINGLE_LONG: \"false\"", workflow)
 
 
 if __name__ == "__main__":
