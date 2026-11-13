@@ -632,8 +632,11 @@ def main():
         parser.error("--private-test cannot be combined with --dry-run")
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
     editorial_approved = os.getenv("NEWSFLOW_EDITORIAL_APPROVED", "false").lower() == "true"
-    if upload_enabled and not editorial_approved:
+    private_staging = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
+    if upload_enabled and not editorial_approved and not private_staging:
         parser.error("الرفع محظور: يلزم اعتماد المراجعة التحريرية صراحةً عبر NEWSFLOW_EDITORIAL_APPROVED=true.")
+    if private_staging and os.getenv("YOUTUBE_PRIVACY_STATUS", "private").lower() != "private":
+        parser.error("Private staging لا يسمح إلا برفع PRIVATE.")
     if args.private_test:
         args.max_stories = 1
         if not upload_enabled:
@@ -657,11 +660,15 @@ def main():
     stories = editorial_report["accepted"]
     (out / "stories.json").write_text(json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
-    upload_blockers = upload_review_blockers(editorial_report, editorial_approved)
+    upload_blockers = upload_review_blockers(
+        editorial_report, editorial_approved, private_staging=private_staging
+    )
     visual_qa_approved = os.getenv("NEWSFLOW_VISUAL_QA_APPROVED", "false").lower() == "true"
-    if upload_enabled and not visual_qa_approved:
+    if upload_enabled and not visual_qa_approved and not private_staging:
         print("[SAFE] PRIVATE upload blocked: phone visual QA has not been explicitly approved.")
         upload_enabled = False
+    if private_staging:
+        print("[PRIVATE_STAGING] Owner-only upload; fact_checking remains not_performed and manual review is required before changing visibility.")
     if upload_enabled and upload_blockers:
         print("[SAFE] PRIVATE upload blocked: " + " | ".join(upload_blockers)
               + ". Generated video will remain an Artifact.")

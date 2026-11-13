@@ -17,12 +17,19 @@ class UploadReviewGateTests(unittest.TestCase):
     def test_allows_upload_only_after_verified_review_and_approval(self):
         self.assertEqual(upload_review_blockers(valid_report(), True), [])
 
-    def test_blocks_when_fact_checking_was_not_performed(self):
+    def test_blocks_when_fact_checking_was_not_performed_for_approved_upload(self):
         report = valid_report()
         report["fact_checking"] = "not_performed"
         self.assertIn(
             "التحقق المستقل من الوقائع لم يكتمل",
             upload_review_blockers(report, True),
+        )
+
+    def test_allows_owner_only_private_staging_without_claiming_fact_verification(self):
+        report = valid_report()
+        report["fact_checking"] = "not_performed"
+        self.assertEqual(
+            upload_review_blockers(report, False, private_staging=True), []
         )
 
     def test_blocks_any_unresolved_editorial_warning(self):

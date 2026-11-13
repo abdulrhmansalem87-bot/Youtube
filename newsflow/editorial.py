@@ -164,10 +164,12 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
     }
 
 
-def upload_review_blockers(report: dict, editorial_approved: bool) -> list[str]:
-    """Fail closed unless editorial warnings are cleared and facts are verified."""
+def upload_review_blockers(
+    report: dict, editorial_approved: bool, *, private_staging: bool = False
+) -> list[str]:
+    """Fail closed for public-capable uploads; private staging remains owner-review-only."""
     blockers = []
-    if not editorial_approved:
+    if not editorial_approved and not private_staging:
         blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
     if report.get("status") != "needs_human_review":
         blockers.append("تقرير المراجعة ليس في حالة قابلة للمراجعة")
@@ -180,6 +182,6 @@ def upload_review_blockers(report: dict, editorial_approved: bool) -> list[str]:
         blockers.append("لا توجد أخبار مقبولة")
     if warning_count > 0 or report.get("warnings"):
         blockers.append("توجد تحذيرات تحريرية غير محسومة")
-    if report.get("fact_checking") != "verified":
+    if report.get("fact_checking") != "verified" and not private_staging:
         blockers.append("التحقق المستقل من الوقائع لم يكتمل")
     return blockers

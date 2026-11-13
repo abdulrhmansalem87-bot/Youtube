@@ -50,12 +50,13 @@ class WorkflowSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "restricted to PRIVATE"):
             resolve_upload_privacy("public")
 
-    def test_scheduled_runs_cannot_upload_and_privacy_defaults_private(self):
+    def test_scheduled_runs_upload_only_to_private_staging(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
         editorial_approval = "NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}"
-        visual_upload_approval = "YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && 'true' || 'false' }}"
+        visual_upload_approval = "YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved)) && 'true' || 'false' }}"
         self.assertIn(editorial_approval, workflow)
         self.assertIn(visual_upload_approval, workflow)
+        self.assertIn("NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'schedule' && 'true' || 'false' }}", workflow)
         self.assertIn("visual_qa_approved:", workflow)
         self.assertIn("newsflow-pr-{0}", workflow)
         self.assertIn("newsflow-production", workflow)
@@ -67,9 +68,10 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("NEWSFLOW_STRICT_FRESHNESS:", workflow)
         self.assertIn("FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}", workflow)
         self.assertIn("FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}", workflow)
-        # Scheduling may enable draft-generation controls, never YouTube upload approval.
-        self.assertNotIn("github.event_name == 'schedule'", visual_upload_approval)
+        # Scheduled uploads are explicitly owner-only PRIVATE staging; never public.
+        self.assertIn("github.event_name == 'schedule'", visual_upload_approval)
         self.assertNotIn("github.event_name == 'schedule'", editorial_approval)
+        self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow)
         self.assertNotIn("NEWSFLOW_UPLOAD_SINGLE_LONG: \"false\"", workflow)
 
 
