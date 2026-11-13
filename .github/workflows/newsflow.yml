@@ -41,6 +41,11 @@ on:
         required: false
         type: boolean
         default: false
+      voice_file_path:
+        description: "Path to a full owner-recorded narration file in the repository; leave empty for preview only"
+        required: false
+        type: string
+        default: ""
   schedule:
     - cron: "0 6 * * *"
 
@@ -97,6 +102,7 @@ jobs:
         env:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
+          NEWSFLOW_VOICE_FILE: ${{ inputs.voice_file_path || '' }}
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
           NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.visual_qa_approved && 'true' || 'false' }}
           # Scheduled and ordinary push runs may build drafts/videos but must never upload.
