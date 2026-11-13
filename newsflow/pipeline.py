@@ -30,7 +30,7 @@ def config():
         return yaml.safe_load(f)
 
 
-MAX_BULLETIN_STORIES = 8
+MAX_BULLETIN_STORIES = 4
 LOCAL_GOLD_MARKET_NAMES = (
     "مصر", "السعودية", "الإمارات", "الأردن", "العراق", "الكويت",
     "قطر", "البحرين", "عمان", "المغرب", "لبنان",
@@ -43,14 +43,18 @@ def clamp_max_stories(value: int) -> int:
     return min(max(int(value), 1), MAX_BULLETIN_STORIES)
 
 
-def validate_audio_duration(duration: float) -> float:
-    """Accept content-driven durations; reject only invalid/non-positive audio."""
+def validate_audio_duration(duration: float, *, private_test: bool = False) -> float:
+    """Keep regular long-form bulletins in the 3–5 minute window; allow short private smoke tests."""
     try:
         value = float(duration)
     except (TypeError, ValueError):
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.") from None
     if not math.isfinite(value) or value <= 0:
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.")
+    minimum = 1 if private_test else 181
+    if value < minimum or value > 300:
+        target = "أكثر من 3 وحتى 5 دقائق" if not private_test else "حتى 5 دقائق"
+        raise RuntimeError(f"مدة الفيديو الرئيسي يجب أن تكون {target}؛ تم إيقاف الإنتاج.")
     return value
 
 
@@ -598,7 +602,7 @@ def main():
     audio = bulletin / "voice.mp3"
     asyncio.run(make_audio(bulletin_script, audio))
     ffprobe = shutil.which("ffprobe")
-    main_portrait = os.getenv("NEWSFLOW_MAIN_VIDEO_PORTRAIT", "true").lower() == "true"
+    main_portrait = os.getenv("NEWSFLOW_MAIN_VIDEO_PORTRAIT", "false").lower() == "true"
     duration = None
     if ffprobe:
         probe = subprocess.run(
@@ -606,7 +610,7 @@ def main():
              "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
             check=True, capture_output=True, text=True
         )
-        duration = validate_audio_duration(probe.stdout.strip())
+        duration = validate_audio_duration(probe.stdout.strip(), private_test=args.private_test)
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (duration follows editorial content)")
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"

@@ -4,12 +4,13 @@ from newsflow.pipeline import clamp_max_stories, select_stories, source_display_
 
 
 class PipelineSelectionTests(unittest.TestCase):
-    def test_bulletin_is_capped_at_eight_stories(self):
-        self.assertEqual(clamp_max_stories(8), 8)
-        self.assertEqual(clamp_max_stories(9), 8)
+    def test_bulletin_is_capped_at_four_stories(self):
+        self.assertEqual(clamp_max_stories(4), 4)
+        self.assertEqual(clamp_max_stories(8), 4)
+        self.assertEqual(clamp_max_stories(9), 4)
         self.assertEqual(clamp_max_stories(0), 1)
 
-    def test_eight_relevant_stories_can_be_selected(self):
+    def test_eight_candidates_select_only_four_relevant_stories(self):
         stories = []
         sources = ["CNBC", "BBC", "IMF"]
         for index in range(8):
@@ -21,7 +22,8 @@ class PipelineSelectionTests(unittest.TestCase):
                 "category": "أسواق المال",
             })
         selected, rejected = select_stories(stories, 8)
-        self.assertEqual(len(selected), 8)
+        self.assertEqual(len(selected), 4)
+        self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3"])
         self.assertEqual(rejected, [])
 
     def test_actual_egypt_gold_headline_deduplicates_other_local_gold_prices(self):
@@ -96,16 +98,27 @@ class PipelineSelectionTests(unittest.TestCase):
 
 
 class AudioDurationTests(unittest.TestCase):
-    def test_duration_follows_content_without_fixed_window(self):
-        for duration in (45, 150, 210, 300, 480):
+    def test_main_bulletin_stays_within_three_to_five_minutes(self):
+        for duration in (181, 210, 240, 300):
             with self.subTest(duration=duration):
                 self.assertEqual(validate_audio_duration(duration), float(duration))
 
-    def test_rejects_invalid_or_nonpositive_durations(self):
-        for duration in (0, -1, float("nan"), "not-a-duration"):
+    def test_private_smoke_test_may_be_short_but_never_over_five_minutes(self):
+        for duration in (45, 150, 180, 210, 300):
             with self.subTest(duration=duration):
-                with self.assertRaisesRegex(RuntimeError, "مدة التعليق الصوتي غير صالحة"):
+                self.assertEqual(validate_audio_duration(duration, private_test=True), float(duration))
+
+    def test_rejects_main_bulletins_outside_target_duration(self):
+        for duration in (0, -1, 45, 150, 180, 301, 480, float("nan"), "not-a-duration"):
+            with self.subTest(duration=duration):
+                with self.assertRaisesRegex(RuntimeError, "مدة"):
                     validate_audio_duration(duration)
+
+    def test_private_smoke_test_rejects_invalid_or_overlong_audio(self):
+        for duration in (0, -1, 301, 480, float("nan"), "not-a-duration"):
+            with self.subTest(duration=duration):
+                with self.assertRaisesRegex(RuntimeError, "مدة"):
+                    validate_audio_duration(duration, private_test=True)
 
 
 if __name__ == "__main__":
