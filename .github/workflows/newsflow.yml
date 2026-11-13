@@ -48,7 +48,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: newsflow-pipeline
+  # PR preview renders must not queue behind or delay the daily production run.
+  group: ${{ github.event_name == 'pull_request' && format('newsflow-pr-{0}', github.event.pull_request.number) || 'newsflow-production' }}
   cancel-in-progress: false
 
 jobs:
