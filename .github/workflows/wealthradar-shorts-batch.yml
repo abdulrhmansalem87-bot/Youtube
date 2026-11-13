@@ -1,0 +1,165 @@
+name: WealthRadar Shorts Batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_path:
+        description: "JSON manifest containing independent Short plans"
+        required: true
+        type: string
+        default: "wealthradar/shorts-batch.example.json"
+      validation_only:
+        description: "Validate each plan and save an independent result artifact without rendering or uploading"
+        required: true
+        type: boolean
+        default: true
+      upload_private:
+        description: "Upload each successful Short as PRIVATE (never PUBLIC)"
+        required: true
+        type: boolean
+        default: false
+      editorial_approved:
+        description: "Confirm that every plan and rendered video has editorial approval"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.value }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate batch manifest and build matrix
+        id: matrix
+        env:
+          BATCH_PATH: ${{ inputs.batch_path }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          batch_path = Path(os.environ["BATCH_PATH"])
+          if not batch_path.is_file():
+              raise SystemExit(f"Batch manifest not found: {batch_path}")
+          data = json.loads(batch_path.read_text(encoding="utf-8"))
+          plans = data.get("plans")
+          if not isinstance(plans, list) or not plans:
+              raise SystemExit("Batch manifest must contain a non-empty plans array")
+          matrix = []
+          seen = set()
+          for item in plans:
+              if not isinstance(item, dict):
+                  raise SystemExit("Every plan entry must be an object")
+              plan_id, raw_path = item.get("id"), item.get("path")
+              if not isinstance(plan_id, str) or not plan_id.strip():
+                  raise SystemExit("Every plan needs a non-empty id")
+              if plan_id in seen or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for c in plan_id):
+                  raise SystemExit(f"Invalid or duplicate plan id: {plan_id}")
+              seen.add(plan_id)
+              path = Path(str(raw_path))
+              if path.is_absolute() or ".." in path.parts or not path.is_file():
+                  raise SystemExit(f"Invalid or missing plan path for {plan_id}: {raw_path}")
+              matrix.append({"id": plan_id, "path": path.as_posix()})
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write("value=" + json.dumps({"include": matrix}, separators=(",", ":")) + "\n")
+          print(f"Prepared {len(matrix)} independent Short jobs.")
+          PY
+
+  produce:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-dejavu-core
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Validate this Short
+        id: validate
+        env:
+          PLAN_PATH: ${{ matrix.path }}
+        run: python -m wealthradar_shorts --plan "$PLAN_PATH" --validate-only
+      - name: Render this Short
+        id: render
+        if: ${{ !inputs.validation_only }}
+        env:
+          PLAN_PATH: ${{ matrix.path }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          WEALTHRADAR_TTS_VOICE: ar-EG-ShakirNeural
+        run: python -m wealthradar_shorts --plan "$PLAN_PATH"
+      - name: Upload this Short privately
+        id: upload
+        if: ${{ success() && !inputs.validation_only && inputs.upload_private && inputs.editorial_approved }}
+        env:
+          PLAN_PATH: ${{ matrix.path }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: python -m wealthradar_shorts --plan "$PLAN_PATH" --upload-private
+      - name: Write per-Short result record
+        if: always()
+        env:
+          PLAN_ID: ${{ matrix.id }}
+          PLAN_PATH: ${{ matrix.path }}
+          VALIDATION_OUTCOME: ${{ steps.validate.outcome }}
+          RENDER_OUTCOME: ${{ steps.render.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.upload.outcome }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          mkdir -p output/wealthradar
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          result = {
+              "plan_id": os.environ["PLAN_ID"],
+              "plan_path": os.environ["PLAN_PATH"],
+              "validation": os.environ.get("VALIDATION_OUTCOME", "unknown"),
+              "render": os.environ.get("RENDER_OUTCOME", "unknown"),
+              "upload": os.environ.get("UPLOAD_OUTCOME", "unknown"),
+              "run_id": os.environ["RUN_ID"],
+              "run_attempt": os.environ["RUN_ATTEMPT"],
+          }
+          Path("output/wealthradar/result.json").write_text(
+              json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          PY
+      - name: Save this Short's diagnostics and artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthradar-${{ matrix.id }}-${{ github.run_number }}
+          path: |
+            output/wealthradar/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Report per-Short result
+        if: always()
+        env:
+          PLAN_ID: ${{ matrix.id }}
+          PLAN_PATH: ${{ matrix.path }}
+          RENDER_OUTCOME: ${{ steps.render.outcome }}
+        run: |
+          {
+            echo "### ${PLAN_ID}"
+            echo "- Plan: `${PLAN_PATH}`"
+            echo "- Render: **${RENDER_OUTCOME}**"
+            echo "- This result does not cancel sibling Shorts."
+          } >> "$GITHUB_STEP_SUMMARY"
