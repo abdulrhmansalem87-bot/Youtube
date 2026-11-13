@@ -38,6 +38,10 @@ class ShortsBatchWorkflowSmokeTests(unittest.TestCase):
         self.assertEqual(strategy["max-parallel"], "3")
 
         steps = produce["steps"]
+        inputs = self.batch["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(inputs["validation_only"]["default"], "true")
+        render = next(item for item in steps if item.get("name") == "Render this Short")
+        self.assertIn("!inputs.validation_only", render["if"])
         record = next(item for item in steps if item.get("name") == "Write per-Short result record")
         artifact = next(item for item in steps if item.get("uses") == "actions/upload-artifact@v4")
         self.assertEqual(record.get("if"), "always()")
