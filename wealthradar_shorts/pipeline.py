@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -91,9 +92,35 @@ def load_plan(path: Path) -> dict:
 
 
 def _request_json(url: str, api_key: str) -> dict:
-    request = urllib.request.Request(url, headers={"Authorization": api_key})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Authorization": api_key,
+            "Accept": "application/json",
+            "User-Agent": "WealthRadarShorts/0.2",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        # Log only safe response diagnostics; never print the API key or request headers.
+        try:
+            body = exc.read(512).decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        body = " ".join(body.split()).replace(api_key, "[REDACTED]")[:400]
+        request_id = (
+            exc.headers.get("X-Request-Id")
+            or exc.headers.get("X-Correlation-Id")
+            or "unavailable"
+        )
+        remaining = exc.headers.get("X-Ratelimit-Remaining", "unavailable")
+        print(
+            f"[PEXELS_HTTP_ERROR] status={exc.code} request_id={request_id} "
+            f"rate_limit_remaining={remaining} response={body or '[empty]'}"
+        )
+        raise
 
 
 def find_pexels_video(query: str, api_key: str) -> str:
