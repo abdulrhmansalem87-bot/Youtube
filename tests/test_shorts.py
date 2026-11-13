@@ -50,8 +50,8 @@ class ShortScriptTests(unittest.TestCase):
         self.assertIn("1. Reuters:", description)
         self.assertIn("#الذهب", description)
         self.assertLessEqual(len(title), 100)
-        self.assertIn("WealthRadar", script)
+        self.assertIn("WealthRadar", title)
 
 
-if __name__ == "__main__":
+if __name == "__main__":
     unittest.main()

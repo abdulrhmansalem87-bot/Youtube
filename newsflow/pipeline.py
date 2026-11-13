@@ -235,13 +235,14 @@ def make_short_script(story):
         title = title[:102].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
     # Preserve only source-supported facts; the practical question is framed as a question,
     # never as a guaranteed effect or investment recommendation.
-    summary = summary[:520].rsplit(" ", 1)[0]
+    if len(summary) > 520:
+        summary = summary[:520].rsplit(" ", 1)[0]
     return (
         f"الخبر ده ممكن يفرق في فهمك لفلوسك: {title}. "
         f"خليني أبسطهالك: {summary} "
         "المهم هنا تتابع الرقم أو القرار الرسمي، لأن تأثيره بيختلف حسب ظروف كل شخص. "
         "إنت شايف التطور ده هيأثر على قراراتك المالية؟ اكتب رأيك، "
-        "وابعت الفيديو لحد يهمه الموضوع واشترك في WealthRadar."
+        "وده محتوى توعوي مش توصية استثمارية. وابعت الفيديو لحد يهمه الموضوع واشترك في WealthRadar."
     )
 
 
