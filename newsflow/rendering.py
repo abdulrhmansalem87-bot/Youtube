@@ -64,7 +64,7 @@ def _clean_visual_text(value: str) -> str:
     text = text.replace('"', "").replace("'", "")
     text = text.replace("•", "،").replace("%", "٪")
     # Noto Sans Arabic on the runner lacks U+2026; use a three-dot sequence it supports.
-    text = text.replace("…", "...")
+    text = text.replace("…", ".")
     text = text.replace("چي", "جي").replace("چ", "ج")
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"\s*([،؛؟!])\s*", r"\1 ", text)
