@@ -182,4 +182,10 @@ def upload_review_blockers(report: dict, editorial_approved: bool) -> list[str]:
         blockers.append("توجد تحذيرات تحريرية غير محسومة")
     if report.get("fact_checking") != "verified":
         blockers.append("التحقق المستقل من الوقائع لم يكتمل")
+    if report.get("voice_source") != "owner_recording":
+        blockers.append("التعليق الصوتي ليس تسجيلاً أصلياً لصاحب القناة")
+    if report.get("presenter_source") != "owner_video":
+        blockers.append("فيديو المقدم الأصلي غير مدمج في النسخة")
+    if report.get("broll_source") != "licensed_video":
+        blockers.append("لقطات B-roll مرخصة غير مدمجة في النسخة")
     return blockers

@@ -10,6 +10,9 @@ def valid_report():
         "warning_count": 0,
         "warnings": [],
         "fact_checking": "verified",
+        "voice_source": "owner_recording",
+        "presenter_source": "owner_video",
+        "broll_source": "licensed_video",
     }
 
 
@@ -39,6 +42,18 @@ class UploadReviewGateTests(unittest.TestCase):
             "المراجعة التحريرية لم تحصل على موافقة صريحة",
             upload_review_blockers(valid_report(), False),
         )
+
+    def test_blocks_tts_and_missing_presenter_or_broll(self):
+        report = valid_report()
+        report.update({
+            "voice_source": "tts",
+            "presenter_source": "none",
+            "broll_source": "none",
+        })
+        blockers = upload_review_blockers(report, True)
+        self.assertIn("التعليق الصوتي ليس تسجيلاً أصلياً لصاحب القناة", blockers)
+        self.assertIn("فيديو المقدم الأصلي غير مدمج في النسخة", blockers)
+        self.assertIn("لقطات B-roll مرخصة غير مدمجة في النسخة", blockers)
 
     def test_blocks_empty_or_invalid_review_report(self):
         report = valid_report()
