@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -29,7 +30,7 @@ def config():
         return yaml.safe_load(f)
 
 
-MAX_BULLETIN_STORIES = 4
+MAX_BULLETIN_STORIES = 8
 LOCAL_GOLD_MARKET_NAMES = (
     "مصر", "السعودية", "الإمارات", "الأردن", "العراق", "الكويت",
     "قطر", "البحرين", "عمان", "المغرب", "لبنان",
@@ -40,6 +41,17 @@ LOCAL_GOLD_MARKET_NAMES = (
 
 def clamp_max_stories(value: int) -> int:
     return min(max(int(value), 1), MAX_BULLETIN_STORIES)
+
+
+def validate_audio_duration(duration: float) -> float:
+    """Accept content-driven durations; reject only invalid/non-positive audio."""
+    try:
+        value = float(duration)
+    except (TypeError, ValueError):
+        raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.") from None
+    if not math.isfinite(value) or value <= 0:
+        raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.")
+    return value
 
 
 def story_topic_key(story: dict) -> str:
@@ -591,14 +603,8 @@ def main():
              "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
             check=True, capture_output=True, text=True
         )
-        duration = float(probe.stdout.strip())
-        print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
-        if not args.private_test and (duration < 150 or duration > 300 or (main_portrait and duration <= 180)):
-            target = "أكثر من 180 وحتى 300 ثانية للفيديو الرأسي الطويل" if main_portrait else "150–300 ثانية للفيديو الأفقي"
-            raise RuntimeError(
-                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف ({target})؛ "
-                "تم إيقاف بناء الفيديو بدلاً من إخراج نشرة بطول غير مناسب."
-            )
+        duration = validate_audio_duration(probe.stdout.strip())
+        print(f"[AUDIO_DURATION] {duration:.1f} seconds (duration follows editorial content)")
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
     video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
