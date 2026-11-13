@@ -14,7 +14,6 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-import edge_tts
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN = ("مسودة", "نيوزفلو", "newsflow", "draft", "ai-generated")
@@ -190,34 +189,50 @@ def _run(command: list[str]) -> None:
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=180)
 
 
-async def _make_voice(text: str, destination: Path, voice: str) -> str:
-    """Generate Arabic male narration with retries and automatic voice fallback."""
-    voices = list(dict.fromkeys([
-        voice,
-        "ar-EG-ShakirNeural",
-        "ar-SA-HamedNeural",
-        "ar-AE-HamdanNeural",
-    ]))
-    failures: list[str] = []
-    for candidate in voices:
-        for attempt in range(1, 3):
-            try:
-                destination.unlink(missing_ok=True)
-                await edge_tts.Communicate(text, candidate, rate="+8%").save(str(destination))
-                if not destination.is_file() or destination.stat().st_size < 1_000:
-                    raise RuntimeError("ملف الصوت الناتج فارغ أو غير مكتمل.")
-                print(f"[VOICE_READY] {candidate} | attempt {attempt}")
-                return candidate
-            except Exception as exc:
-                destination.unlink(missing_ok=True)
-                failures.append(f"{candidate} (محاولة {attempt}): {type(exc).__name__}")
-                print(f"[VOICE_RETRY] {candidate} | attempt {attempt} failed: {type(exc).__name__}")
-                if attempt == 1:
-                    await asyncio.sleep(2)
-    raise RuntimeError(
-        "تعذر إنشاء التعليق الصوتي بعد إعادة المحاولة وتجربة الأصوات الرجالية العربية البديلة. "
-        + " | ".join(failures)
+async def _make_voice(text: str, destination: Path, voice: str = "") -> str:
+    """Generate narration using the configured Fish Audio cloned voice."""
+    api_key = os.getenv("FISH_AUDIO_API_KEY", "").strip()
+    reference_id = os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
+    model = os.getenv("FISH_AUDIO_MODEL", "s2.1-pro-free").strip()
+    if not api_key:
+        raise RuntimeError("FISH_AUDIO_API_KEY غير موجود في GitHub Secrets.")
+    if not reference_id:
+        raise RuntimeError("FISH_AUDIO_REFERENCE_ID غير موجود؛ أضف Voice/Model ID من Fish Audio.")
+    payload = json.dumps(
+        {"text": text, "reference_id": reference_id, "format": "mp3"},
+        ensure_ascii=False,
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.fish.audio/v1/tts",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "model": model,
+            "Accept": "audio/mpeg",
+            "User-Agent": "WealthRadarShorts/1.0",
+        },
+        method="POST",
     )
+    try:
+        with urllib.request.urlopen(request, timeout=180) as response:
+            audio = response.read()
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = exc.read(500).decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        detail = " ".join(detail.split()).replace(api_key, "[REDACTED]")[:300]
+        raise RuntimeError(
+            f"Fish Audio رفض توليد الصوت (HTTP {exc.code}). "
+            f"{detail or 'راجع المفتاح والرصيد وVoice ID واسم النموذج.'}"
+        ) from None
+    if len(audio) < 1000:
+        raise RuntimeError("Fish Audio أعاد ملفاً صوتياً فارغاً أو غير مكتمل.")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(audio)
+    print(f"[VOICE_READY] Fish Audio | model={model} | bytes={len(audio)}")
+    return "Fish Audio cloned voice"
 
 
 def _duration(path: Path) -> float:
@@ -301,8 +316,7 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
     output.mkdir(parents=True, exist_ok=True)
     narration = " ".join(sentence.strip() for sentence in plan["narration"])
     voice_path = output / "voice.mp3"
-    voice = os.getenv("WEALTHRADAR_TTS_VOICE", "ar-EG-ShakirNeural")
-    asyncio.run(_make_voice(narration, voice_path, voice))
+    asyncio.run(_make_voice(narration, voice_path))
     voice_duration = _duration(voice_path)
     if not 30 <= voice_duration <= 45:
         raise RuntimeError(f"مدة التعليق الصوتي {voice_duration:.1f}s خارج النطاق 30–45 ثانية.")
@@ -389,7 +403,7 @@ def verify_target_channel(youtube, expected_title: str | None = None) -> str:
     return channel_id
 
 
-def upload_private_video(video_path: Path, title: str) -> str:
+def upload_private_video(video_path: Path, plan: dict, title: str) -> str:
     required = ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")
     missing = [name for name in required if not os.getenv(name, "").strip()]
     if missing:
@@ -476,7 +490,7 @@ def main() -> None:
     if args.upload_private:
         video_path = args.output / "WealthRadar-Short.mp4"
         validate_rendered_video(video_path)
-        upload_private_video(video_path, str(plan["title"]))
+        upload_private_video(video_path, plan, str(plan["title"]))
         return
     api_key = os.getenv("PEXELS_API_KEY", "").strip()
     render(plan, args.output, api_key)
