@@ -16,6 +16,8 @@ def load_editorial_package(path: str | Path) -> dict:
     date = str(data.get("date", "")).strip()
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", date):
         raise ValueError("تاريخ الحزمة غير صالح؛ استخدم YYYY-MM-DD.")
+    if package_path.parent.name != date:
+        raise ValueError("تاريخ الحزمة لا يطابق مجلد المحتوى.")
 
     main_script = str(data.get("main_script", "")).strip()
     if len(main_script) < 500 or not main_script.startswith("أهلاً بكم في أهم الأخبار"):
@@ -27,6 +29,7 @@ def load_editorial_package(path: str | Path) -> dict:
     if not isinstance(stories, list) or not 2 <= len(stories) <= 5:
         raise ValueError("يجب أن تحتوي الحزمة على خبرين إلى خمسة أخبار مالية مكتملة.")
     story_ids = set()
+    story_links = set()
     for index, story in enumerate(stories, start=1):
         if not isinstance(story, dict):
             raise ValueError(f"الخبر {index} ليس كائناً صالحاً.")
@@ -38,18 +41,23 @@ def load_editorial_package(path: str | Path) -> dict:
             raise ValueError(f"معرّف الخبر مكرر: {story_id}.")
         story_ids.add(story_id)
         summary = str(story["summary"]).strip()
-        if len(summary) < 80 or re.search(r"(?:…|\.{3,})\s*$", summary):
+        if len(summary) < 80 or "\\ufffd" in summary or re.search(r"(?:…|\.{3,})\s*$", summary):
             raise ValueError(f"ملخص الخبر {story_id} قصير أو مبتور.")
         if not re.search(r"[.!؟!?؛]$", summary):
             raise ValueError(f"ملخص الخبر {story_id} لا ينتهي بجملة مكتملة.")
         parsed = urlparse(str(story["link"]).strip())
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError(f"رابط مصدر الخبر {story_id} غير صالح.")
+        if story["link"] in story_links:
+            raise ValueError(f"رابط المصدر مكرر: {story['link']}.")
+        story_links.add(story["link"])
 
     shorts = data.get("shorts")
     if not isinstance(shorts, list) or len(shorts) != 2:
         raise ValueError("يجب توفير نصين مستقلين بالضبط لمقطعي Shorts.")
     short_ids = set()
+    short_story_ids = set()
+    short_scripts = set()
     for index, short in enumerate(shorts, start=1):
         if not isinstance(short, dict):
             raise ValueError(f"بيانات Short رقم {index} غير صالحة.")
@@ -62,7 +70,15 @@ def load_editorial_package(path: str | Path) -> dict:
         short_ids.add(short_id)
         if short["story_id"] not in story_ids:
             raise ValueError(f"Short رقم {index} يشير إلى خبر غير موجود.")
+        if short["story_id"] in short_story_ids:
+            raise ValueError("يجب أن يستند مقطعا Shorts إلى خبرين مختلفين.")
+        short_story_ids.add(short["story_id"])
+        if len(str(short["title"])) > 100 or "#Shorts" not in str(short["title"]):
+            raise ValueError(f"عنوان Short رقم {index} طويل أو يفتقد وسم Shorts.")
         script = str(short["script"]).strip()
+        if script in short_scripts:
+            raise ValueError("نصا Shorts متطابقان؛ يلزم نصان مستقلان.")
+        short_scripts.add(script)
         if len(script) < 100 or "WealthRadar" not in script or not re.search(r"(اشتركوا|اشتركوا في|الاشتراك)", script):
             raise ValueError(f"نص Short رقم {index} غير مكتمل أو يفتقد هوية القناة والدعوة للاشتراك.")
         if not isinstance(short["tags"], list) or not short["tags"]:
