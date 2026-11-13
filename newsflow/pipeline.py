@@ -133,7 +133,7 @@ def collect(max_stories: int):
     return selected, rejected
 
 def make_opening_hook(stories):
-    """Lead with the strongest verified story in clear modern Arabic."""
+    """Lead with the most relevant collected story; fact-checking is a separate gate."""
     if not stories:
         return "ما أبرز ما يحرك الأسواق اليوم؟ إليك الصورة ببساطة."
     lead = clean_narration(stories[0].get("title", ""))
@@ -147,7 +147,7 @@ def make_script(stories):
     parts = [
         "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar.",
         make_opening_hook(stories),
-        "سنقدم الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
+        "سننقل ما ورد في المصادر، ونفصل المعلومات المنشورة عن التحليل والتوقع."
     ]
     for index, story in enumerate(stories, start=1):
         summary = story["summary"] or "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
@@ -650,7 +650,7 @@ def main():
             if upload_enabled:
                 youtube_upload(
                     short_video, short_title, short_description, short_tags,
-                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "public"), credentials=auth_credentials
+                    privacy_override="private", credentials=auth_credentials
                 )
 
 
