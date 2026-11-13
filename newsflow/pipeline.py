@@ -539,7 +539,15 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy")
+    parser.add_argument("--voice-file", type=Path, default=Path(os.getenv("NEWSFLOW_VOICE_FILE")) if os.getenv("NEWSFLOW_VOICE_FILE", "").strip() else None, help="Use an owner-recorded narration file instead of TTS")
     args = parser.parse_args()
+    voice_file = args.voice_file.expanduser() if args.voice_file else None
+    if voice_file:
+        if not voice_file.is_file():
+            parser.error(f"ملف التسجيل الصوتي غير موجود: {voice_file}")
+        if voice_file.suffix.lower() not in {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"}:
+            parser.error("صيغة التسجيل الصوتي غير مدعومة؛ استخدم WAV أو MP3 أو M4A أو AAC أو FLAC أو OGG.")
+    voice_source = "owner_recording" if voice_file else "tts_preview"
     args.max_stories = clamp_max_stories(args.max_stories)
     if args.private_test and args.dry_run:
         parser.error("--private-test cannot be combined with --dry-run")
@@ -551,9 +559,12 @@ def main():
         args.max_stories = 1
         if not upload_enabled:
             parser.error("Private test requires YOUTUBE_UPLOAD_ENABLED=true")
-    # Verify OAuth before spending time generating audio/video.
+        if voice_source != "owner_recording":
+            print("[SAFE] PRIVATE upload disabled: a full owner-recorded narration is required; TTS is preview-only.")
+            upload_enabled = False
+    # Verify OAuth only when every known precondition still permits an upload.
     auth_credentials = None
-    if args.private_test or (not args.dry_run and upload_enabled):
+    if upload_enabled and not args.dry_run:
         try:
             auth_credentials = validate_youtube_auth()
         except RuntimeError as exc:
@@ -562,6 +573,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     stories, filtered_stories = collect(args.max_stories)
     editorial_report = review_stories(stories)
+    editorial_report["voice_source"] = voice_source
     editorial_report["rejected"].extend(filtered_stories)
     editorial_report["rejected_count"] += len(filtered_stories)
     (out / "editorial_review.json").write_text(
@@ -599,8 +611,19 @@ def main():
     if args.dry_run:
         return
 
-    audio = bulletin / "voice.mp3"
-    asyncio.run(make_audio(bulletin_script, audio))
+    if voice_file:
+        audio = bulletin / f"voice{voice_file.suffix.lower()}"
+        if voice_file.resolve() != audio.resolve():
+            shutil.copy2(voice_file, audio)
+        print("[VOICE_SOURCE] owner_recording")
+    else:
+        audio = bulletin / "voice.mp3"
+        asyncio.run(make_audio(bulletin_script, audio))
+        print("[VOICE_SOURCE] tts_preview (preview only; upload is blocked)")
+    (bulletin / "voice_source.json").write_text(
+        json.dumps({"voice_source": voice_source, "source_filename": voice_file.name if voice_file else None}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     ffprobe = shutil.which("ffprobe")
     main_portrait = os.getenv("NEWSFLOW_MAIN_VIDEO_PORTRAIT", "false").lower() == "true"
     duration = None
@@ -611,6 +634,15 @@ def main():
             check=True, capture_output=True, text=True
         )
         duration = validate_audio_duration(probe.stdout.strip(), private_test=args.private_test)
+        editorial_report["audio_duration_seconds"] = duration
+        (out / "editorial_review.json").write_text(json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8")
+        (bulletin / "voice_source.json").write_text(
+            json.dumps({"voice_source": voice_source, "source_filename": voice_file.name if voice_file else None, "duration_seconds": duration}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        if upload_enabled and args.private_test and duration < 181:
+            print("[SAFE] PRIVATE upload blocked: final main narration must be at least 181 seconds.")
+            upload_enabled = False
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (duration follows editorial content)")
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
