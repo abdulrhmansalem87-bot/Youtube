@@ -17,7 +17,7 @@ import edge_tts
 
 ROOT = Path(__file__).resolve().parents[1]
 FORBIDDEN = ("مسودة", "نيوزفلو", "newsflow", "draft", "ai-generated")
-PEXELS_API = "https://api.pexels.com/videos/search"
+PEXELS_API = "https://api.pexels.com/v1/videos/search"
 
 
 def _words(text: str) -> list[str]:
