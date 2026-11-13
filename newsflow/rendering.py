@@ -34,7 +34,7 @@ def _font_path(bold: bool = False) -> str:
 def _font_path_for_text(text: str, bold: bool = False) -> str:
     # Noto Sans Arabic is excellent for Arabic but does not include Latin letters.
     # Use DejaVu for mixed Arabic/Latin strings to prevent missing-glyph squares.
-    if re.search(r"[A-Za-z]", str(text or "")):
+    if re.search(r"[A-Za-z…]", str(text or "")):
         candidate = (
             "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
             if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
@@ -63,9 +63,13 @@ def _clean_visual_text(value: str) -> str:
     text = str(value or "").strip()
     text = text.replace('"', "").replace("'", "")
     text = text.replace("•", "،").replace("%", "٪")
+    # Noto Sans Arabic on the runner lacks U+2026; use a three-dot sequence it supports.
+    text = text.replace("…", "...")
     text = text.replace("چي", "جي").replace("چ", "ج")
     text = re.sub(r"\s+", " ", text)
-    text = re.sub(r"\s*([،؛؟.!])\s*", r"\1 ", text)
+    text = re.sub(r"\s*([،؛؟!])\s*", r"\1 ", text)
+    # Keep decimal points attached to both digits in right-to-left Arabic text.
+    text = re.sub(r"(?<![0-9٠-٩۰-۹])\s*\.\s*|\.(?![0-9٠-٩۰-۹])\s*", ". ", text)
     return text.strip()
 
 
