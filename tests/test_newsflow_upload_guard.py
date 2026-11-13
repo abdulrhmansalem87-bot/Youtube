@@ -10,12 +10,29 @@ def valid_report():
         "warning_count": 0,
         "warnings": [],
         "fact_checking": "verified",
+        "voice_source": "owner_recording",
     }
 
 
 class UploadReviewGateTests(unittest.TestCase):
     def test_allows_upload_only_after_verified_review_and_approval(self):
         self.assertEqual(upload_review_blockers(valid_report(), True), [])
+
+    def test_blocks_tts_preview_even_when_every_other_gate_passes(self):
+        report = valid_report()
+        report["voice_source"] = "tts_preview"
+        self.assertIn(
+            "التعليق الصوتي ليس تسجيلاً أصلياً لصاحب القناة",
+            upload_review_blockers(report, True),
+        )
+
+    def test_blocks_missing_voice_source(self):
+        report = valid_report()
+        report.pop("voice_source")
+        self.assertIn(
+            "التعليق الصوتي ليس تسجيلاً أصلياً لصاحب القناة",
+            upload_review_blockers(report, True),
+        )
 
     def test_blocks_when_fact_checking_was_not_performed(self):
         report = valid_report()
