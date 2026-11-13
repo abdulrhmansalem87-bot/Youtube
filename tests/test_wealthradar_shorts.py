@@ -4,6 +4,7 @@ from urllib.error import HTTPError
 
 from wealthradar_shorts.pipeline import (
     require_pexels_api_key,
+    PEXELS_API,
     stock_footage_error,
     validate_plan,
     validate_video_probe,
@@ -85,12 +86,15 @@ class WealthRadarChannelVerificationTests(unittest.TestCase):
 
 
 class WealthRadarBrollSafetyTests(unittest.TestCase):
+    def test_uses_current_pexels_v1_video_search_endpoint(self):
+        self.assertEqual(PEXELS_API, "https://api.pexels.com/v1/videos/search")
+
     def test_missing_pexels_key_blocks_rendering(self):
         with self.assertRaisesRegex(RuntimeError, "licensed B-roll"):
             require_pexels_api_key("")
 
     def test_http_401_explains_invalid_or_inactive_api_key(self):
-        exc = HTTPError("https://api.pexels.com/videos/search", 401, "Unauthorized", None, None)
+        exc = HTTPError("https://api.pexels.com/v1/videos/search", 401, "Unauthorized", None, None)
         error = stock_footage_error(3, exc)
         self.assertIn("HTTP 401", str(error))
         self.assertIn("PEXELS_API_KEY", str(error))
