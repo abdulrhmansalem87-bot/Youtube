@@ -38,13 +38,20 @@ class ShortsBatchWorkflowSmokeTests(unittest.TestCase):
         self.assertEqual(strategy["max-parallel"], "3")
 
         steps = produce["steps"]
+        record = next(item for item in steps if item.get("name") == "Write per-Short result record")
         artifact = next(item for item in steps if item.get("uses") == "actions/upload-artifact@v4")
+        self.assertEqual(record.get("if"), "always()")
+        self.assertIn("steps.validate.outcome", record["env"]["VALIDATION_OUTCOME"])
+        self.assertIn("steps.render.outcome", record["env"]["RENDER_OUTCOME"])
+        self.assertIn("steps.upload.outcome", record["env"]["UPLOAD_OUTCOME"])
+        self.assertIn("result.json", record["run"])
+        self.assertLess(steps.index(record), steps.index(artifact))
         self.assertEqual(artifact.get("if"), "always()")
         name = artifact["with"]["name"]
         self.assertIn("${{ matrix.id }}", name)
         self.assertIn("${{ github.run_number }}", name)
         self.assertIn("output/wealthradar/", artifact["with"]["path"])
-        self.assertEqual(artifact["with"]["if-no-files-found"], "warn")
+        self.assertEqual(artifact["with"]["if-no-files-found"], "error")
 
         upload = next(item for item in steps if item.get("name") == "Upload this Short privately")
         self.assertIn("success()", upload["if"])
