@@ -434,6 +434,7 @@ def create_youtube_credentials():
         client_secret=os.environ["YOUTUBE_CLIENT_SECRET"],
         scopes=[
             "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.readonly",
         ],
     )
 
