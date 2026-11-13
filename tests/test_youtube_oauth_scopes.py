@@ -26,10 +26,11 @@ class YouTubeOAuthScopeTests(unittest.TestCase):
 
     @patch("google.oauth2.credentials.Credentials")
     @patch("googleapiclient.discovery.build")
+    @patch("googleapiclient.http.MediaFileUpload")
     @patch("wealthradar_shorts.pipeline.validate_rendered_video")
     @patch("wealthradar_shorts.pipeline.verify_target_channel", return_value="UC-WEALTHRADAR-TEST")
     def test_shorts_private_upload_uses_channel_read_scope(
-        self, verify_channel, validate_video, build, credentials_class
+        self, verify_channel, validate_video, media_file_upload, build, credentials_class
     ):
         credentials_class.return_value.valid = True
         fake_request = MagicMock()
