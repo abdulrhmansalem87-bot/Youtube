@@ -60,7 +60,12 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("newsflow-pr-{0}", workflow)
         self.assertIn("newsflow-production", workflow)
         self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow)
-        self.assertIn('NEWSFLOW_UPLOAD_SINGLE_LONG: "false"', workflow)
+        scheduled_single_long = "NEWSFLOW_UPLOAD_SINGLE_LONG: ${{ github.event_name == 'schedule' && 'true' || 'false' }}"
+        self.assertIn(scheduled_single_long, workflow)
+        self.assertNotIn('NEWSFLOW_UPLOAD_SINGLE_LONG: "false"', workflow)
+        self.assertIn('- cron: "0 13,17,20 * * *"', workflow)
+        self.assertIn("NEWSFLOW_STRICT_FRESHNESS:", workflow)
+        self.assertIn("FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}", workflow)
         self.assertNotIn("github.event_name == 'schedule' && 'true'", workflow)
 
 
