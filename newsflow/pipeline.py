@@ -267,9 +267,9 @@ def build_short_youtube_metadata(story, script):
     elif any(term in blob for term in ("نفط", "طاقة", "oil")):
         topic, second_topic = "النفط", "الطاقة"
     description = (
-        f"في هذا الفيديو نفهم ببساطة: {title_seed}.\\n"
-        f"ملخص الخبر: {summary}.\\n\\n"
-        f"المصادر:\\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\\n\\n"
+        f"في هذا الفيديو نفهم ببساطة: {title_seed}.\n"
+        f"ملخص الخبر: {summary}.\n\n"
+        f"المصادر:\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\n\n"
         f"#shorts #WealthRadar #{topic.replace(' ', '_')} #{second_topic}"
     )
     tags = ["WealthRadar", "Shorts", "أخبار اقتصادية", topic, second_topic]
