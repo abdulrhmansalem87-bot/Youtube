@@ -6,6 +6,9 @@ on:
     paths:
       - "wealthradar_shorts/pipeline.py"
       - ".github/workflows/wealthradar-shorts.yml"
+  schedule:
+    # 08:00, 14:00, 20:00 Cairo time (UTC+2 winter schedule).
+    - cron: "0 6,12,18 * * *"
   workflow_dispatch:
     inputs:
       validate_only:
@@ -64,7 +67,7 @@ jobs:
           FISH_AUDIO_MODEL: s2.1-pro-free
         run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN"
       - name: Upload WealthRadar Short privately
-        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private) || github.event_name == 'schedule' }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
