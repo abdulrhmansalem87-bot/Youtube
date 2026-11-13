@@ -135,11 +135,14 @@ def collect(max_stories: int):
     stories = [
         item for item in stories
         if (
-            item["published_ts"] > 0
-            and 0 <= now_ts - item["published_ts"] <= lookback_seconds
-        ) if strict_freshness else (
-            not item["published_ts"]
-            or 0 <= now_ts - item["published_ts"] <= lookback_seconds
+            (
+                item["published_ts"] > 0
+                and 0 <= now_ts - item["published_ts"] <= lookback_seconds
+            )
+            if strict_freshness else (
+                not item["published_ts"]
+                or 0 <= now_ts - item["published_ts"] <= lookback_seconds
+            )
         )
     ]
     stories.sort(key=lambda item: item["published_ts"], reverse=True)
