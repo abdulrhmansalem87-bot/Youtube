@@ -128,11 +128,20 @@ jobs:
       - name: Capture actual rendered video frames for phone QA
         if: always() && github.event_name != 'pull_request'
         run: |
+          qa_count=0
           if [ -s output/bulletin/long.mp4 ]; then
-            python scripts/capture_video_qa.py --video output/bulletin/long.mp4 --output output/mobile-qa
+            python scripts/capture_video_qa.py --video output/bulletin/long.mp4 --output output/mobile-qa/long
+            qa_count=$((qa_count + 1))
           else
             echo "[ACTUAL_VIDEO_QA_SKIPPED] no long.mp4 was produced"
           fi
+          for short in output/bulletin/shorts/short-*.mp4; do
+            [ -s "$short" ] || continue
+            short_name=$(basename "$short" .mp4)
+            python scripts/capture_video_qa.py --video "$short" --output "output/mobile-qa/$short_name"
+            qa_count=$((qa_count + 1))
+          done
+          echo "[PHONE_QA_COMPLETE] videos=$qa_count (main + available Shorts)"
       - name: Upload generated files
         if: always()
         uses: actions/upload-artifact@v4
