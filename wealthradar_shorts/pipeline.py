@@ -319,6 +319,17 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
               "-c:a", "aac", "-b:a", "192k", "-shortest",
               "-movflags", "+faststart", str(final)])
     final_duration = validate_rendered_video(final)
+    render_metadata = {
+        "voice_source": "tts",
+        "presenter_source": "none",
+        "broll_source": "pexels",
+        "broll_scene_count": len(segments),
+        "voice_duration_seconds": round(voice_duration, 2),
+        "video_duration_seconds": round(final_duration, 2),
+    }
+    (output / "render_metadata.json").write_text(
+        json.dumps(render_metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     print(f"[SHORT_READY] {final} | 1080x1920 | {final_duration:.1f}s | H.264/AAC verified")
     return final
 
@@ -351,7 +362,38 @@ def verify_target_channel(youtube, expected_title: str | None = None) -> str:
     return channel_id
 
 
+def require_owner_identity_metadata(video_path: Path) -> dict:
+    """Refuse private upload unless the rendered MP4 used the owner's real voice and video."""
+    metadata_path = video_path.parent / "render_metadata.json"
+    if not metadata_path.is_file():
+        raise RuntimeError(
+            "تم منع الرفع: سجل مصادر الرندر غير موجود؛ لا يمكن إثبات استخدام صوت ووجه صاحب القناة."
+        )
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        raise RuntimeError("تم منع الرفع: سجل مصادر الرندر غير صالح.") from None
+    if metadata.get("voice_source") != "owner_recording":
+        raise RuntimeError(
+            "تم منع الرفع: التعليق الصوتي ليس تسجيلاً أصلياً لصاحب القناة؛ صوت TTS مسموح للمعاينة فقط."
+        )
+    if metadata.get("presenter_source") != "owner_video":
+        raise RuntimeError(
+            "تم منع الرفع: لا يوجد فيديو أصلي للمقدم مدمج في النسخة."
+        )
+    if metadata.get("broll_source") not in {"pexels", "licensed_video"}:
+        raise RuntimeError("تم منع الرفع: مصدر لقطات B-roll المرخصة غير مثبت.")
+    try:
+        broll_count = int(metadata.get("broll_scene_count", 0))
+    except (TypeError, ValueError):
+        broll_count = 0
+    if broll_count <= 0:
+        raise RuntimeError("تم منع الرفع: لا توجد لقطات B-roll مرخصة مثبتة.")
+    return metadata
+
+
 def upload_private_video(video_path: Path, title: str) -> str:
+    require_owner_identity_metadata(video_path)
     required = ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")
     missing = [name for name in required if not os.getenv(name, "").strip()]
     if missing:
