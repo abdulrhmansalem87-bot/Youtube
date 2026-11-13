@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from newsflow.rendering import render_card_image, render_video_resumable
+from newsflow.rendering import render_card_image, render_video_resumable, _font_path_for_text
 
 
 class ResumableRenderTests(unittest.TestCase):
@@ -155,6 +155,26 @@ class ResumableRenderTests(unittest.TestCase):
         calls.clear()
         self.render(render_segment)
         self.assertEqual(calls, ["segment-001.mp4"])
+
+
+    def test_mixed_arabic_latin_uses_font_with_latin_glyphs(self):
+        self.assertIn("DejaVuSans", _font_path_for_text("اشترك في WealthRadar"))
+        self.assertIn("Noto", _font_path_for_text("اشترك في القناة"))
+        layout = render_card_image(
+            {
+                "heading": "الخبر 02، Reuters",
+                "title": "سهم Nvidia يتحرك بعد تغيير القيادة",
+                "body": "تابع المصدر الأصلي واشترك في WealthRadar وفعّل زر الجرس.",
+            },
+            self.root / "mixed-font.png",
+            1080,
+            1920,
+            1,
+            3,
+        )
+        self.assertIn("DejaVuSans", layout["heading_font_path"])
+        self.assertIn("DejaVuSans", layout["headline_font_path"])
+        self.assertIn("DejaVuSans", layout["body_font_path"])
 
     def test_arabic_layout_fits_landscape_and_portrait_safe_regions(self):
         card = {
