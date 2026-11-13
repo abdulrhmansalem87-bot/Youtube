@@ -117,14 +117,14 @@ def collect(max_stories: int):
     return selected, rejected
 
 def make_opening_hook(stories):
-    """Lead with the strongest verified story in clear modern Arabic."""
+    """Keep the phone opening card short enough to avoid clipped phrases."""
     if not stories:
-        return "ما أبرز ما يحرك الأسواق اليوم؟ إليك الصورة ببساطة."
+        return "أبرز تطورات المال والأسواق اليوم"
     lead = clean_narration(stories[0].get("title", ""))
     lead = re.sub(r"^(عاجل|آخر الأخبار|أخبار اليوم)\s*[:：-]?\s*", "", lead, flags=re.I)
-    if len(lead) > 115:
-        lead = lead[:112].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
-    return f"{lead}. ما الذي حدث؟ ولماذا يهمك الخبر؟"
+    if len(lead) > 52:
+        lead = lead[:49].rsplit(" ", 1)[0].rstrip("،؛:") + "..."
+    return f"أبرز خبر اليوم: {lead}"
 
 
 def make_script(stories):
@@ -541,10 +541,47 @@ def main():
             parser.error(str(exc))
     out = ROOT / os.getenv("NEWSFLOW_OUTPUT_DIR", "output")
     out.mkdir(parents=True, exist_ok=True)
-    stories, filtered_stories = collect(args.max_stories)
+    package_path = os.getenv("NEWSFLOW_EDITORIAL_PACKAGE", "").strip()
+    require_package = os.getenv("NEWSFLOW_REQUIRE_EDITORIAL_PACKAGE", "false").lower() == "true"
+    package = None
+    if package_path and Path(package_path).is_file():
+        package = load_editorial_package(package_path)
+        package_stories = package["stories"]
+        stories = package_stories[:1] if args.private_test else package_stories
+        filtered_stories = []
+        bulletin_script = make_script(stories) if args.private_test else package["main_script"]
+        short_items = [] if args.private_test else package["shorts"]
+    else:
+        if require_package:
+            raise RuntimeError(
+                f"لم تُعثر حزمة تحريرية مكتملة لليوم: {package_path or '(مسار غير محدد)'}؛ "
+                "أُوقف الإنتاج بدلاً من تحويل ملخصات RSS المبتورة إلى فيديو."
+            )
+        stories, filtered_stories = collect(args.max_stories)
+        bulletin_script = None
+        short_items = None
+
     editorial_report = review_stories(stories)
     editorial_report["rejected"].extend(filtered_stories)
     editorial_report["rejected_count"] += len(filtered_stories)
+    if package:
+        editorial_report["package_date"] = package["date"]
+        editorial_report["fact_checking"] = package.get("fact_checking", "not_performed")
+        editorial_report["human_approval_required"] = True
+        for note in package.get("editorial_notes", []):
+            editorial_report["warnings"].append({
+                "id": "package-review",
+                "title": "ملاحظة تحقق قبل الاعتماد",
+                "warnings": [str(note)],
+            })
+            editorial_report["warning_count"] += 1
+        if package.get("editorial_notes"):
+            editorial_report["status"] = "needs_human_review"
+        if len(editorial_report["accepted"]) != len(stories):
+            raise RuntimeError(
+                "تحتوي الحزمة التحريرية على خبر لم يجتز الفلترة المالية؛ "
+                "أُوقف إنتاج الفيديو حتى تصحيح الحزمة."
+            )
     (out / "editorial_review.json").write_text(
         json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -570,7 +607,7 @@ def main():
         (folder / "metadata.json").write_text(json.dumps(story, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[DRAFT] {story['title']} — {story['link']}")
 
-    bulletin_script = make_script(stories)
+    bulletin_script = bulletin_script or make_script(stories)
     bulletin = out / "bulletin"
     bulletin.mkdir(exist_ok=True)
     (bulletin / "script.txt").write_text(bulletin_script, encoding="utf-8")
@@ -601,7 +638,12 @@ def main():
             )
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
-    video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
+    if package and not args.private_test:
+        video_title = package["title"]
+        description = package["description"]
+        tags = package["tags"]
+    else:
+        video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
@@ -623,20 +665,38 @@ def main():
     if not single_long_upload:
         shorts_dir = bulletin / "shorts"
         shorts_dir.mkdir(exist_ok=True)
-        for index, story in enumerate(stories[:2], start=1):
-            short_script = make_short_script(story)
+        story_by_id = {str(item["id"]): item for item in stories}
+        if short_items is None:
+            short_items = [
+                {
+                    "story_id": story["id"],
+                    "script": make_short_script(story),
+                    "title": None,
+                    "description": None,
+                    "tags": None,
+                }
+                for story in stories[:2]
+            ]
+        for index, short_item in enumerate(short_items[:2], start=1):
+            story = story_by_id[str(short_item["story_id"])]
+            short_script = str(short_item["script"]).strip()
             short_audio = shorts_dir / f"short-{index}.mp3"
             short_video = shorts_dir / f"short-{index}.mp4"
             asyncio.run(make_audio(short_script, short_audio))
-            short_title, short_description, short_tags = build_youtube_metadata([story], short_script)
-            short_title = f"{short_title[:78].rstrip()} #Shorts"
+            if short_item.get("title") and short_item.get("description") and short_item.get("tags"):
+                short_title = str(short_item["title"])
+                short_description = str(short_item["description"])
+                short_tags = short_item["tags"]
+            else:
+                short_title, short_description, short_tags = build_youtube_metadata([story], short_script)
+                short_title = f"{short_title[:78].rstrip()} #Shorts"
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
             print(f"[SHORT_READY] {short_video} duration-specific_story={story['id']}")
             if upload_enabled:
                 youtube_upload(
                     short_video, short_title, short_description, short_tags,
-                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "public"), credentials=auth_credentials
+                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "private"), credentials=auth_credentials
                 )
 
 
