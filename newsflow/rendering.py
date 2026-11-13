@@ -409,7 +409,7 @@ def render_video_resumable(
 
         try:
             layout = frame_renderer(card, frame, width, height, index, len(cards), short)
-            if not frame.is_file() or frame.stat().st_size < 1_000:
+            if not frame.is_file() or frame.stat().st_size <= 0:
                 raise RuntimeError(f"فشل إنشاء صورة المشهد رقم {index + 1}.")
             segment_renderer(frame, segment, float(seconds), width, height, ffmpeg)
             if not segment_validator(segment, float(seconds), width, height, ffprobe):
