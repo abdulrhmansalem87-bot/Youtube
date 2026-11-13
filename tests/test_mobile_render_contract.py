@@ -19,6 +19,8 @@ class MobileRenderContractTests(unittest.TestCase):
         self.assertIn("actions/cache/restore@v4", workflow)
         self.assertIn("actions/cache/save@v4", workflow)
         self.assertIn("phone-comparison.png", (ROOT / "scripts" / "render_mobile_preview.py").read_text(encoding="utf-8"))
+        self.assertIn("for short in output/bulletin/shorts/short-*.mp4", workflow)
+        self.assertIn('output/mobile-qa/$short_name', workflow)
 
     def test_mobile_renderer_branch_keeps_verified_private_upload_gate(self):
         source = (ROOT / "newsflow" / "pipeline.py").read_text(encoding="utf-8")
