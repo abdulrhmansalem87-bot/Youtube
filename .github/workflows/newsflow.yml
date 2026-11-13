@@ -42,7 +42,7 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: "0 6 * * *"
+    - cron: "0 7 * * *"
 
 permissions:
   contents: read
@@ -92,10 +92,23 @@ jobs:
         run: |
           count=$(find output/bulletin/.render_cache output/bulletin/shorts/.render_cache -type f -name manifest.json 2>/dev/null | wc -l)
           echo "[RENDER_CACHE_RESTORE] manifests=$count"
+      - name: Resolve daily editorial package
+        if: github.event_name != 'pull_request'
+        run: |
+          TODAY=$(TZ=Africa/Cairo date +%F)
+          PACKAGE="content/$TODAY/wealthradar-daily-package.json"
+          if [ -s "$PACKAGE" ]; then
+            echo "NEWSFLOW_EDITORIAL_PACKAGE=$PACKAGE" >> "$GITHUB_ENV"
+            echo "[EDITORIAL_PACKAGE_FOUND] $PACKAGE"
+          else
+            echo "NEWSFLOW_EDITORIAL_PACKAGE=" >> "$GITHUB_ENV"
+            echo "[EDITORIAL_PACKAGE_MISSING] $PACKAGE"
+          fi
       - name: Run NewsFlow
         if: github.event_name != 'pull_request'
         env:
-          NEWSFLOW_MAX_STORIES: "4"
+          NEWSFLOW_MAX_STORIES: "5"
+          NEWSFLOW_REQUIRE_EDITORIAL_PACKAGE: "true"
           NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "true"
           NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.visual_qa_approved && 'true' || 'false' }}
@@ -128,11 +141,20 @@ jobs:
       - name: Capture actual rendered video frames for phone QA
         if: always() && github.event_name != 'pull_request'
         run: |
+          qa_count=0
           if [ -s output/bulletin/long.mp4 ]; then
-            python scripts/capture_video_qa.py --video output/bulletin/long.mp4 --output output/mobile-qa
+            python scripts/capture_video_qa.py --video output/bulletin/long.mp4 --output output/mobile-qa/long
+            qa_count=$((qa_count + 1))
           else
             echo "[ACTUAL_VIDEO_QA_SKIPPED] no long.mp4 was produced"
           fi
+          for short in output/bulletin/shorts/short-*.mp4; do
+            [ -s "$short" ] || continue
+            short_name=$(basename "$short" .mp4)
+            python scripts/capture_video_qa.py --video "$short" --output "output/mobile-qa/$short_name"
+            qa_count=$((qa_count + 1))
+          done
+          echo "[PHONE_QA_COMPLETE] videos=$qa_count (main + available Shorts)"
       - name: Upload generated files
         if: always()
         uses: actions/upload-artifact@v4
