@@ -63,6 +63,8 @@ def _clean_visual_text(value: str) -> str:
     text = str(value or "").strip()
     text = text.replace('"', "").replace("'", "")
     text = text.replace("•", "،").replace("%", "٪")
+    # Noto Sans Arabic on the runner renders U+2026 as a missing-glyph square.
+    text = text.replace("\u2026", "...")
     text = text.replace("چي", "جي").replace("چ", "ج")
     text = re.sub(r"\s+", " ", text)
     text = re.sub(r"\s*([،؛؟.!])\s*", r"\1 ", text)
