@@ -49,6 +49,7 @@ class ShortScriptTests(unittest.TestCase):
         self.assertEqual(len(hashtags), 4)
         self.assertIn("1. Reuters:", description)
         self.assertIn("#الذهب", description)
+        self.assertIn("بدعمك بنتطور سوا خطوة بخطوة", description)
         self.assertLessEqual(len(title), 100)
         self.assertIn("WealthRadar", title)
 
