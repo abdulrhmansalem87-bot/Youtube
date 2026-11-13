@@ -55,6 +55,21 @@ GENERIC_ECONOMIC_TERMS = {
     "اقتصاد", "اقتصادي", "اقتصادية", "مالية", "مالي",
     "financial", "finance", "economy", "economic",
 }
+ENERGY_INFRASTRUCTURE_ONLY_TERMS = (
+    "شبكة الطاقة", "شبكة الكهرباء", "انقطاع الكهرباء", "انقطاع التيار الكهربائي",
+    "لا كهرباء", "انقطاع التيار", "power grid", "electricity grid",
+    "blackout", "power outage",
+)
+DIRECT_ENERGY_FINANCE_TERMS = (
+    "أسعار الكهرباء", "سعر الكهرباء", "تعرفة الكهرباء", "تكلفة الكهرباء",
+    "أسعار الطاقة", "تكلفة الطاقة", "أسعار الوقود", "تكلفة الوقود",
+    "أسعار النفط", "أسعار الغاز", "استيراد الغاز", "استيراد النفط",
+    "إنتاج الكهرباء", "مشروعات الطاقة", "استثمارات الطاقة", "تمويل الطاقة",
+    "سوق الطاقة", "شركات الطاقة", "oil prices", "gas prices", "fuel prices",
+    "energy prices", "electricity prices", "power prices", "fuel costs",
+    "energy costs", "energy imports", "power generation", "energy investment",
+    "energy market", "utility company",
+)
 DIRECT_FINANCE_TITLE_TERMS = tuple(
     term for term in FINANCE_TITLE_TERMS
     if term.casefold() not in GENERIC_ECONOMIC_TERMS
@@ -76,6 +91,8 @@ def relevance(story: dict) -> tuple[bool, str]:
     political_hit = _has_term(title, POLITICAL_TITLE_TERMS)
     direct_finance_hit = _has_term(title, DIRECT_FINANCE_TITLE_TERMS)
 
+    if _has_term(title, ENERGY_INFRASTRUCTURE_ONLY_TERMS) and not _has_term(f"{title} {summary}", DIRECT_ENERGY_FINANCE_TERMS):
+        return False, "تغطية لانقطاع أو بنية تحتية للطاقة دون أثر مالي مباشر؛ لا تكفي وحدها لتصنيف الخبر اقتصادياً"
     if political_hit and not direct_finance_hit:
         return False, "عنوان سياسي عام؛ الإشارة الاقتصادية غير كافية لتصنيفه خبراً مالياً"
     if sport_hit and not title_finance_hit:

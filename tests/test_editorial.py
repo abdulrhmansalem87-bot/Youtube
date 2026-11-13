@@ -24,6 +24,34 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(script.count("روابط المصادر في وصف الفيديو"), 1)
         self.assertNotIn("تابعوا رابط المصدر في وصف الفيديو للتفاصيل", script)
 
+
+    def test_rejects_power_grid_outage_without_financial_market_impact(self):
+        report = review_stories([{
+            "id": "energy-grid",
+            "title": "لا كهرباء ولا ماء ولا تدفئة بعد استهداف شبكة الطاقة",
+            "summary": "يعاني السكان من انقطاع الكهرباء والمياه والتدفئة بعد الضربات، وتعمل فرق الطوارئ على إصلاح الشبكة.",
+            "link": "https://example.com/energy-grid",
+            "source": "مصدر عام",
+            "category": "عام",
+            "published": "2026-11-13",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+        self.assertIn("دون أثر مالي مباشر", report["rejected"][0]["reasons"][0])
+
+    def test_accepts_energy_infrastructure_story_with_direct_price_impact(self):
+        report = review_stories([{
+            "id": "energy-prices",
+            "title": "استهداف منشآت الطاقة يرفع أسعار النفط",
+            "summary": "ارتفعت أسعار النفط وتكاليف الشحن والتأمين مع تزايد مخاطر الإمدادات.",
+            "link": "https://example.com/energy-prices",
+            "source": "مصدر اقتصادي",
+            "category": "أسواق المال",
+            "published": "2026-11-13",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["rejected_count"], 0)
+
     def test_accepts_financial_story(self):
         report = review_stories([{
             "id": "1",
