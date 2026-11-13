@@ -97,7 +97,7 @@ jobs:
         env:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
-          NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
+          NEWSFLOW_MAIN_VIDEO_PORTRAIT: "true"
           NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.visual_qa_approved && 'true' || 'false' }}
           # Scheduled and ordinary push runs may build drafts/videos but must never upload.
           NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
