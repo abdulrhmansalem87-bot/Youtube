@@ -10,7 +10,7 @@ from newsflow.pipeline import make_video, validate_video
 
 @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg/FFprobe not installed")
 class VideoRenderSmokeTests(unittest.TestCase):
-    def test_landscape_and_vertical_renders_have_audio_and_expected_dimensions(self):
+    def test_landscape_portrait_long_form_and_shorts_renders_have_audio(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             audio = root / "sample.mp3"
@@ -27,21 +27,33 @@ class VideoRenderSmokeTests(unittest.TestCase):
                 "summary": "ارتفع التضخم الأساسي في الولايات المتحدة خلال أكتوبر.",
                 "source": "Reuters",
             }
-            for short, expected in ((False, (1920, 1080)), (True, (1080, 1920))):
-                output = root / ("short.mp4" if short else "long.mp4")
-                make_video("اختبار WealthRadar", audio, output, short=short, stories=[story])
-                validate_video(output, audio, expected_short=short)
-                probe = subprocess.run(
-                    [
-                        shutil.which("ffprobe"), "-v", "error", "-show_entries",
-                        "stream=codec_type,width,height", "-of", "json", str(output),
-                    ],
-                    check=True, capture_output=True, text=True,
-                )
-                streams = json.loads(probe.stdout)["streams"]
-                video = next(item for item in streams if item["codec_type"] == "video")
-                self.assertEqual((video["width"], video["height"]), expected)
-                self.assertTrue(any(item["codec_type"] == "audio" for item in streams))
+            cases = (
+                (False, False, (1920, 1080), "landscape.mp4"),
+                (False, True, (1080, 1920), "portrait-long.mp4"),
+                (True, True, (1080, 1920), "short.mp4"),
+            )
+            for short, portrait, expected, filename in cases:
+                with self.subTest(short=short, portrait=portrait):
+                    output = root / filename
+                    make_video(
+                        "اختبار WealthRadar", audio, output,
+                        short=short, portrait=portrait, stories=[story],
+                    )
+                    validate_video(
+                        output, audio, expected_short=short,
+                        expected_portrait=portrait,
+                    )
+                    probe = subprocess.run(
+                        [
+                            shutil.which("ffprobe"), "-v", "error", "-show_entries",
+                            "stream=codec_type,width,height", "-of", "json", str(output),
+                        ],
+                        check=True, capture_output=True, text=True,
+                    )
+                    streams = json.loads(probe.stdout)["streams"]
+                    video = next(item for item in streams if item["codec_type"] == "video")
+                    self.assertEqual((video["width"], video["height"]), expected)
+                    self.assertTrue(any(item["codec_type"] == "audio" for item in streams))
 
 
 if __name__ == "__main__":
