@@ -131,11 +131,16 @@ def collect(max_stories: int):
     if not math.isfinite(lookback_hours) or lookback_hours <= 0:
         raise RuntimeError("NEWSFLOW_LOOKBACK_HOURS يجب أن يكون رقماً موجباً.")
     lookback_seconds = lookback_hours * 3600
+    strict_freshness = os.getenv("NEWSFLOW_STRICT_FRESHNESS", "false").lower() == "true"
     stories = [
         item for item in stories
-        # Scheduled slots require a real publication timestamp and a fresh item.
-        if item["published_ts"] > 0
-        and 0 <= now_ts - item["published_ts"] <= lookback_seconds
+        if (
+            item["published_ts"] > 0
+            and 0 <= now_ts - item["published_ts"] <= lookback_seconds
+        ) if strict_freshness else (
+            not item["published_ts"]
+            or 0 <= now_ts - item["published_ts"] <= lookback_seconds
+        )
     ]
     stories.sort(key=lambda item: item["published_ts"], reverse=True)
     selected, rejected = select_stories(stories, max_stories)
