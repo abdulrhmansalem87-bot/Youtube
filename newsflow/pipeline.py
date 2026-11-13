@@ -572,6 +572,7 @@ def main():
     audio = bulletin / "voice.mp3"
     asyncio.run(make_audio(bulletin_script, audio))
     ffprobe = shutil.which("ffprobe")
+    main_portrait = os.getenv("NEWSFLOW_MAIN_VIDEO_PORTRAIT", "false").lower() == "true"
     duration = None
     if ffprobe:
         probe = subprocess.run(
@@ -581,9 +582,10 @@ def main():
         )
         duration = float(probe.stdout.strip())
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (target: about 180 seconds)")
-        if not args.private_test and not 150 <= duration <= 210:
+        if not args.private_test and (duration < 150 or duration > 300 or (main_portrait and duration <= 180)):
+            target = "أكثر من 180 وحتى 300 ثانية للفيديو الرأسي الطويل" if main_portrait else "150–300 ثانية للفيديو الأفقي"
             raise RuntimeError(
-                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف 150–210 ثانية؛ "
+                f"مدة التعليق الصوتي {duration:.1f} ثانية خارج النطاق المستهدف ({target})؛ "
                 "تم إيقاف بناء الفيديو بدلاً من إخراج نشرة بطول غير مناسب."
             )
 
@@ -592,8 +594,8 @@ def main():
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
-    make_video(video_title, audio, long_video, short=False, portrait=False, stories=stories)
-    validate_video(long_video, audio, expected_portrait=False)
+    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=stories)
+    validate_video(long_video, audio, expected_portrait=main_portrait)
     if args.private_test:
         if upload_enabled:
             youtube_upload(
