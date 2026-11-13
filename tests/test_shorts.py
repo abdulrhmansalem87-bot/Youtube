@@ -18,7 +18,7 @@ class ShortScriptTests(unittest.TestCase):
         self.assertTrue(script.startswith("الخبر ده ممكن يفرق في فهمك لفلوسك:"))
         self.assertNotIn("أهلاً بكم", script)
         self.assertIn("WealthRadar", script)
-        self.assertIn("ليست توصية استثمارية", script)
+        self.assertIn("مش توصية استثمارية", script)
         self.assertIn("اكتب رأيك", script)
         self.assertIn("ابعت الفيديو", script)
         self.assertIn("اشترك في WealthRadar", script)
