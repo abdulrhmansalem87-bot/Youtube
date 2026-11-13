@@ -72,17 +72,18 @@ def validate_plan(plan: dict) -> list[str]:
         errors.append("أضف loop_phrase واربط بها أول جملة وآخر جملة.")
     elif loop_phrase not in narration[0] or loop_phrase not in narration[-1]:
         errors.append("يجب أن تظهر loop_phrase في أول جملة وآخر جملة لتحقيق Loop.")
-    description = str(plan.get("description", "")).strip()
-    tags = plan.get("tags")
-    keywords = plan.get("keywords")
-    if len(description) < 80:
-        errors.append("وصف النشر SEO مطلوب (80 حرفاً على الأقل).")
-    if not isinstance(tags, list) or len(tags) < 5 or any(not str(tag).strip() for tag in tags):
-        errors.append("أضف 5 وسوم YouTube صالحة على الأقل.")
-    if not isinstance(keywords, list) or len(keywords) < 5 or any(not str(word).strip() for word in keywords):
-        errors.append("أضف 5 كلمات مفتاحية صالحة على الأقل.")
-    if len(",".join(str(tag) for tag in tags)) > 500:
-        errors.append("إجمالي وسوم YouTube يتجاوز حد 500 حرف.")
+    if any(key in plan for key in ("description", "tags", "keywords")):
+        description = str(plan.get("description", "")).strip()
+        tags = plan.get("tags")
+        keywords = plan.get("keywords")
+        if len(description) < 80:
+            errors.append("وصف النشر SEO مطلوب (80 حرفاً على الأقل).")
+        if not isinstance(tags, list) or len(tags) < 5 or any(not str(tag).strip() for tag in tags):
+            errors.append("أضف 5 وسوم YouTube صالحة على الأقل.")
+        elif len(",".join(str(tag) for tag in tags)) > 500:
+            errors.append("إجمالي وسوم YouTube يتجاوز حد 500 حرف.")
+        if not isinstance(keywords, list) or len(keywords) < 5 or any(not str(word).strip() for word in keywords):
+            errors.append("أضف 5 كلمات مفتاحية صالحة على الأقل.")
 
     visible_text = " ".join([title, *[str(x) for x in narration]])
     visible_text += " " + " ".join(
@@ -403,7 +404,8 @@ def verify_target_channel(youtube, expected_title: str | None = None) -> str:
     return channel_id
 
 
-def upload_private_video(video_path: Path, plan: dict, title: str) -> str:
+def upload_private_video(video_path: Path, title: str, plan: dict | None = None) -> str:
+    plan = plan or {}
     required = ("YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN")
     missing = [name for name in required if not os.getenv(name, "").strip()]
     if missing:
@@ -490,7 +492,7 @@ def main() -> None:
     if args.upload_private:
         video_path = args.output / "WealthRadar-Short.mp4"
         validate_rendered_video(video_path)
-        upload_private_video(video_path, plan, str(plan["title"]))
+        upload_private_video(video_path, str(plan["title"]), plan)
         return
     api_key = os.getenv("PEXELS_API_KEY", "").strip()
     render(plan, args.output, api_key)
