@@ -66,7 +66,11 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('- cron: "0 13,17,20 * * *"', workflow)
         self.assertIn("NEWSFLOW_STRICT_FRESHNESS:", workflow)
         self.assertIn("FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}", workflow)
-        self.assertNotIn("github.event_name == 'schedule' && 'true'", workflow)
+        self.assertIn("FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}", workflow)
+        # Scheduling may enable draft-generation controls, never YouTube upload approval.
+        self.assertNotIn("github.event_name == 'schedule'", visual_upload_approval)
+        self.assertNotIn("github.event_name == 'schedule'", editorial_approval)
+        self.assertNotIn("NEWSFLOW_UPLOAD_SINGLE_LONG: \"false\"", workflow)
 
 
 if __name__ == "__main__":
