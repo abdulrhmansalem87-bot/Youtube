@@ -4,12 +4,13 @@ from newsflow.pipeline import clamp_max_stories, select_stories, source_display_
 
 
 class PipelineSelectionTests(unittest.TestCase):
-    def test_bulletin_is_capped_at_eight_stories(self):
-        self.assertEqual(clamp_max_stories(8), 8)
-        self.assertEqual(clamp_max_stories(9), 8)
+    def test_bulletin_is_capped_at_four_stories(self):
+        self.assertEqual(clamp_max_stories(4), 4)
+        self.assertEqual(clamp_max_stories(8), 4)
+        self.assertEqual(clamp_max_stories(9), 4)
         self.assertEqual(clamp_max_stories(0), 1)
 
-    def test_eight_relevant_stories_can_be_selected(self):
+    def test_eight_candidates_select_only_four_relevant_stories(self):
         stories = []
         sources = ["CNBC", "BBC", "IMF"]
         for index in range(8):
@@ -21,7 +22,8 @@ class PipelineSelectionTests(unittest.TestCase):
                 "category": "أسواق المال",
             })
         selected, rejected = select_stories(stories, 8)
-        self.assertEqual(len(selected), 8)
+        self.assertEqual(len(selected), 4)
+        self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3"])
         self.assertEqual(rejected, [])
 
     def test_actual_egypt_gold_headline_deduplicates_other_local_gold_prices(self):
