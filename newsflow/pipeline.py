@@ -255,7 +255,10 @@ def clean_narration(value):
     text = re.sub(r"[|*_~]+", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
     text = re.sub(r"\.{2,}", ".", text)
-    text = re.sub(r"\s*([،؛؟.!])\s*", r"\1 ", text)
+    text = text.replace("…", "،")
+    text = re.sub(r"\s*([،؛؟!])\s*", r"\1 ", text)
+    # A period between digits is a decimal separator, not sentence punctuation.
+    text = re.sub(r"(?<![0-9٠-٩۰-۹])\s*\.\s*|\.(?![0-9٠-٩۰-۹])\s*", ". ", text)
     return text.strip()
 
 
