@@ -16,6 +16,8 @@ class MobileRenderContractTests(unittest.TestCase):
         self.assertIn("validate_video(short_video, short_audio, expected_short=True)", source)
         self.assertIn("NEWSFLOW_VISUAL_QA_APPROVED", source)
         workflow = (ROOT / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
+        self.assertIn('NEWSFLOW_MAX_STORIES: "4"', workflow)
+        workflow = (ROOT / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
         self.assertIn("visual_qa_approved", workflow)
         self.assertIn("actions/cache/restore@v4", workflow)
         self.assertIn("actions/cache/save@v4", workflow)
