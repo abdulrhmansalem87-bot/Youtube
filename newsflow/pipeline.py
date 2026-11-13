@@ -300,6 +300,8 @@ SOURCE_DISPLAY_NAMES = {
     "Al Jazeera": "الجزيرة",
     "IMF": "صندوق النقد الدولي",
     "UN News Arabic": "أخبار الأمم المتحدة",
+    "Reuters": "رويترز",
+    "Reuters Arabic": "رويترز",
 }
 
 
