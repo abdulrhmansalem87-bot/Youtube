@@ -260,15 +260,45 @@ def clean_narration(value):
 
 
 async def make_audio(text, path):
-    """Generate Egyptian Arabic narration, then master it for clear, even playback."""
-    voice = os.getenv("NEWSFLOW_TTS_VOICE", "ar-EG-ShakirNeural")
+    """Generate Egyptian Arabic narration with bounded retries and male-voice fallback."""
+    preferred = os.getenv("NEWSFLOW_TTS_VOICE", "ar-EG-ShakirNeural").strip()
     rate = os.getenv("NEWSFLOW_TTS_RATE", "-6%")
     pitch = os.getenv("NEWSFLOW_TTS_PITCH", "-2Hz")
     raw_path = path.with_name(path.stem + ".raw.mp3")
     clean_text = clean_narration(text)
-    await edge_tts.Communicate(
-        clean_text, voice, rate=rate, pitch=pitch
-    ).save(str(raw_path))
+    voices = list(dict.fromkeys([
+        preferred,
+        "ar-EG-ShakirNeural",
+        "ar-SA-HamedNeural",
+        "ar-AE-HamdanNeural",
+    ]))
+    failures = []
+    for candidate in voices:
+        for attempt in range(1, 3):
+            try:
+                raw_path.unlink(missing_ok=True)
+                await edge_tts.Communicate(
+                    clean_text, candidate, rate=rate, pitch=pitch
+                ).save(str(raw_path))
+                if not raw_path.is_file() or raw_path.stat().st_size < 1_000:
+                    raise RuntimeError("TTS returned an empty or incomplete audio file")
+                print(f"[AUDIO_TTS_OK] voice={candidate} attempt={attempt} bytes={raw_path.stat().st_size}")
+                break
+            except Exception as exc:
+                raw_path.unlink(missing_ok=True)
+                failures.append(f"{candidate}/attempt-{attempt}:{type(exc).__name__}")
+                print(f"[AUDIO_TTS_RETRY] voice={candidate} attempt={attempt} error={type(exc).__name__}")
+                if attempt == 1:
+                    await asyncio.sleep(2)
+        else:
+            continue
+        break
+    else:
+        raise RuntimeError(
+            "تعذر إنشاء التعليق الصوتي بعد إعادة المحاولة وتجربة الأصوات العربية الرجالية البديلة. "
+            + " | ".join(failures)
+        )
+
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         shutil.move(str(raw_path), str(path))
@@ -285,6 +315,8 @@ async def make_audio(text, path):
             ],
             check=True, capture_output=True,
         )
+        if not path.is_file() or path.stat().st_size < 1_000:
+            raise RuntimeError("ملف الصوت بعد المعالجة غير صالح أو فارغ.")
     finally:
         raw_path.unlink(missing_ok=True)
 
@@ -427,6 +459,7 @@ def create_youtube_credentials():
         client_secret=os.environ["YOUTUBE_CLIENT_SECRET"],
         scopes=[
             "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.readonly",
         ],
     )
 
