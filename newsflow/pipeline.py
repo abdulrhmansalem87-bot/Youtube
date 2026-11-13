@@ -12,6 +12,8 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+import urllib.error
+import urllib.request
 
 import edge_tts
 import feedparser
@@ -122,9 +124,18 @@ def collect(max_stories: int):
         except Exception as exc:
             print(f"[WARN] تعذر جلب {source.get('name')}: {exc}")
     now_ts = datetime.now(timezone.utc).timestamp()
+    try:
+        lookback_hours = float(os.getenv("NEWSFLOW_LOOKBACK_HOURS", "72"))
+    except (TypeError, ValueError):
+        raise RuntimeError("NEWSFLOW_LOOKBACK_HOURS غير صالح؛ تم إيقاف اختيار الأخبار.")
+    if not math.isfinite(lookback_hours) or lookback_hours <= 0:
+        raise RuntimeError("NEWSFLOW_LOOKBACK_HOURS يجب أن يكون رقماً موجباً.")
+    lookback_seconds = lookback_hours * 3600
     stories = [
         item for item in stories
-        if not item["published_ts"] or 0 <= now_ts - item["published_ts"] <= 72 * 3600
+        # Scheduled slots require a real publication timestamp and a fresh item.
+        if item["published_ts"] > 0
+        and 0 <= now_ts - item["published_ts"] <= lookback_seconds
     ]
     stories.sort(key=lambda item: item["published_ts"], reverse=True)
     selected, rejected = select_stories(stories, max_stories)
@@ -267,18 +278,53 @@ def clean_narration(value):
 
 
 async def make_audio(text, path):
-    """Generate Egyptian Arabic narration, then master it for clear, even playback."""
-    voice = os.getenv("NEWSFLOW_TTS_VOICE", "ar-EG-ShakirNeural")
-    rate = os.getenv("NEWSFLOW_TTS_RATE", "-6%")
-    pitch = os.getenv("NEWSFLOW_TTS_PITCH", "-2Hz")
-    raw_path = path.with_name(path.stem + ".raw.mp3")
+    """Generate the user's cloned WealthRadar voice through Fish Audio, then master it."""
+    api_key = os.getenv("FISH_AUDIO_API_KEY", "").strip()
+    reference_id = os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
+    model = os.getenv("FISH_AUDIO_MODEL", "s2.1-pro-free").strip()
+    if not api_key:
+        raise RuntimeError("FISH_AUDIO_API_KEY غير موجود في GitHub Secrets؛ لن نستخدم صوتاً بديلاً.")
+    if not reference_id:
+        raise RuntimeError("FISH_AUDIO_REFERENCE_ID غير موجود في GitHub Secrets؛ لن نستخدم صوتاً بديلاً.")
     clean_text = clean_narration(text)
-    await edge_tts.Communicate(
-        clean_text, voice, rate=rate, pitch=pitch
-    ).save(str(raw_path))
+    payload = json.dumps(
+        {"text": clean_text, "reference_id": reference_id, "format": "mp3"},
+        ensure_ascii=False,
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        "https://api.fish.audio/v1/tts",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "model": model,
+            "Accept": "audio/mpeg",
+            "User-Agent": "WealthRadarNewsFlow/1.0",
+        },
+        method="POST",
+    )
+    raw_path = path.with_name(path.stem + ".raw.mp3")
+    try:
+        with urllib.request.urlopen(request, timeout=240) as response:
+            audio = response.read()
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = exc.read(500).decode("utf-8", errors="replace")
+        except Exception:
+            detail = ""
+        detail = " ".join(detail.split()).replace(api_key, "[REDACTED]")[:300]
+        raise RuntimeError(
+            f"Fish Audio رفض توليد الصوت (HTTP {exc.code}). "
+            f"{detail or 'راجع المفتاح والرصيد وVoice ID واسم النموذج.'}"
+        ) from None
+    if len(audio) < 1000:
+        raise RuntimeError("Fish Audio أعاد ملفاً صوتياً فارغاً أو غير مكتمل.")
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_bytes(audio)
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         shutil.move(str(raw_path), str(path))
+        print(f"[VOICE_READY] Fish Audio | model={model} | mastering=skipped")
         return
     try:
         subprocess.run(
@@ -294,6 +340,7 @@ async def make_audio(text, path):
         )
     finally:
         raw_path.unlink(missing_ok=True)
+    print(f"[VOICE_READY] Fish Audio cloned voice | model={model} | bytes={path.stat().st_size}")
 
 
 def find_font(bold=False):
