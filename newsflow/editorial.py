@@ -175,4 +175,6 @@ def upload_review_blockers(report: dict, editorial_approved: bool) -> list[str]:
         blockers.append("توجد تحذيرات تحريرية غير محسومة")
     if report.get("fact_checking") != "verified":
         blockers.append("التحقق المستقل من الوقائع لم يكتمل")
+    if report.get("voice_source") != "owner_recording":
+        blockers.append("التعليق الصوتي ليس تسجيلاً أصلياً لصاحب القناة")
     return blockers
