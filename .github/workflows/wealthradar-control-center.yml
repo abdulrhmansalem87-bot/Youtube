@@ -1,0 +1,44 @@
+name: WealthRadar Control Center
+
+on:
+  workflow_run:
+    workflows:
+      - NewsFlow pipeline
+      - WealthRadar Shorts
+      - WealthRadar Shorts Batch
+      - Quality checks
+    types: [completed]
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: wealthradar-control-center
+  cancel-in-progress: false
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Build dashboard and GitHub run summary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DASHBOARD_OUTPUT: control-center
+        run: python scripts/build_control_center.py
+      - name: Save dashboard
+        uses: actions/upload-artifact@v4
+        with:
+          name: wealthradar-control-center
+          path: control-center/
+          if-no-files-found: error
+          retention-days: 14

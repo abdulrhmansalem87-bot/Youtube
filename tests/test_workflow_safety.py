@@ -50,6 +50,11 @@ class WorkflowSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "restricted to PRIVATE"):
             resolve_upload_privacy("public")
 
+    def test_newsflow_shorts_are_always_uploaded_private(self):
+        pipeline = (Path(__file__).resolve().parents[1] / "newsflow" / "pipeline.py").read_text(encoding="utf-8")
+        self.assertIn('privacy_override="private", credentials=auth_credentials', pipeline)
+        self.assertNotIn('privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "public")', pipeline)
+
     def test_scheduled_runs_cannot_upload_and_privacy_defaults_private(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
         editorial_approval = "NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}"

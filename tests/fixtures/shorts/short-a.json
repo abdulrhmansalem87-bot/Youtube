@@ -1,0 +1,134 @@
+{
+  "brand": "WealthRadar",
+  "title": "سر القرار المالي #shorts",
+  "loop_phrase": "سر القرار",
+  "narration": [
+    "سر القرار يبدأ بسؤال بسيط.",
+    "هل تعرف تكلفة الاقتراض كاملة؟",
+    "احسب الفائدة والرسوم قبل التوقيع.",
+    "قارن العائد المتوقع بالمخاطر.",
+    "سر القرار هو فهم التكلفة."
+  ],
+  "scenes": [
+    {
+      "duration": 2.2,
+      "query": "financial planning desk closeup",
+      "caption": [
+        "خطة",
+        "مالية"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "investor reviewing portfolio",
+      "caption": [
+        "مراجعة",
+        "محفظة"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "loan contract signing",
+      "caption": [
+        "عقد",
+        "قرض"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "interest rate calculator",
+      "caption": [
+        "حساب",
+        "الفائدة"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "business cash flow ledger",
+      "caption": [
+        "تدفق",
+        "نقدي"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "risk analysis computer screen",
+      "caption": [
+        "تحليل",
+        "المخاطر"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "bank advisor meeting",
+      "caption": [
+        "استشارة",
+        "بنكية"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "savings account statement",
+      "caption": [
+        "حساب",
+        "ادخار"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "financial chart on monitor",
+      "caption": [
+        "رسم",
+        "مالي"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "business meeting documents",
+      "caption": [
+        "اجتماع",
+        "عمل"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "calculator and paperwork",
+      "caption": [
+        "حساب",
+        "التكاليف"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "investor reading report",
+      "caption": [
+        "قراءة",
+        "تقرير"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "budget planning notebook",
+      "caption": [
+        "ميزانية",
+        "شخصية"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "market volatility screen",
+      "caption": [
+        "تقلب",
+        "السوق"
+      ]
+    },
+    {
+      "duration": 2.2,
+      "query": "financial decision desk",
+      "caption": [
+        "قرار",
+        "مدروس"
+      ]
+    }
+  ]
+}

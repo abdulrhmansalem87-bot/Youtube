@@ -31,6 +31,13 @@
 
 لا يحتاج التشغيل إلى متغير `YOUTUBE_UPLOAD_ENABLED`؛ فالرفع مغلق افتراضياً. التشغيل على push أو وفق الجدول اليومي ينتج الملفات ويحفظها كـ Artifact فقط ولا يرفع شيئاً. عند التشغيل اليدوي، اترك `editorial_approved=false` لإنتاج مسودة للمراجعة. لا تسمح بالرفع إلا بعد مراجعة تقرير `editorial_review.json` والنص والفيديو يدوياً، ثم شغّل Workflow مجدداً مع `editorial_approved=true`. عندها يكون الرفع إلى YouTube بخصوصية `private` فقط. خيار `private_test=true` يرفع فيديو طويلاً واحداً خاصاً، ويتطلب أيضاً موافقة تحريرية صريحة. لا يوجد نشر عام تلقائي.
 
+### Shorts Batch وControl Center
+
+- شغّل `WealthRadar Shorts Batch` مع `batch_path=wealthradar/shorts-batch.smoke.json` و`validation_only=true` لاختبار مصفوفة من خطتين مستقلتين من دون تنزيل B-roll أو رفع.
+- وضع التحقق فقط هو الافتراضي. كل Short ينشئ `result.json` وArtifact مستقلاً باسم يتضمن معرّف الخطة ورقم التشغيل، حتى إذا فشل الرندر.
+- لا يبدأ الرندر إلا عند `validation_only=false`. الرفع يظل متوقفاً ما لم يُفعّل `upload_private` و`editorial_approved` معاً، والرفع Private فقط.
+- لوحة Control Center تُحفظ كـArtifact خاص لمدة 14 يوماً، ولا تُنشر على Pages أو للعامة.
+
 ## هوية WealthRadar وبيانات الفيديو
 - اسم القناة المستخدم في النص والصورة الوصفية: WealthRadar.
 - عنوان النشرة يتضمن عبارة البحث الأساسية «أخبار اقتصادية اليوم» وعدد الأخبار الفعلي، مع اسم القناة.
