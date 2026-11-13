@@ -583,7 +583,7 @@ def main():
     audio = bulletin / "voice.mp3"
     asyncio.run(make_audio(bulletin_script, audio))
     ffprobe = shutil.which("ffprobe")
-    main_portrait = os.getenv("NEWSFLOW_MAIN_VIDEO_PORTRAIT", "false").lower() == "true"
+    main_portrait = os.getenv("NEWSFLOW_MAIN_VIDEO_PORTRAIT", "true").lower() == "true"
     duration = None
     if ffprobe:
         probe = subprocess.run(
