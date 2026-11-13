@@ -226,23 +226,53 @@ def make_script(stories):
 
 
 def make_short_script(story):
-    """Create an original, story-specific vertical-video narration."""
-    title = str(story.get("title", "")).strip()
-    summary = str(story.get("summary", "")).strip()
-    source = str(story.get("source", "المصدر الأصلي")).strip()
-    if not summary:
-        summary = "التفاصيل الكاملة تحتاج إلى مراجعة المصدر الأصلي قبل النشر."
-    hook = clean_narration(title)
-    if len(hook) > 105:
-        hook = hook[:102].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+    """Create a hook-first Arabic Short with a practical angle and engagement CTA."""
+    title = clean_narration(str(story.get("title", "")).strip())
+    summary = clean_narration(str(story.get("summary", "")).strip())
+    if not title or not summary or len(summary) < 45:
+        raise ValueError("لا يمكن إعداد Short من عنوان أو ملخص غير مكتمل.")
+    if len(title) > 105:
+        title = title[:102].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+    # Preserve only source-supported facts; the practical question is framed as a question,
+    # never as a guaranteed effect or investment recommendation.
+    summary = summary[:520].rsplit(" ", 1)[0]
     return (
-        f"أهلاً بكم في أهم الأخبار من WealthRadar. {hook}. ما الذي يقف وراء الخبر؟ "
-        f"{clean_narration(summary)} "
-        f"بحسب {source}. "
-        "هذه معلومات للمتابعة، وليست توصية استثمارية. "
-        "راجع المصدر قبل اتخاذ أي قرار مالي. "
-        "اشتركوا في القناة وفعّلوا زر الجرس لمزيد من الأخبار."
+        f"الخبر ده ممكن يفرق في فهمك لفلوسك: {title}. "
+        f"خليني أبسطهالك: {summary} "
+        "المهم هنا تتابع الرقم أو القرار الرسمي، لأن تأثيره بيختلف حسب ظروف كل شخص. "
+        "إنت شايف التطور ده هيأثر على قراراتك المالية؟ اكتب رأيك، "
+        "وابعت الفيديو لحد يهمه الموضوع واشترك في WealthRadar."
     )
+
+
+def build_short_youtube_metadata(story, script):
+    """Short-specific title, two-line benefit summary, numbered source and four hashtags."""
+    title_seed = clean_narration(story.get("title", "")).rstrip(" .،؛:؟!")
+    if len(title_seed) > 62:
+        title_seed = title_seed[:59].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+    title = f"{title_seed} | WealthRadar #Shorts"
+    summary = clean_narration(story.get("summary", ""))[:220].rsplit(" ", 1)[0]
+    topic = "الاقتصاد"
+    second_topic = "الأسواق"
+    blob = f"{story.get('title', '')} {story.get('summary', '')}".casefold()
+    if "ذهب" in blob or "gold" in blob:
+        topic, second_topic = "الذهب", "أسعار_الذهب"
+    elif any(term in blob for term in ("دولار", "عملة", "عملات", "currency")):
+        topic, second_topic = "الدولار", "العملات"
+    elif any(term in blob for term in ("تضخم", "inflation", "أسعار المستهلك")):
+        topic, second_topic = "التضخم", "الأسعار"
+    elif any(term in blob for term in ("بورصة", "أسهم", "stocks", "market")):
+        topic, second_topic = "البورصة", "الأسهم"
+    elif any(term in blob for term in ("نفط", "طاقة", "oil")):
+        topic, second_topic = "النفط", "الطاقة"
+    description = (
+        f"في هذا الفيديو نفهم ببساطة: {title_seed}.\\n"
+        f"ملخص الخبر: {summary}.\\n\\n"
+        f"المصادر:\\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\\n\\n"
+        f"#shorts #WealthRadar #{topic.replace(' ', '_')} #{second_topic}"
+    )
+    tags = ["WealthRadar", "Shorts", "أخبار اقتصادية", topic, second_topic]
+    return title[:100], description[:5000], tags
 
 
 def build_youtube_metadata(stories, script):
@@ -735,15 +765,24 @@ def main():
             short_audio = shorts_dir / f"short-{index}.mp3"
             short_video = shorts_dir / f"short-{index}.mp4"
             asyncio.run(make_audio(short_script, short_audio))
-            short_title, short_description, short_tags = build_youtube_metadata([story], short_script)
-            short_title = f"{short_title[:78].rstrip()} #Shorts"
+            short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
-            print(f"[SHORT_READY] {short_video} duration-specific_story={story['id']}")
+            short_probe = subprocess.run(
+                [ffprobe, "-v", "error", "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1", str(short_audio)],
+                check=True, capture_output=True, text=True,
+            )
+            short_duration = float(short_probe.stdout.strip())
+            if not 35 <= short_duration <= 45:
+                raise RuntimeError(
+                    f"مدة Short يجب أن تكون بين 35 و45 ثانية؛ المدة الحالية {short_duration:.1f} ثانية."
+                )
+            print(f"[SHORT_READY] {short_video} duration={short_duration:.1f}s story={story['id']}")
             if upload_enabled:
                 youtube_upload(
                     short_video, short_title, short_description, short_tags,
-                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "public"), credentials=auth_credentials
+                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "private"), credentials=auth_credentials
                 )
 
 
