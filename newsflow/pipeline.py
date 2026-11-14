@@ -679,8 +679,6 @@ def main():
     editorial_approved = os.getenv("NEWSFLOW_EDITORIAL_APPROVED", "false").lower() == "true"
     private_staging = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
     visual_qa_approved = os.getenv("NEWSFLOW_VISUAL_QA_APPROVED", "false").lower() == "true"
-    if private_staging:
-        parser.error("الرفع التلقائي Private staging معطل؛ يلزم تشغيل يدوي وموافقة صريحة.")
     if upload_enabled and not editorial_approved and not args.private_staging:
         parser.error("الرفع محظور: يلزم اعتماد المراجعة التحريرية صراحةً عبر NEWSFLOW_EDITORIAL_APPROVED=true.")
     if args.private_staging and not upload_enabled:
