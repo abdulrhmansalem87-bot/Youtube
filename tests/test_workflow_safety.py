@@ -105,6 +105,28 @@ class WorkflowSafetyTests(unittest.TestCase):
         )
         self.assertIn("!inputs.editorial_approved", gate["if"])
 
+    def test_shorts_workflow_requires_explicit_real_plan_for_render(self):
+        import yaml
+
+        workflow_path = (
+            Path(__file__).resolve().parents[1]
+            / ".github" / "workflows" / "wealthradar-shorts.yml"
+        )
+        workflow = yaml.load(
+            workflow_path.read_text(encoding="utf-8"),
+            Loader=yaml.BaseLoader,
+        )
+        inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(inputs["validate_only"]["default"], "true")
+        self.assertEqual(inputs["plan_path"]["default"], "")
+        steps = workflow["jobs"]["produce"]["steps"]
+        resolve = next(step for step in steps if step.get("name") == "Resolve production plan")
+        script = resolve["run"]
+        self.assertIn("if [ -z \"$PLAN_PATH\" ]", script)
+        self.assertIn("wealthradar/production.example.json", script)
+        self.assertIn("VALIDATE_ONLY", resolve["env"])
+        self.assertIn("if [ ! -f \"$PLAN_PATH\" ]", script)
+
 
 if __name__ == "__main__":
     unittest.main()
