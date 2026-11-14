@@ -731,7 +731,10 @@ def main():
               + ". Generated video will remain an Artifact.")
         upload_enabled = False
     if not stories:
-        print("[INFO] لم يتم العثور على أخبار في المصادر.")
+        message = "لا توجد أخبار اجتازت المراجعة التحريرية؛ لم يتم إنتاج فيديو."
+        print("[BLOCKED] " + message)
+        if args.render_only or args.private_staging:
+            raise RuntimeError(message)
         return
     for story in stories:
         folder = out / story["id"]
