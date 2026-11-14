@@ -100,8 +100,10 @@ jobs:
       - name: Run NewsFlow
         # Never render after failed tests; PR runs remain upload-disabled review renders.
         if: success()
+        timeout-minutes: 25
         env:
-          NEWSFLOW_MAX_STORIES: "4"
+          # Keep PR validation focused: one complete story is enough to verify the renderer.
+          NEWSFLOW_MAX_STORIES: ${{ github.event_name == 'pull_request' && '1' || '4' }}
           # Give the editorial selector a full day of eligible financial coverage.
           NEWSFLOW_LOOKBACK_HOURS: "24"
           NEWSFLOW_STRICT_FRESHNESS: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[stage-private]'))) && 'true' || 'false' }}
