@@ -1,6 +1,10 @@
 import unittest
+from datetime import datetime, timezone
 
-from newsflow.pipeline import clamp_max_stories, make_script, select_stories, source_display_name, validate_audio_duration
+from newsflow.pipeline import (
+    caption_phrases, clamp_max_stories, filter_recent_repeats, make_script,
+    select_stories, source_display_name, validate_audio_duration,
+)
 
 
 class PipelineSelectionTests(unittest.TestCase):
@@ -25,6 +29,40 @@ class PipelineSelectionTests(unittest.TestCase):
         self.assertEqual(len(selected), 4)
         self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3"])
         self.assertEqual(rejected, [])
+
+    def test_recently_uploaded_story_is_not_selected_again(self):
+        now = datetime(2026, 11, 15, 0, 30, tzinfo=timezone.utc)
+        previous = [{
+            "id": "old-story",
+            "title": "إنفيديا تسجل أطول سلسلة خسائر أسبوعية منذ 2012 وسط اضطرابات القيادة",
+            "link": "https://example.com/nvidia-shares",
+            "used_at": now.isoformat(),
+        }]
+        candidates = [
+            {
+                "id": "new-id",
+                "title": "اضطرابات القيادة تدفع إنفيديا إلى أطول سلسلة خسائر أسبوعية منذ 2012",
+                "link": "https://example.com/nvidia-update",
+                "source": "مصدر مالي",
+            },
+            {
+                "id": "different",
+                "title": "البنك المركزي يثبت أسعار الفائدة في اجتماعه الأخير",
+                "link": "https://example.com/rates",
+                "source": "مصدر مالي",
+            },
+        ]
+        selected, rejected = filter_recent_repeats(candidates, previous, now=now)
+        self.assertEqual([item["id"] for item in selected], ["different"])
+        self.assertEqual(len(rejected), 1)
+        self.assertIn("منعنا تكراره", rejected[0]["reasons"][0])
+
+    def test_caption_phrases_are_short_and_preserve_narration_words(self):
+        text = "هذا خبر مالي مهم يؤثر على المستثمرين وحركة الأسواق العالمية"
+        phrases = caption_phrases(text, 4)
+        self.assertTrue(phrases)
+        self.assertTrue(all(len(item.split()) <= 4 for item in phrases))
+        self.assertEqual(" ".join(phrases).split(), text.split())
 
     def test_actual_egypt_gold_headline_deduplicates_other_local_gold_prices(self):
         stories = [
