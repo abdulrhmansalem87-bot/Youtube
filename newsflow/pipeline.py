@@ -619,18 +619,24 @@ def make_video(title, audio, output, short=False, stories=None, portrait=None):
         "heading": "المقدمة",
         "title": make_opening_hook(story_list),
         "body": "أهم تطورات المال والأسواق، من غير تهويل وبالمصادر",
+        "captions": caption_phrases(make_opening_hook(story_list)),
     }]
     for index, story in enumerate(story_list, start=1):
+        story_title = clean_narration(story.get("title", ""))
+        story_summary = clean_narration(story.get("summary", ""))
         cards.append({
             "heading": f"الخبر {index:02d}، {source_display_name(story.get('source', 'المصدر'))}",
-            "title": clean_narration(story.get("title", "")),
-            "body": clean_narration(story.get("summary", "")[:520])
-                    or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
+            "title": story_title,
+            "body": story_summary[:180] or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
+            "captions": caption_phrases(f"{story_title}. {story_summary[:1800]}"),
         })
     cards.append({
         "heading": "الخلاصة",
         "title": "قبل أي قرار مالي",
         "body": "تابع المصدر الأصلي وقارن المعلومات. اشترك في WealthRadar وفعّل زر الجرس لمتابعة الموجز القادم.",
+        "captions": caption_phrases(
+            "تابع المصدر الأصلي وقارن المعلومات قبل أي قرار مالي واشترك في WealthRadar"
+        ),
     })
 
     weights = [max(90, len(card["title"]) + len(card["body"])) for card in cards]
