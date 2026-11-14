@@ -12,10 +12,6 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
-import urllib.error
-import urllib.request
-
-import edge_tts
 import feedparser
 import yaml
 from dotenv import load_dotenv
@@ -352,69 +348,11 @@ def clean_narration(value):
 
 
 async def make_audio(text, path):
-    """Generate the user's cloned WealthRadar voice through Fish Audio, then master it."""
-    api_key = os.getenv("FISH_AUDIO_API_KEY", "").strip()
-    reference_id = os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
-    model = os.getenv("FISH_AUDIO_MODEL", "s2.1-pro-free").strip()
-    if not api_key:
-        raise RuntimeError("FISH_AUDIO_API_KEY غير موجود في GitHub Secrets؛ لن نستخدم صوتاً بديلاً.")
-    if not reference_id:
-        raise RuntimeError("FISH_AUDIO_REFERENCE_ID غير موجود في GitHub Secrets؛ لن نستخدم صوتاً بديلاً.")
-    clean_text = clean_narration(text)
-    payload = json.dumps(
-        {"text": clean_text, "reference_id": reference_id, "format": "mp3"},
-        ensure_ascii=False,
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        "https://api.fish.audio/v1/tts",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "model": model,
-            "Accept": "audio/mpeg",
-            "User-Agent": "WealthRadarNewsFlow/1.0",
-        },
-        method="POST",
+    """Fail closed: NewsFlow must never synthesize or clone the host's voice."""
+    raise RuntimeError(
+        "تم إيقاف إنتاج NewsFlow: لا يُسمح بتوليد أو استنساخ الصوت آلياً. "
+        "يلزم تسجيل صوت أصلي كامل ومتزامن مع النص قبل إعادة تفعيل الرندر."
     )
-    raw_path = path.with_name(path.stem + ".raw.mp3")
-    try:
-        with urllib.request.urlopen(request, timeout=240) as response:
-            audio = response.read()
-    except urllib.error.HTTPError as exc:
-        try:
-            detail = exc.read(500).decode("utf-8", errors="replace")
-        except Exception:
-            detail = ""
-        detail = " ".join(detail.split()).replace(api_key, "[REDACTED]")[:300]
-        raise RuntimeError(
-            f"Fish Audio رفض توليد الصوت (HTTP {exc.code}). "
-            f"{detail or 'راجع المفتاح والرصيد وVoice ID واسم النموذج.'}"
-        ) from None
-    if len(audio) < 1000:
-        raise RuntimeError("Fish Audio أعاد ملفاً صوتياً فارغاً أو غير مكتمل.")
-    raw_path.parent.mkdir(parents=True, exist_ok=True)
-    raw_path.write_bytes(audio)
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        shutil.move(str(raw_path), str(path))
-        print(f"[VOICE_READY] Fish Audio | model={model} | mastering=skipped")
-        return
-    try:
-        subprocess.run(
-            [
-                ffmpeg, "-y", "-i", str(raw_path),
-                "-af",
-                "highpass=f=75,lowpass=f=12500,"
-                "acompressor=threshold=-18dB:ratio=2.2:attack=18:release=220,"
-                "loudnorm=I=-16:TP=-1.5:LRA=10",
-                "-codec:a", "libmp3lame", "-q:a", "2", str(path),
-            ],
-            check=True, capture_output=True,
-        )
-    finally:
-        raw_path.unlink(missing_ok=True)
-    print(f"[VOICE_READY] Fish Audio cloned voice | model={model} | bytes={path.stat().st_size}")
 
 
 def find_font(bold=False):
@@ -681,6 +619,11 @@ def main():
             parser.error("Private test requires YOUTUBE_UPLOAD_ENABLED=true")
         if not visual_qa_approved:
             parser.error("Private test requires explicit phone visual QA approval.")
+    if not args.dry_run:
+        parser.error(
+            "إنتاج الفيديو متوقف مؤقتاً: لا يوجد مسار معتمد لإدخال تسجيل صوت المقدم الأصلي "
+            "ومزامنته مع النص. تم تعطيل Fish Audio وTTS؛ لن نستخدم صوتاً بديلاً."
+        )
     # Verify OAuth before spending time generating audio/video.
     auth_credentials = None
     if args.private_test or (not args.dry_run and upload_enabled):
