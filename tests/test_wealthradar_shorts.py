@@ -15,6 +15,7 @@ def valid_plan():
         "brand": "WealthRadar",
         "title": "سرّ لا يخبرك به البنك #shorts",
         "loop_phrase": "سر البنك",
+        "voiceover_path": "assets/voice/wealthradar-short.wav",
         "narration": [
             "سر البنك قد يغيّر طريقة تفكيرك.",
             "لا تنظر إلى القسط وحده.",
@@ -33,6 +34,22 @@ def valid_plan():
 class WealthRadarPlanTests(unittest.TestCase):
     def test_valid_plan_has_no_errors(self):
         self.assertEqual(validate_plan(valid_plan()), [])
+
+
+    def test_rejects_missing_original_voice_recording_path(self):
+        plan = valid_plan()
+        del plan["voiceover_path"]
+        self.assertTrue(any("تسجيل صوت المقدم الأصلي" in item for item in validate_plan(plan)))
+
+    def test_rejects_unsafe_voice_recording_path(self):
+        plan = valid_plan()
+        plan["voiceover_path"] = "../private/voice.wav"
+        self.assertTrue(any("مساراً نسبياً آمناً" in item for item in validate_plan(plan)))
+
+    def test_rejects_unsupported_voice_recording_format(self):
+        plan = valid_plan()
+        plan["voiceover_path"] = "assets/voice/voice.txt"
+        self.assertTrue(any("WAV أو MP3" in item for item in validate_plan(plan)))
 
     def test_rejects_long_sentence(self):
         plan = valid_plan()
