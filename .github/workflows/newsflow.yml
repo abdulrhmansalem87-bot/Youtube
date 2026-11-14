@@ -75,9 +75,6 @@ jobs:
         run: python -m compileall -q newsflow
       - name: Run editorial and render tests
         run: python -m unittest discover -s tests -v
-      - name: Render real-story landscape and portrait phone previews
-        if: github.event_name == 'pull_request'
-        run: python scripts/render_mobile_preview.py
       - name: Render actual Pexels B-roll previews (landscape and portrait)
         if: github.event_name == 'pull_request'
         env:
