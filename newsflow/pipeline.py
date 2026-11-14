@@ -740,10 +740,12 @@ def main():
         (folder / "metadata.json").write_text(json.dumps(story, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[DRAFT] {story['title']} — {story['link']}")
 
-    # The long episode and its Shorts must cover the same lead story, not unrelated headlines.
+    # The long episode is a multi-story bulletin. Its lead story is also the source
+    # for the companion Short, so both formats stay editorially connected.
     companion_story = stories[0]
     companion_stories = [companion_story]
-    bulletin_script = make_script(companion_stories)
+    bulletin_stories = stories[:clamp_max_stories(args.max_stories)]
+    bulletin_script = make_script(bulletin_stories)
     (out / "companion_story.json").write_text(
         json.dumps(companion_story, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -812,7 +814,7 @@ def main():
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
-    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=companion_stories)
+    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=bulletin_stories)
     validate_video(long_video, audio, expected_portrait=main_portrait)
     if args.private_test:
         if upload_enabled:
