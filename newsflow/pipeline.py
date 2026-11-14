@@ -739,7 +739,14 @@ def main():
         (folder / "metadata.json").write_text(json.dumps(story, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[DRAFT] {story['title']} — {story['link']}")
 
-    bulletin_script = make_script(stories)
+    # The long episode and its Shorts must cover the same lead story, not unrelated headlines.
+    companion_story = stories[0]
+    companion_stories = [companion_story]
+    bulletin_script = make_script(companion_stories)
+    (out / "companion_story.json").write_text(
+        json.dumps(companion_story, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"[COMPANION_TOPIC] long episode + Shorts story={companion_story['id']}")
     bulletin = out / "bulletin"
     bulletin.mkdir(exist_ok=True)
     (bulletin / "script.txt").write_text(bulletin_script, encoding="utf-8")
