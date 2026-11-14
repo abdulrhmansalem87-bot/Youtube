@@ -164,7 +164,7 @@ def clean_visual_text(value: str) -> str:
     return re.sub(r"\s+", " ", visible).strip()
 
 
-def _overlay(card: dict, path: Path, width: int, height: int) -> None:
+def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int = 0) -> None:
     if not features.check("raqm"):
         raise RuntimeError("محرك تشكيل العربية RAQM غير متاح؛ أوقفنا إخراج النص.")
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -194,8 +194,13 @@ def _overlay(card: dict, path: Path, width: int, height: int) -> None:
     )
     draw.text((brand_x, brand_y), "WealthRadar", font=brand_font,
               fill=(255, 255, 255, 255), anchor="mm")
-    title = clean_visual_text(card.get("title"))[:125]
-    body = clean_visual_text(card.get("body"))[:180]
+    captions = card.get("captions")
+    if isinstance(captions, list) and captions:
+        title = clean_visual_text(captions[min(caption_index, len(captions) - 1)])[:90]
+        body = ""
+    else:
+        title = clean_visual_text(card.get("title"))[:125]
+        body = clean_visual_text(card.get("body"))[:180]
     def lines_for(text: str, font: ImageFont.FreeTypeFont, limit: int) -> list[str]:
         rows, current = [], ""
         for word in text.split():
@@ -271,7 +276,7 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
             usage[card_index] = cursor + 1
             overlay = work / f"overlay-{index:04d}.png"
             segment = work / f"segment-{index:04d}.mp4"
-            _overlay(cards[card_index], overlay, width, height)
+            _overlay(cards[card_index], overlay, width, height, caption_index=cursor)
             offset = ((cursor // len(sources)) * MAX_SCENE_SECONDS) % 12
             filter_graph = (
                 f"scale={width}:{height}:force_original_aspect_ratio=increase,"
