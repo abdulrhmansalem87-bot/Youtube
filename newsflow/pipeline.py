@@ -811,7 +811,7 @@ def main():
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
-    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=stories)
+    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=companion_stories)
     validate_video(long_video, audio, expected_portrait=main_portrait)
     if args.private_test:
         if upload_enabled:
