@@ -664,6 +664,7 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy after manual approvals")
+    parser.add_argument("--render-only", action="store_true", help="Render the long episode and companion Shorts as review artifacts; never upload")
     parser.add_argument("--private-staging", action="store_true", help="Scheduled production: render bulletin and Shorts and upload as PRIVATE for owner review")
     parser.add_argument("--shorts-only", action="store_true", help="Render and stage one story-specific Short only; never render the long bulletin")
     args = parser.parse_args()
@@ -676,7 +677,7 @@ def main():
         parser.error("--shorts-only is restricted to PRIVATE staging")
     if args.shorts_only and args.private_test:
         parser.error("--shorts-only cannot be combined with --private-test")
-    if not args.dry_run and not args.private_test and not args.private_staging:
+    if not args.dry_run and not args.private_test and not args.private_staging and not args.render_only:
         parser.error("الرندر الكامل محظور؛ استخدم --dry-run أو وضع PRIVATE المعتمد.")
     staging_env = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
     if args.private_staging and not staging_env:
@@ -684,6 +685,8 @@ def main():
     if not args.private_staging and staging_env:
         parser.error("NEWSFLOW_PRIVATE_STAGING requires --private-staging")
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
+    if args.render_only and upload_enabled:
+        parser.error("--render-only refuses to run while YouTube uploads are enabled.")
     editorial_approved = os.getenv("NEWSFLOW_EDITORIAL_APPROVED", "false").lower() == "true"
     private_staging = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
     visual_qa_approved = os.getenv("NEWSFLOW_VISUAL_QA_APPROVED", "false").lower() == "true"
