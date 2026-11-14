@@ -12,7 +12,7 @@ class MobileRenderContractTests(unittest.TestCase):
             source,
         )
         self.assertIn(
-            "make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=stories)",
+            "make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=companion_stories)",
             source,
         )
         self.assertIn(
