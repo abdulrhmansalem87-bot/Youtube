@@ -15,6 +15,13 @@ class BrollPlanningTests(unittest.TestCase):
         plan = split_scene_durations([5.0, 3.0])
         self.assertEqual([index for index, _ in plan], [0, 0, 1, 1])
 
+    def test_long_fractional_scenes_do_not_accumulate_rounding_overflow(self):
+        for duration in (182.38164302254532, 232.501, 317.5):
+            with self.subTest(duration=duration):
+                plan = split_scene_durations([duration])
+                self.assertTrue(all(seconds <= MAX_SCENE_SECONDS for _, seconds in plan))
+                self.assertAlmostEqual(sum(seconds for _, seconds in plan), duration, places=3)
+
     def test_invalid_scene_durations_are_rejected(self):
         for values in ([], [0], [-1], [float("nan")]):
             with self.subTest(values=values):
