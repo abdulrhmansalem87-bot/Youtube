@@ -15,7 +15,7 @@ class ShortScriptTests(unittest.TestCase):
         script = make_short_script(story)
         self.assertIn(story["title"], script)
         self.assertIn(story["summary"], script)
-        self.assertTrue(script.startswith("الخبر ده ممكن يفرق في فهمك لفلوسك:"))
+        self.assertTrue(script.startswith(story["title"] + "."))
         self.assertNotIn("أهلاً بكم", script)
         self.assertIn("WealthRadar", script)
         self.assertIn("مش توصية استثمارية", script)
@@ -40,7 +40,7 @@ class ShortScriptTests(unittest.TestCase):
             "summary": "ارتفع التضخم الأساسي في الولايات المتحدة خلال أكتوبر.",
             "source": "Reuters",
         }])
-        self.assertTrue(script.startswith("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar"))
+        self.assertLess(script.index("التضخم الأمريكي يضغط على الأسواق"), script.index("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar"))
 
     def test_short_rejects_incomplete_summary(self):
         with self.assertRaises(ValueError):
