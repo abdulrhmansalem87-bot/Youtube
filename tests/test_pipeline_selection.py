@@ -102,6 +102,16 @@ class PipelineSelectionTests(unittest.TestCase):
         self.assertIn("التمييز بين التوقعات والتحقق الفعلي", script)
         self.assertIn("لا نبني قراراً مالياً على عنوان منفرد", script)
 
+    def test_single_story_episode_includes_topic_specific_depth(self):
+        script = make_script([{
+            "title": "هبوط البيتكوين بأكثر من 5% إلى نحو 64733 دولاراً",
+            "summary": "انخفضت عملة البيتكوين بنحو 5.3% إلى 64733 دولاراً خلال التعاملات.",
+            "source": "CNBC عربية",
+        }])
+        self.assertIn("حجم التداول", script)
+        self.assertIn("السيولة المتاحة", script)
+        self.assertGreaterEqual(len(script.split()), 500)
+
     def test_companion_episode_keeps_deeper_details_from_the_same_story(self):
         later_detail = "تفصيل جوهري من المصدر بعد الجزء المختصر"
         story = {
