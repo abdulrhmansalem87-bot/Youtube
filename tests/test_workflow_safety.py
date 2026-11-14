@@ -72,6 +72,36 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertNotIn("github.event_name == 'schedule'", editorial_approval)
         self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow)
 
+    def test_shorts_private_upload_requires_explicit_editorial_approval(self):
+        import yaml
+
+        workflow_path = (
+            Path(__file__).resolve().parents[1]
+            / ".github" / "workflows" / "wealthradar-shorts.yml"
+        )
+        workflow = yaml.load(
+            workflow_path.read_text(encoding="utf-8"),
+            Loader=yaml.BaseLoader,
+        )
+        dispatch_inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(dispatch_inputs["editorial_approved"]["default"], "false")
+        self.assertEqual(dispatch_inputs["editorial_approved"]["required"], "true")
+
+        steps = workflow["jobs"]["produce"]["steps"]
+        upload = next(
+            step for step in steps
+            if step.get("name") == "Upload WealthRadar Short privately"
+        )
+        self.assertIn("inputs.upload_private", upload["if"])
+        self.assertIn("inputs.editorial_approved", upload["if"])
+        self.assertIn("--upload-private", upload["run"])
+
+        gate = next(
+            step for step in steps
+            if step.get("name") == "Explain private upload approval gate"
+        )
+        self.assertIn("!inputs.editorial_approved", gate["if"])
+
 
 if __name__ == "__main__":
     unittest.main()
