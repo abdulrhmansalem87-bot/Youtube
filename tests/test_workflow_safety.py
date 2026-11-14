@@ -77,6 +77,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("visual_qa_approved:", workflow)
         self.assertIn("newsflow-pr-{0}", workflow)
         self.assertIn("newsflow-production", workflow)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", workflow)
         self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow)
         self.assertIn('default: true', workflow)
         self.assertIn("python -m newsflow --dry-run", workflow)
