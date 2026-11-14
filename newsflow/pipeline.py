@@ -53,9 +53,10 @@ def validate_audio_duration(duration: float, *, private_test: bool = False) -> f
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.") from None
     if not math.isfinite(value) or value <= 0:
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.")
-    minimum = 1 if private_test else 181
-    if value < minimum or value > 300:
-        target = "أكثر من 3 وحتى 5 دقائق" if not private_test else "حتى 5 دقائق"
+    minimum = 1 if private_test else 240
+    maximum = 300 if private_test else 480
+    if value < minimum or value > maximum:
+        target = "من 4 إلى 8 دقائق" if not private_test else "حتى 5 دقائق"
         raise RuntimeError(f"مدة الفيديو الرئيسي يجب أن تكون {target}؛ تم إيقاف الإنتاج.")
     return value
 
