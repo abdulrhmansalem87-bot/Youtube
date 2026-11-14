@@ -1,110 +1,73 @@
 name: WealthRadar Shorts
 
 on:
-  # This workflow requires workflow_dispatch inputs (plan_path and approvals).
-  # Do not run on push: push events have no inputs context and would pass an empty plan path.
+  # Manual one-Short staging only. Daily scheduled production remains in NewsFlow.
   workflow_dispatch:
-    inputs:
-      validate_only:
-        description: "Validate the production plan without rendering or uploading"
-        required: true
-        type: boolean
-        default: true
-      plan_path:
-        description: "Path to a real WealthRadar JSON production plan (example plans are validation-only)"
-        required: true
-        type: string
-        default: "wealthradar/production.example.json"
-      upload_private:
-        description: "Explicitly approve uploading the rendered Short to YouTube as PRIVATE"
-        required: true
-        type: boolean
-        default: false
-      editorial_approved:
-        description: "Confirm that the rendered Short and its sources were reviewed and approved by the channel owner"
-        required: true
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: wealthradar-shorts
+  group: wealthradar-shorts-private-staging
   cancel-in-progress: false
 
 jobs:
   produce:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
       - name: Install FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-dejavu-core
+          sudo apt-get install -y ffmpeg fonts-dejavu-core fonts-noto-core
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Resolve production plan
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Render one Short with the cloned WealthRadar voice and upload privately
         env:
-          PLAN_PATH_INPUT: ${{ inputs.plan_path }}
-          VALIDATE_ONLY: ${{ inputs.validate_only }}
-        run: |
-          PLAN_PATH="$PLAN_PATH_INPUT"
-          if [ -z "$PLAN_PATH" ]; then
-            echo "::error::أدخل مسار خطة إنتاج حقيقية داخل wealthradar/؛ لن نستخدم ملف المثال تلقائياً."
-            exit 2
-          fi
-          case "$PLAN_PATH" in
-            wealthradar/*.json) ;;
-            *)
-              echo "::error::يجب أن يكون ملف الخطة JSON داخل مجلد wealthradar/."
-              exit 2
-              ;;
-          esac
-          case "$PLAN_PATH" in
-            *..*)
-              echo "::error::مسار خطة الإنتاج يحتوي على مقطع غير آمن."
-              exit 2
-              ;;
-          esac
-          if [ ! -f "$PLAN_PATH" ]; then
-            echo "::error::ملف خطة الإنتاج غير موجود: $PLAN_PATH"
-            exit 2
-          fi
-          if [ "$PLAN_PATH" = "wealthradar/production.example.json" ] && [ "$VALIDATE_ONLY" != "true" ]; then
-            echo "::error::ملف production.example.json للاختبار فقط؛ أنشئ خطة إنتاج فعلية قبل الرندر."
-            exit 2
-          fi
-          echo "WEALTHRADAR_PLAN=$PLAN_PATH" >> "$GITHUB_ENV"
-      - name: Validate production plan
-        if: ${{ inputs.validate_only }}
-        run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN" --validate-only
-      - name: Render WealthRadar Short
-        if: ${{ !inputs.validate_only }}
-        env:
-          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-        run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN"
-      - name: Explain private upload approval gate
-        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private && !inputs.editorial_approved }}
-        run: echo "[SAFE] PRIVATE upload skipped - explicit editorial approval is required."
-
-      - name: Upload WealthRadar Short privately
-        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private && inputs.editorial_approved }}
-        env:
+          NEWSFLOW_MAX_STORIES: "1"
+          NEWSFLOW_LOOKBACK_HOURS: "12"
+          NEWSFLOW_STRICT_FRESHNESS: "false"
+          NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
+          NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
+          NEWSFLOW_PRIVATE_STAGING: "true"
+          NEWSFLOW_EDITORIAL_APPROVED: "false"
+          NEWSFLOW_VISUAL_QA_APPROVED: "false"
+          FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
+          FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
+          FISH_AUDIO_MODEL: s2.1-pro-free
+          YOUTUBE_UPLOAD_ENABLED: "true"
+          YOUTUBE_PRIVACY_STATUS: "private"
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-        run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN" --upload-private
-      - name: Save production artifacts
-        if: ${{ always() && !inputs.validate_only }}
+        run: python -m newsflow --private-staging --shorts-only --max-stories 1
+      - name: Verify rendered Short exists
+        if: always()
+        run: |
+          if [ -s output/bulletin/shorts/short-1.mp4 ]; then
+            ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/bulletin/shorts/short-1.mp4
+            echo "[SHORT_ARTIFACT_VERIFIED] output/bulletin/shorts/short-1.mp4"
+          else
+            echo "::error::No rendered Short was produced."
+            exit 1
+          fi
+      - name: Save Short and editorial evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wealthradar-short-${{ github.run_number }}
-          path: output/wealthradar/
+          name: wealthradar-short-review-${{ github.run_number }}
+          path: |
+            output/bulletin/shorts/
+            output/editorial_review.json
+            output/stories.json
           if-no-files-found: warn
           retention-days: 14
