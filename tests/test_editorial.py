@@ -52,6 +52,36 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["accepted_count"], 1)
         self.assertEqual(report["rejected_count"], 0)
 
+    def test_rejects_oil_smuggling_security_story_without_market_angle(self):
+        report = review_stories([{
+            "id": "oil-smuggling",
+            "title": "جرف الصخر أم جرف النصر؟ اتهامات بتهريب النفط تعيد الملفات العالقة إلى الواجهة",
+            "summary": "تتمتع المنطقة بحساسية أمنية خاصة وتشير تقارير إلى نفوذ جماعات مسلحة داخلها.",
+            "link": "https://example.com/oil-smuggling",
+            "source": "مصدر إخباري",
+            "category": "اقتصاد وأسواق",
+            "published": "2026-11-14",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+        self.assertIn("قصة تهريب أو أمن", report["rejected"][0]["reasons"][0])
+
+    def test_bulletin_script_covers_multiple_accepted_stories(self):
+        script = make_script([
+            {
+                "title": "التضخم الأمريكي يضغط على الأسواق",
+                "summary": "ارتفع مؤشر أسعار المستهلكين مع ترقب قرارات الفائدة والأسواق.",
+                "source": "مصدر أول",
+            },
+            {
+                "title": "أسعار الذهب ترتفع مع تراجع الدولار",
+                "summary": "صعد الذهب في التعاملات مع تغير توقعات المستثمرين بشأن أسعار الفائدة.",
+                "source": "مصدر ثان",
+            },
+        ])
+        self.assertIn("الخبر 1: التضخم الأمريكي", script)
+        self.assertIn("الخبر 2: أسعار الذهب", script)
+
     def test_accepts_financial_story(self):
         report = review_stories([{
             "id": "1",
