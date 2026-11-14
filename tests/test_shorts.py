@@ -22,6 +22,17 @@ class ShortScriptTests(unittest.TestCase):
         self.assertIn("اكتب رأيك", script)
         self.assertIn("ابعت الفيديو", script)
         self.assertIn("اشترك في WealthRadar", script)
+        self.assertLessEqual(len(script), 620)
+
+    def test_long_source_summary_is_compacted_for_short_duration(self):
+        story = {
+            "title": "البنك المركزي يثبت أسعار الفائدة",
+            "summary": "قرر البنك تثبيت أسعار الفائدة مع استمرار متابعة التضخم وتطورات الأسواق. " * 12,
+            "source": "وكالة الأنباء",
+        }
+        script = make_short_script(story)
+        self.assertLessEqual(len(script), 620)
+        self.assertIn("تابع المصدر والرقم الرسمي", script)
 
     def test_main_script_uses_requested_channel_opening(self):
         script = make_script([{
