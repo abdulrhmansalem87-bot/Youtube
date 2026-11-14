@@ -824,19 +824,27 @@ def main():
         return
     if args.private_staging:
         print("[PRIVATE_STAGING] Uploading validated long video and story Shorts as PRIVATE only.")
+    long_video_url = None
     if upload_enabled:
-        youtube_upload(long_video, video_title, description, tags, privacy_override="private", credentials=auth_credentials)
+        long_video_url = youtube_upload(
+            long_video, video_title, description, tags,
+            privacy_override="private", credentials=auth_credentials
+        )
+    else:
+        print("[SAFE] Long episode rendered; no YouTube upload is enabled.")
 
-    # Shorts are separate story-specific narrations, not a vertical copy of the full bulletin.
+    # Companion Shorts are derived only from the same lead story as the long episode.
     if not single_long_upload:
         shorts_dir = bulletin / "shorts"
         shorts_dir.mkdir(exist_ok=True)
-        for index, story in enumerate(stories[:2], start=1):
+        for index, story in enumerate(companion_stories, start=1):
             short_script = make_short_script(story)
             short_audio = shorts_dir / f"short-{index}.mp3"
             short_video = shorts_dir / f"short-{index}.mp4"
             asyncio.run(make_audio(short_script, short_audio))
-            short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
+            short_title, short_description, short_tags = build_short_youtube_metadata(
+                story, short_script, long_video_url=long_video_url
+            )
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
             short_probe = subprocess.run(
