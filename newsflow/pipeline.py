@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import difflib
 import hashlib
 import html
 import json
+import unicodedata
 import math
 import os
 import re
@@ -99,6 +101,142 @@ def select_stories(stories: list[dict], max_stories: int):
         if len(selected) >= clamp_max_stories(max_stories):
             break
     return selected, rejected
+
+
+def normalize_story_title(value: str) -> str:
+    value = unicodedata.normalize("NFKD", str(value or "")).casefold()
+    value = "".join(ch for ch in value if not unicodedata.combining(ch))
+    for source, target in (("أ", "ا"), ("إ", "ا"), ("آ", "ا"), ("ى", "ي"), ("ة", "ه")):
+        value = value.replace(source, target)
+    value = re.sub(r"https?://\S+", " ", value)
+    value = re.sub(r"[^\w\s]", " ", value, flags=re.UNICODE)
+    stop = {
+        "في", "من", "على", "عن", "الى", "إلى", "مع", "هذا", "هذه", "ذلك",
+        "التي", "الذي", "بعد", "قبل", "اليوم", "امس", "غدا", "تقرير", "مصادر",
+        "وسط", "بسبب", "حول", "هل", "كيف", "ما", "ماذا", "the", "a", "an",
+        "of", "to", "for", "in", "on", "after", "amid", "as", "with",
+    }
+    return " ".join(token for token in value.split() if token not in stop)
+
+
+def load_story_history() -> list[dict]:
+    """Load persistent private-upload history plus the initial known duplicate seed."""
+    history = []
+    seed_path = ROOT / "content" / "wealthradar_history.json"
+    runtime_path = ROOT / os.getenv(
+        "NEWSFLOW_HISTORY_FILE", "output/history/used_stories.json"
+    )
+    for path in (seed_path, runtime_path):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        items = payload.get("stories", []) if isinstance(payload, dict) else []
+        if isinstance(items, list):
+            history.extend(item for item in items if isinstance(item, dict))
+    unique, seen = [], set()
+    for item in reversed(history):
+        key = str(item.get("id") or item.get("link") or item.get("title") or "")
+        if key and key not in seen:
+            seen.add(key)
+            unique.append(item)
+    return list(reversed(unique))
+
+
+def filter_recent_repeats(
+    stories: list[dict], history: list[dict], now: datetime | None = None,
+    lookback_days: int = 30,
+) -> tuple[list[dict], list[dict]]:
+    """Block previously uploaded stories and near-identical headlines for 30 days."""
+    now = now or datetime.now(timezone.utc)
+    eligible_history = []
+    for previous in history:
+        used_at = str(previous.get("used_at", "")).strip()
+        if used_at:
+            try:
+                timestamp = datetime.fromisoformat(used_at.replace("Z", "+00:00"))
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=timezone.utc)
+                if (now - timestamp).total_seconds() > lookback_days * 86400:
+                    continue
+            except ValueError:
+                continue
+        eligible_history.append(previous)
+
+    selected, rejected = [], []
+    for story in stories:
+        story_id = str(story.get("id") or "")
+        story_link = str(story.get("link") or "").split("?", 1)[0].rstrip("/")
+        title = normalize_story_title(story.get("title", ""))
+        tokens = set(title.split())
+        duplicate = None
+        for previous in eligible_history:
+            old_id = str(previous.get("id") or "")
+            old_link = str(previous.get("link") or "").split("?", 1)[0].rstrip("/")
+            old_title = normalize_story_title(previous.get("title", ""))
+            old_tokens = set(old_title.split())
+            exact = bool(story_id and old_id and story_id == old_id)
+            same_link = bool(story_link and old_link and story_link == old_link)
+            ratio = difflib.SequenceMatcher(None, title, old_title).ratio() if title and old_title else 0
+            overlap = (
+                len(tokens & old_tokens) / len(tokens | old_tokens)
+                if len(tokens | old_tokens) >= 3 else 0
+            )
+            same_topic = (
+                story_topic_key(story) == str(previous.get("topic_key") or "")
+                and story_topic_key(story) != story_id
+            )
+            if exact or same_link or ratio >= 0.82 or overlap >= 0.68 or same_topic:
+                duplicate = previous
+                break
+        if duplicate:
+            rejected.append({
+                "id": story.get("id"), "title": story.get("title"),
+                "source": story.get("source"),
+                "reasons": ["موضوع سبق رفعه أو تجهيزه للمراجعة خلال آخر 30 يوماً؛ منعنا تكراره."],
+            })
+        else:
+            selected.append(story)
+    return selected, rejected
+
+
+def record_story_as_used(story: dict, video_url: str) -> None:
+    """Persist the lead story only after YouTube confirms its PRIVATE upload."""
+    path = ROOT / os.getenv(
+        "NEWSFLOW_HISTORY_FILE", "output/history/used_stories.json"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    history = load_story_history()
+    history = [
+        item for item in history
+        if str(item.get("id") or "") != str(story.get("id") or "")
+        and str(item.get("link") or "").split("?", 1)[0]
+            != str(story.get("link") or "").split("?", 1)[0]
+    ]
+    history.append({
+        "id": story.get("id"),
+        "title": story.get("title"),
+        "link": story.get("link"),
+        "source": story.get("source"),
+        "topic_key": story_topic_key(story),
+        "used_at": datetime.now(timezone.utc).isoformat(),
+        "video_url": video_url,
+    })
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps({"version": 1, "stories": history[-100:]}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+
+
+def caption_phrases(value: str, words_per_caption: int = 4) -> list[str]:
+    """Make short Arabic captions that refresh on each moving B-roll cut."""
+    words = clean_narration(value).split()
+    return [
+        " ".join(words[index:index + words_per_caption])
+        for index in range(0, len(words), words_per_caption)
+    ] or ["WealthRadar"]
 
 
 def collect(max_stories: int):
