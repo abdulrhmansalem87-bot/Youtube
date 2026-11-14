@@ -109,7 +109,7 @@ jobs:
           # Scheduled runs only collect and validate; no automatic private staging uploads.
           NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
-          # Any upload requires a manual private test plus explicit editorial and visual approval.
+          # Scheduled uploads are PRIVATE staging only; manual test uploads retain explicit approvals.
           YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'schedule' && 'true' || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && 'true') || 'false' }}
           YOUTUBE_PRIVACY_STATUS: "private"
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
