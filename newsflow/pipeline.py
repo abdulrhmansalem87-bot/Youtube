@@ -419,6 +419,12 @@ def build_short_youtube_metadata(story, script, long_video_url=None):
         topic, second_topic = "البورصة", "الأسهم"
     elif any(term in blob for term in ("نفط", "طاقة", "oil")):
         topic, second_topic = "النفط", "الطاقة"
+    elif any(term in blob for term in ("إنفيديا", "رقائق", "أشباه الموصلات", "ذكاء اصطناعي", "nvidia", "semiconductor", "ai ")):
+        topic, second_topic = "الذكاء_الاصطناعي", "التكنولوجيا"
+    elif any(term in blob for term in ("تهريب", "مضيق", "شحن", "ناقلات", "shipping")):
+        topic, second_topic = "التجارة", "سلاسل_الإمداد"
+    elif any(term in blob for term in ("عملات مشفرة", "بيتكوين", "باينانس", "crypto", "bitcoin")):
+        topic, second_topic = "العملات_المشفرة", "الأصول_الرقمية"
     description = (
         f"في هذا الفيديو نفهم ببساطة: {title_seed}.\n"
         f"ملخص الخبر: {summary}.\n\n"
@@ -441,9 +447,10 @@ def build_youtube_metadata(stories, script):
         lead_title = lead_title.rstrip(" .،؛:؟!")
         if len(lead_title) > 65:
             lead_title = lead_title[:62].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
-        title = f"{lead_title} | التفاصيل التي تهمك | WealthRadar"
+        title = f"{lead_title[:58].rstrip()} | WealthRadar"
     else:
         title = "أهم تطورات المال والأسواق اليوم | WealthRadar"
+    title = title[:100].rstrip()
     text_blob = " ".join(
         f"{item.get('title', '')} {item.get('summary', '')} {item.get('category', '')}"
         for item in stories
@@ -464,13 +471,17 @@ def build_youtube_metadata(stories, script):
     tags = list(dict.fromkeys(tags))[:15]
     hashtags = ["#WealthRadar", "#أخبار_اقتصادية"]
     if any(term in text_blob for term in ("ذهب", "gold")):
-        hashtags.append("#الذهب")
-    elif any(term in text_blob for term in ("دولار", "currency")):
-        hashtags.append("#الدولار")
+        hashtags.extend(["#الذهب", "#أسعار_الذهب"])
+    elif any(term in text_blob for term in ("دولار", "عملة", "currency")):
+        hashtags.extend(["#الدولار", "#أسواق_العملات"])
     elif any(term in text_blob for term in ("بورصة", "أسهم", "stocks")):
-        hashtags.append("#البورصة")
+        hashtags.extend(["#البورصة", "#الأسهم"])
+    elif any(term in text_blob for term in ("إنفيديا", "رقائق", "ذكاء اصطناعي", "nvidia", "semiconductor")):
+        hashtags.extend(["#الذكاء_الاصطناعي", "#التكنولوجيا"])
+    elif any(term in text_blob for term in ("نفط", "طاقة", "oil")):
+        hashtags.extend(["#النفط", "#الطاقة"])
     else:
-        hashtags.append("#الاقتصاد")
+        hashtags.extend(["#الاقتصاد", "#الأسواق"])
     source_lines = "\n".join(
         f"{i}. {item['source']}: {item['link']}"
         for i, item in enumerate(stories, start=1)
@@ -875,6 +886,16 @@ def main():
         json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     stories = editorial_report["accepted"]
+    stories, repeat_rejections = filter_recent_repeats(stories, load_story_history())
+    if repeat_rejections:
+        editorial_report["rejected"].extend(repeat_rejections)
+        editorial_report["rejected_count"] += len(repeat_rejections)
+    editorial_report["accepted"] = stories
+    editorial_report["accepted_count"] = len(stories)
+    editorial_report["status"] = "needs_human_review" if stories else "blocked"
+    (out / "editorial_review.json").write_text(
+        json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     (out / "stories.json").write_text(json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
     upload_blockers = upload_review_blockers(editorial_report, editorial_approved, private_staging=args.private_staging)
@@ -972,7 +993,7 @@ def main():
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (duration follows editorial content)")
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
-    video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
+    video_title, description, tags = build_youtube_metadata(bulletin_stories, bulletin_script)
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
@@ -995,6 +1016,9 @@ def main():
             long_video, video_title, description, tags,
             privacy_override="private", credentials=auth_credentials
         )
+        if long_video_url:
+            record_story_as_used(companion_story, long_video_url)
+            print(f"[HISTORY_RECORDED] story={companion_story.get('id')} after PRIVATE upload")
     else:
         print("[SAFE] Long episode rendered; no YouTube upload is enabled.")
 
