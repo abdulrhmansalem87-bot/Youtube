@@ -70,7 +70,7 @@ jobs:
         run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN"
       - name: Explain private upload approval gate
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private && !inputs.editorial_approved }}
-        run: echo "[SAFE] PRIVATE upload skipped: explicit editorial approval is required."
+        run: echo "[SAFE] PRIVATE upload skipped - explicit editorial approval is required."
 
       - name: Upload WealthRadar Short privately
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private && inputs.editorial_approved }}
