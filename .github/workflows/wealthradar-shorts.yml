@@ -23,6 +23,11 @@ on:
         required: true
         type: boolean
         default: false
+      editorial_approved:
+        description: "Confirm that the rendered Short and its sources were reviewed and approved by the channel owner"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -63,8 +68,12 @@ jobs:
           FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
           FISH_AUDIO_MODEL: s2.1-pro-free
         run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN"
+      - name: Explain private upload approval gate
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private && !inputs.editorial_approved }}
+        run: echo "[SAFE] PRIVATE upload skipped: explicit editorial approval is required."
+
       - name: Upload WealthRadar Short privately
-        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private }}
+        if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private && inputs.editorial_approved }}
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
