@@ -35,10 +35,16 @@ def split_scene_durations(durations: list[float], maximum: float = MAX_SCENE_SEC
         total = float(raw)
         if not math.isfinite(total) or total <= 0:
             raise ValueError("مدة المشهد يجب أن تكون أكبر من صفر.")
-        count = max(1, int((total + maximum - 0.001) // maximum))
-        chunk = round(total / count, 3)
-        chunks = [chunk] * count
-        chunks[-1] = round(total - sum(chunks[:-1]), 3)
+        # Use ceil rather than floor-division plus rounded equal chunks. The old
+        # approach accumulated rounding error across many shots and could make
+        # the final remainder exceed MAX_SCENE_SECONDS for otherwise valid audio.
+        count = max(1, math.ceil(total / maximum - 1e-12))
+        chunks = [
+            round(total * (part + 1) / count - total * part / count, 6)
+            for part in range(count)
+        ]
+        # Preserve the exact source-card duration after rounding intermediate shots.
+        chunks[-1] = round(total - sum(chunks[:-1]), 6)
         result.extend((index, seconds) for seconds in chunks if seconds > 0.001)
     if any(seconds > maximum + 0.001 for _, seconds in result):
         raise RuntimeError("فشل تقسيم مشاهد B-roll إلى لقطات قصيرة.")
