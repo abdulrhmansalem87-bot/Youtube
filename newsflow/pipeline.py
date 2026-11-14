@@ -21,7 +21,7 @@ import yaml
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from newsflow.editorial import relevance, review_stories, upload_review_blockers
-from newsflow.rendering import render_cards_video
+from newsflow.broll import render_broll_video
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -486,12 +486,10 @@ def make_video(title, audio, output, short=False, stories=None, portrait=None):
     durations = [total_duration * weight / weight_total for weight in weights]
     durations[-1] += total_duration - sum(durations)
 
-    cache_dir = output.parent / ".render_cache" / output.stem
-    render_cards_video(
-        cards, durations, audio, output, short=short, portrait=portrait,
-        commit_sha=os.getenv("GITHUB_SHA", "local"), cache_dir=cache_dir,
-    )
-    print(f"[RENDER_RESUME] scenes={len(cards)} cache={cache_dir}")
+    # NewsFlow must use licensed moving footage. Missing Pexels credentials or
+    # footage are fatal: never silently fall back to animated still cards.
+    render_broll_video(cards, durations, audio, output, portrait=portrait)
+    print(f"[BROLL_RENDER_COMPLETE] cards={len(cards)} orientation={'portrait' if portrait else 'landscape'}")
 
 def validate_video(
     video_path: Path,
