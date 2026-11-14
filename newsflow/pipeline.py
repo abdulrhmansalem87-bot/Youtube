@@ -1405,6 +1405,13 @@ def main():
         short_video = shorts_dir / "short-1.mp4"
         asyncio.run(make_audio(short_script, short_audio))
         short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
+        (shorts_dir / "short-1.youtube-metadata.json").write_text(
+            json.dumps(
+                {"title": short_title, "description": short_description, "tags": short_tags, "privacyStatus": "private"},
+                ensure_ascii=False, indent=2,
+            ),
+            encoding="utf-8",
+        )
         make_video(short_title, short_audio, short_video, short=True, stories=[story])
         validate_video(short_video, short_audio, expected_short=True)
         ffprobe = shutil.which("ffprobe")
@@ -1448,6 +1455,13 @@ def main():
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
     video_title, description, tags = build_youtube_metadata(bulletin_stories, bulletin_script)
+    (bulletin / "long.youtube-metadata.json").write_text(
+        json.dumps(
+            {"title": video_title, "description": description, "tags": tags, "privacyStatus": "private"},
+            ensure_ascii=False, indent=2,
+        ),
+        encoding="utf-8",
+    )
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
@@ -1487,6 +1501,13 @@ def main():
             asyncio.run(make_audio(short_script, short_audio))
             short_title, short_description, short_tags = build_short_youtube_metadata(
                 story, short_script, long_video_url=long_video_url
+            )
+            (shorts_dir / f"short-{index}.youtube-metadata.json").write_text(
+                json.dumps(
+                    {"title": short_title, "description": short_description, "tags": short_tags, "privacyStatus": "private"},
+                    ensure_ascii=False, indent=2,
+                ),
+                encoding="utf-8",
             )
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
