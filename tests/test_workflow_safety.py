@@ -118,7 +118,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         )
         inputs = workflow["on"]["workflow_dispatch"]["inputs"]
         self.assertEqual(inputs["validate_only"]["default"], "true")
-        self.assertEqual(inputs["plan_path"]["default"], "")
+        self.assertEqual(inputs["plan_path"]["default"], "wealthradar/production.example.json")
         steps = workflow["jobs"]["produce"]["steps"]
         resolve = next(step for step in steps if step.get("name") == "Resolve production plan")
         script = resolve["run"]
