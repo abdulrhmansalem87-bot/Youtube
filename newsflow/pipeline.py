@@ -126,7 +126,7 @@ def collect(max_stories: int):
                         summary_candidates.append(content_item.get("value", ""))
                 raw_summary = max(summary_candidates, key=lambda value: len(str(value or "")), default="")
                 summary = html.unescape(re.sub(r"<[^>]+>", " ", str(raw_summary or "")))
-                summary = re.sub(r"\\s+", " ", summary).strip()[:4000]
+                summary = re.sub(r"\s+", " ", summary).strip()[:4000]
                 stories.append({
                     "id": hashlib.sha256(link.encode()).hexdigest()[:12],
                     "title": title, "link": link, "published": published,
