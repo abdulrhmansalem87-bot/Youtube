@@ -29,26 +29,12 @@ class UploadReviewGateTests(unittest.TestCase):
             upload_review_blockers(report, True),
         )
 
-    def test_private_staging_is_review_queue_and_still_blocks_editorial_warnings(self):
+    def test_private_staging_cannot_bypass_owner_approval_or_fact_checking(self):
         report = valid_report()
         report["fact_checking"] = "not_performed"
-        self.assertEqual(upload_review_blockers(report, False, private_staging=True), [])
-        report["warning_count"] = 1
-        report["warnings"] = [{"title": "خبر", "warnings": ["ملخص غير مكتمل"]}]
-        self.assertIn("توجد تحذيرات تحريرية غير محسومة",
-                      upload_review_blockers(report, False, private_staging=True))
-
-    def test_private_staging_requires_upload_switch_before_oauth(self):
-        with patch.dict(os.environ, {
-            "YOUTUBE_UPLOAD_ENABLED": "false",
-            "NEWSFLOW_PRIVATE_STAGING": "true",
-        }, clear=False):
-            with patch.object(sys, "argv", ["newsflow", "--private-staging"]):
-                with patch("newsflow.pipeline.validate_youtube_auth") as auth:
-                    with self.assertRaises(SystemExit) as raised:
-                        main()
-        self.assertEqual(raised.exception.code, 2)
-        auth.assert_not_called()
+        blockers = upload_review_blockers(report, False, private_staging=True)
+        self.assertIn("المراجعة التحريرية لم تحصل على موافقة صريحة", blockers)
+        self.assertIn("التحقق المستقل من الوقائع لم يكتمل", blockers)
 
     def test_cli_refuses_full_render_without_private_test(self):
         with patch.object(sys, "argv", ["newsflow"]):

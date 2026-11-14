@@ -167,9 +167,9 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
 def upload_review_blockers(
     report: dict, editorial_approved: bool, *, private_staging: bool = False
 ) -> list[str]:
-    """Fail closed for public/manual uploads; scheduled private staging is an owner-review queue."""
+    """Fail closed for every upload; private staging never bypasses owner approval."""
     blockers = []
-    if not editorial_approved and not private_staging:
+    if not editorial_approved:
         blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
     if report.get("status") != "needs_human_review":
         blockers.append("تقرير المراجعة ليس في حالة قابلة للمراجعة")
@@ -182,6 +182,6 @@ def upload_review_blockers(
         blockers.append("لا توجد أخبار مقبولة")
     if warning_count > 0 or report.get("warnings"):
         blockers.append("توجد تحذيرات تحريرية غير محسومة")
-    if report.get("fact_checking") != "verified" and not private_staging:
+    if report.get("fact_checking") != "verified":
         blockers.append("التحقق المستقل من الوقائع لم يكتمل")
     return blockers

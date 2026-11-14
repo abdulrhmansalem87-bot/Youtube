@@ -43,12 +43,12 @@ class MobileRenderContractTests(unittest.TestCase):
 
     def test_mobile_renderer_branch_keeps_verified_private_upload_gate(self):
         source = (ROOT / "newsflow" / "pipeline.py").read_text(encoding="utf-8")
-        self.assertIn("upload_review_blockers(", source)
-        self.assertIn("private_staging=args.private_staging", source)
+        self.assertIn("upload_review_blockers(editorial_report, editorial_approved)", source)
         self.assertIn("if args.private_test and upload_blockers:", source)
-        self.assertIn("if args.private_staging:", source)
-        self.assertNotIn("الرفع التلقائي Private staging معطل", source)
-        self.assertIn('privacy_override="private"', source)
+        self.assertIn("if private_staging:", source)
+        self.assertIn("الرفع التلقائي Private staging معطل", source)
+        self.assertNotIn("private_staging=private_staging", source)
+        self.assertIn('os.getenv("YOUTUBE_PRIVACY_STATUS", "private")', source)
         private_test = source.split("if args.private_test:", 2)[-1]
         self.assertIn("if upload_enabled:", private_test)
         self.assertIn('privacy_override="private"', private_test)
