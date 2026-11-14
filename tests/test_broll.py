@@ -29,8 +29,8 @@ class BrollPlanningTests(unittest.TestCase):
                     split_scene_durations(values)
 
     def test_visual_text_removes_invisible_directional_and_control_marks(self):
-        self.assertEqual(clean_visual_text("إنفيديا\\u2066 80%\\u2069"), "إنفيديا 80%")
-        self.assertEqual(clean_visual_text("  خبر\\u200f   مالي  "), "خبر مالي")
+        self.assertEqual(clean_visual_text("إنفيديا\u2066 80%\u2069"), "إنفيديا 80%")
+        self.assertEqual(clean_visual_text("  خبر\u200f   مالي  "), "خبر مالي")
 
     def test_broll_queries_match_specific_story_subjects(self):
         self.assertEqual(_english_query({"title": "إنفيديا والذكاء الاصطناعي", "body": ""}),
