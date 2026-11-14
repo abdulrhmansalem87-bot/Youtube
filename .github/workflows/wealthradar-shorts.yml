@@ -12,12 +12,12 @@ on:
         description: "Validate the production plan without rendering or uploading"
         required: true
         type: boolean
-        default: false
+        default: true
       plan_path:
-        description: "Path to the WealthRadar JSON production plan"
+        description: "Path to a real WealthRadar JSON production plan (example plans are validation-only)"
         required: true
         type: string
-        default: "wealthradar/production.example.json"
+        default: ""
       upload_private:
         description: "Explicitly approve uploading the rendered Short to YouTube as PRIVATE"
         required: true
@@ -53,9 +53,36 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
       - name: Resolve production plan
+        env:
+          PLAN_PATH_INPUT: ${{ inputs.plan_path }}
+          VALIDATE_ONLY: ${{ inputs.validate_only }}
         run: |
-          PLAN_PATH="${{ inputs.plan_path }}"
-          if [ -z "$PLAN_PATH" ]; then PLAN_PATH="wealthradar/production.example.json"; fi
+          PLAN_PATH="$PLAN_PATH_INPUT"
+          if [ -z "$PLAN_PATH" ]; then
+            echo "::error::أدخل مسار خطة إنتاج حقيقية داخل wealthradar/؛ لن نستخدم ملف المثال تلقائياً."
+            exit 2
+          fi
+          case "$PLAN_PATH" in
+            wealthradar/*.json) ;;
+            *)
+              echo "::error::يجب أن يكون ملف الخطة JSON داخل مجلد wealthradar/."
+              exit 2
+              ;;
+          esac
+          case "$PLAN_PATH" in
+            *..*)
+              echo "::error::مسار خطة الإنتاج يحتوي على مقطع غير آمن."
+              exit 2
+              ;;
+          esac
+          if [ ! -f "$PLAN_PATH" ]; then
+            echo "::error::ملف خطة الإنتاج غير موجود: $PLAN_PATH"
+            exit 2
+          fi
+          if [ "$PLAN_PATH" = "wealthradar/production.example.json" ] && [ "$VALIDATE_ONLY" != "true" ]; then
+            echo "::error::ملف production.example.json للاختبار فقط؛ أنشئ خطة إنتاج فعلية قبل الرندر."
+            exit 2
+          fi
           echo "WEALTHRADAR_PLAN=$PLAN_PATH" >> "$GITHUB_ENV"
       - name: Validate production plan
         if: ${{ inputs.validate_only }}
