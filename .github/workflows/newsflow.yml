@@ -50,7 +50,7 @@ permissions:
 
 concurrency:
   # PR preview renders must not queue behind or delay the daily production run.
-  group: ${{ github.event_name == 'pull_request' && format('newsflow-pr-{0}', github.event.pull_request.number) || 'newsflow-production' }}
+  group: ${{ github.event_name == 'pull_request' && format('newsflow-pr-{0}-{1}', github.event.pull_request.number, github.sha) || 'newsflow-production' }}
   cancel-in-progress: false
 
 jobs:
@@ -77,6 +77,7 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Render actual Pexels B-roll previews (landscape and portrait)
         if: github.event_name == 'pull_request'
+        timeout-minutes: 8
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: python scripts/render_broll_preview.py
