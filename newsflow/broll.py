@@ -154,7 +154,10 @@ def _overlay(card: dict, path: Path, width: int, height: int) -> None:
         radius=max(24, width // 45), fill=(5, 17, 31, 218),
         outline=(52, 205, 190, 235), width=max(2, width // 600),
     )
-    brand_font = ImageFont.truetype(_font(True), max(26, int(width * 0.027)))
+    brand_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    if not Path(brand_path).is_file():
+        brand_path = _font(True)
+    brand_font = ImageFont.truetype(brand_path, max(26, int(width * 0.027)))
     title_font = ImageFont.truetype(_font(True), max(34, int(width * (0.036 if width > height else 0.048))))
     body_font = ImageFont.truetype(_font(False), max(23, int(width * (0.019 if width > height else 0.029))))
     draw.text((width // 2, int(height * 0.075)), "WealthRadar", font=brand_font,
