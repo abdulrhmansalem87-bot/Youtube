@@ -78,6 +78,11 @@ jobs:
       - name: Render real-story landscape and portrait phone previews
         if: github.event_name == 'pull_request'
         run: python scripts/render_mobile_preview.py
+      - name: Render actual Pexels B-roll previews (landscape and portrait)
+        if: github.event_name == 'pull_request'
+        env:
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: python scripts/render_broll_preview.py
       - name: Restore resumable scene cache
         if: github.event_name != 'pull_request'
         uses: actions/cache/restore@v4
