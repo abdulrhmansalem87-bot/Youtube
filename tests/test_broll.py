@@ -1,6 +1,6 @@
 import unittest
 
-from newsflow.broll import MAX_SCENE_SECONDS, clean_visual_text, require_api_key, split_scene_durations, _english_query
+from newsflow.broll import MAX_SCENE_SECONDS, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text
 
 
 class BrollPlanningTests(unittest.TestCase):
@@ -27,6 +27,9 @@ class BrollPlanningTests(unittest.TestCase):
             with self.subTest(values=values):
                 with self.assertRaises(ValueError):
                     split_scene_durations(values)
+
+    def test_mixed_arabic_latin_caption_uses_font_with_latin_glyphs(self):
+        self.assertTrue(_font_for_text("واشترك في WealthRadar", True).endswith("DejaVuSans-Bold.ttf"))
 
     def test_visual_text_removes_invisible_directional_and_control_marks(self):
         self.assertEqual(clean_visual_text("إنفيديا\u2066 80%\u2069"), "إنفيديا 80%")
