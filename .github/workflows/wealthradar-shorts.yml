@@ -17,7 +17,7 @@ on:
         description: "Path to a real WealthRadar JSON production plan (example plans are validation-only)"
         required: true
         type: string
-        default: ""
+        default: "wealthradar/production.example.json"
       upload_private:
         description: "Explicitly approve uploading the rendered Short to YouTube as PRIVATE"
         required: true
