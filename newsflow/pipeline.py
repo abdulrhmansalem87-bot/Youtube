@@ -660,21 +660,29 @@ def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
-    parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy")
+    parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy after manual approvals")
+    parser.add_argument("--private-staging", action="store_true", help="Scheduled production: render bulletin and Shorts and upload as PRIVATE for owner review")
     args = parser.parse_args()
     args.max_stories = clamp_max_stories(args.max_stories)
-    if args.private_test and args.dry_run:
-        parser.error("--private-test cannot be combined with --dry-run")
-    if not args.dry_run and not args.private_test:
-        parser.error("الرندر الكامل محظور؛ استخدم --dry-run أو اختبار PRIVATE بموافقات صريحة.")
+    if (args.private_test or args.private_staging) and args.dry_run:
+        parser.error("Private production modes cannot be combined with --dry-run")
+    if args.private_test and args.private_staging:
+        parser.error("Choose either manual private-test or scheduled private-staging, not both")
+    if not args.dry_run and not args.private_test and not args.private_staging:
+        parser.error("الرندر الكامل محظور؛ استخدم --dry-run أو وضع PRIVATE المعتمد.")
+    staging_env = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
+    if args.private_staging and not staging_env:
+        parser.error("--private-staging is allowed only for the scheduled staging workflow")
+    if not args.private_staging and staging_env:
+        parser.error("NEWSFLOW_PRIVATE_STAGING requires --private-staging")
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
     editorial_approved = os.getenv("NEWSFLOW_EDITORIAL_APPROVED", "false").lower() == "true"
     private_staging = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
     visual_qa_approved = os.getenv("NEWSFLOW_VISUAL_QA_APPROVED", "false").lower() == "true"
-    if private_staging:
-        parser.error("الرفع التلقائي Private staging معطل؛ يلزم تشغيل يدوي وموافقة صريحة.")
-    if upload_enabled and not editorial_approved:
+    if upload_enabled and not editorial_approved and not args.private_staging:
         parser.error("الرفع محظور: يلزم اعتماد المراجعة التحريرية صراحةً عبر NEWSFLOW_EDITORIAL_APPROVED=true.")
+    if args.private_staging and not upload_enabled:
+        parser.error("Scheduled private staging requires YOUTUBE_UPLOAD_ENABLED=true")
     if args.private_test:
         args.max_stories = 1
         if not upload_enabled:
@@ -683,7 +691,7 @@ def main():
             parser.error("Private test requires explicit phone visual QA approval.")
     # Verify OAuth before spending time generating audio/video.
     auth_credentials = None
-    if args.private_test or (not args.dry_run and upload_enabled):
+    if args.private_test or args.private_staging or (not args.dry_run and upload_enabled):
         try:
             auth_credentials = validate_youtube_auth()
         except RuntimeError as exc:
@@ -700,11 +708,11 @@ def main():
     stories = editorial_report["accepted"]
     (out / "stories.json").write_text(json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
-    upload_blockers = upload_review_blockers(editorial_report, editorial_approved)
+    upload_blockers = upload_review_blockers(editorial_report, editorial_approved, private_staging=args.private_staging)
     if args.private_test and upload_blockers:
         print("[SAFE] PRIVATE test blocked before rendering: " + " | ".join(upload_blockers))
         return
-    if upload_enabled and not visual_qa_approved:
+    if upload_enabled and not visual_qa_approved and not args.private_staging:
         print("[SAFE] PRIVATE upload blocked: phone visual QA has not been explicitly approved.")
         upload_enabled = False
     if upload_enabled and upload_blockers:
@@ -761,8 +769,10 @@ def main():
         else:
             print("[SAFE] PRIVATE upload skipped; generated video remains an Artifact.")
         return
+    if args.private_staging:
+        print("[PRIVATE_STAGING] Uploading validated long video and story Shorts as PRIVATE only.")
     if upload_enabled:
-        youtube_upload(long_video, video_title, description, tags, credentials=auth_credentials)
+        youtube_upload(long_video, video_title, description, tags, privacy_override="private", credentials=auth_credentials)
 
     # Shorts are separate story-specific narrations, not a vertical copy of the full bulletin.
     if not single_long_upload:
@@ -790,7 +800,7 @@ def main():
             if upload_enabled:
                 youtube_upload(
                     short_video, short_title, short_description, short_tags,
-                    privacy_override=os.getenv("YOUTUBE_PRIVACY_STATUS", "private"), credentials=auth_credentials
+                    privacy_override="private" if args.private_staging else os.getenv("YOUTUBE_PRIVACY_STATUS", "private"), credentials=auth_credentials
                 )
 
 
