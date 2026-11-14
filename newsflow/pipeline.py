@@ -752,7 +752,8 @@ def main():
     # for the companion Short, so both formats stay editorially connected.
     companion_story = stories[0]
     companion_stories = [companion_story]
-    bulletin_stories = stories[:clamp_max_stories(args.max_stories)]
+    # The companion long episode must explain the exact same single lead story as its Short.
+    bulletin_stories = [companion_story]
     bulletin_script = make_script(bulletin_stories)
     (out / "companion_story.json").write_text(
         json.dumps(companion_story, ensure_ascii=False, indent=2), encoding="utf-8"
