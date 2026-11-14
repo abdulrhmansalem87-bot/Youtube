@@ -31,14 +31,14 @@ def split_scene_durations(durations: list[float], maximum: float = MAX_SCENE_SEC
         raise ValueError("يلزم توفير مدد مشاهد صالحة.")
     result: list[tuple[int, float]] = []
     for index, raw in enumerate(durations):
-        remaining = float(raw)
-        if remaining <= 0:
+        total = float(raw)
+        if total <= 0:
             raise ValueError("مدة المشهد يجب أن تكون أكبر من صفر.")
-        while remaining > maximum + 0.001:
-            result.append((index, maximum))
-            remaining -= maximum
-        if remaining > 0.001:
-            result.append((index, round(remaining, 3)))
+        count = max(1, int((total + maximum - 0.001) // maximum))
+        chunk = round(total / count, 3)
+        chunks = [chunk] * count
+        chunks[-1] = round(total - sum(chunks[:-1]), 3)
+        result.extend((index, seconds) for seconds in chunks if seconds > 0.001)
     if any(seconds > maximum + 0.001 for _, seconds in result):
         raise RuntimeError("فشل تقسيم مشاهد B-roll إلى لقطات قصيرة.")
     return result
@@ -146,7 +146,7 @@ def _overlay(card: dict, path: Path, width: int, height: int) -> None:
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     margin = int(width * 0.055)
-    panel_top = int(height * (0.66 if width > height else 0.70))
+    panel_top = int(height * (0.60 if width > height else 0.68))
     panel_bottom = int(height * 0.94)
     draw.rounded_rectangle(
         (margin, panel_top, width - margin, panel_bottom),
@@ -154,8 +154,8 @@ def _overlay(card: dict, path: Path, width: int, height: int) -> None:
         outline=(52, 205, 190, 235), width=max(2, width // 600),
     )
     brand_font = ImageFont.truetype(_font(True), max(26, int(width * 0.027)))
-    title_font = ImageFont.truetype(_font(True), max(34, int(width * (0.043 if width > height else 0.052))))
-    body_font = ImageFont.truetype(_font(False), max(23, int(width * (0.026 if width > height else 0.032))))
+    title_font = ImageFont.truetype(_font(True), max(34, int(width * (0.036 if width > height else 0.048))))
+    body_font = ImageFont.truetype(_font(False), max(23, int(width * (0.019 if width > height else 0.029))))
     draw.text((width // 2, int(height * 0.075)), "WealthRadar", font=brand_font,
               fill=(255, 255, 255, 245), anchor="mm")
     title = str(card.get("title") or "").strip()[:125]
