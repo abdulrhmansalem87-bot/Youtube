@@ -102,6 +102,8 @@ jobs:
           FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
           FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
           FISH_AUDIO_MODEL: s2.1-pro-free
+          # Licensed moving footage is mandatory for NewsFlow; no static-card fallback.
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
           # Keep story-specific Shorts enabled on every scheduled run.
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
