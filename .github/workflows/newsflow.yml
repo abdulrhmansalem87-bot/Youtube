@@ -106,7 +106,7 @@ jobs:
           # Keep story-specific Shorts enabled on every scheduled run.
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
           NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.visual_qa_approved && 'true' || 'false' }}
-          # Scheduled runs only collect and validate; no automatic private staging uploads.
+          # Scheduled runs render and stage validated videos as PRIVATE for owner review.
           NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
           # Scheduled uploads are PRIVATE staging only; manual test uploads retain explicit approvals.
