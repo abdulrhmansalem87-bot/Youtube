@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import os
 import re
@@ -29,6 +28,14 @@ def validate_plan(plan: dict) -> list[str]:
     title = str(plan.get("title", "")).strip()
     if not title or len(title) > 50 or "#shorts" not in title.lower():
         errors.append("العنوان مطلوب، بحد أقصى 50 حرفاً، ويجب أن يتضمن #shorts.")
+
+    voiceover_path = str(plan.get("voiceover_path", "")).strip()
+    if not voiceover_path:
+        errors.append("voiceover_path مطلوب لتسجيل صوت المقدم الأصلي؛ لا يُسمح بتوليد صوت آلي.")
+    elif Path(voiceover_path).is_absolute() or ".." in Path(voiceover_path).parts:
+        errors.append("voiceover_path يجب أن يكون مساراً نسبياً آمناً داخل المستودع.")
+    elif Path(voiceover_path).suffix.lower() not in {".wav", ".mp3", ".m4a", ".aac"}:
+        errors.append("voiceover_path يجب أن يشير إلى ملف صوت WAV أو MP3 أو M4A أو AAC.")
 
     narration = plan.get("narration")
     if not isinstance(narration, list) or not narration:
@@ -190,52 +197,6 @@ def _run(command: list[str]) -> None:
     subprocess.run(command, check=True, capture_output=True, text=True, timeout=180)
 
 
-async def _make_voice(text: str, destination: Path, voice: str = "") -> str:
-    """Generate narration using the configured Fish Audio cloned voice."""
-    api_key = os.getenv("FISH_AUDIO_API_KEY", "").strip()
-    reference_id = os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
-    model = os.getenv("FISH_AUDIO_MODEL", "s2.1-pro-free").strip()
-    if not api_key:
-        raise RuntimeError("FISH_AUDIO_API_KEY غير موجود في GitHub Secrets.")
-    if not reference_id:
-        raise RuntimeError("FISH_AUDIO_REFERENCE_ID غير موجود؛ أضف Voice/Model ID من Fish Audio.")
-    payload = json.dumps(
-        {"text": text, "reference_id": reference_id, "format": "mp3"},
-        ensure_ascii=False,
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        "https://api.fish.audio/v1/tts",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "model": model,
-            "Accept": "audio/mpeg",
-            "User-Agent": "WealthRadarShorts/1.0",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=180) as response:
-            audio = response.read()
-    except urllib.error.HTTPError as exc:
-        try:
-            detail = exc.read(500).decode("utf-8", errors="replace")
-        except Exception:
-            detail = ""
-        detail = " ".join(detail.split()).replace(api_key, "[REDACTED]")[:300]
-        raise RuntimeError(
-            f"Fish Audio رفض توليد الصوت (HTTP {exc.code}). "
-            f"{detail or 'راجع المفتاح والرصيد وVoice ID واسم النموذج.'}"
-        ) from None
-    if len(audio) < 1000:
-        raise RuntimeError("Fish Audio أعاد ملفاً صوتياً فارغاً أو غير مكتمل.")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(audio)
-    print(f"[VOICE_READY] Fish Audio | model={model} | bytes={len(audio)}")
-    return "Fish Audio cloned voice"
-
-
 def _duration(path: Path) -> float:
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -315,9 +276,17 @@ def render(plan: dict, output: Path, api_key: str) -> Path:
     if not ffmpeg or not ffprobe:
         raise RuntimeError("يجب تثبيت FFmpeg وFFprobe قبل إنتاج الفيديو.")
     output.mkdir(parents=True, exist_ok=True)
-    narration = " ".join(sentence.strip() for sentence in plan["narration"])
-    voice_path = output / "voice.mp3"
-    asyncio.run(_make_voice(narration, voice_path))
+    voiceover_relative = Path(str(plan["voiceover_path"]))
+    voice_path = (ROOT / voiceover_relative).resolve()
+    try:
+        voice_path.relative_to(ROOT.resolve())
+    except ValueError:
+        raise RuntimeError("مسار تسجيل الصوت خارج المستودع؛ تم إيقاف الإنتاج.") from None
+    if not voice_path.is_file() or voice_path.stat().st_size < 8_000:
+        raise RuntimeError(
+            f"تسجيل صوت المقدم الأصلي غير موجود أو غير صالح: {plan['voiceover_path']}. "
+            "لن يتم توليد صوت بديل آلياً."
+        )
     voice_duration = _duration(voice_path)
     if not 30 <= voice_duration <= 45:
         raise RuntimeError(f"مدة التعليق الصوتي {voice_duration:.1f}s خارج النطاق 30–45 ثانية.")
