@@ -131,6 +131,8 @@ jobs:
              && [ "${{ inputs.visual_qa_approved }}" = "true" ] \
              && [ "${{ inputs.dry_run }}" != "true" ]; then
             python -m newsflow --private-test
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            python -m newsflow --render-only
           else
             python -m newsflow --dry-run
           fi
