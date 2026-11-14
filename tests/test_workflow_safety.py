@@ -90,7 +90,6 @@ class WorkflowSafetyTests(unittest.TestCase):
         # Scheduled production is limited to PRIVATE owner-review staging.
         pipeline = (Path(__file__).resolve().parents[1] / "newsflow" / "pipeline.py").read_text(encoding="utf-8")
         self.assertIn('privacy_override="private"', pipeline)
-        self.assertIn('privacy_override="public"', pipeline) if 'privacy_override="public"' in pipeline else None
         self.assertIn('if status != "private":', pipeline)
 
     def test_shorts_workflow_uses_the_proven_fish_audio_pipeline(self):
