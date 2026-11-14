@@ -97,7 +97,9 @@ jobs:
           count=$(find output/bulletin/.render_cache output/bulletin/shorts/.render_cache -type f -name manifest.json 2>/dev/null | wc -l)
           echo "[RENDER_CACHE_RESTORE] manifests=$count"
       - name: Run NewsFlow
-        if: github.event_name != 'pull_request'
+        # PR runs execute a full dry-run render with secrets available only to this same-repository PR;
+        # the command below keeps YouTube uploads disabled unless explicit manual approvals are supplied.
+        if: always()
         env:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_LOOKBACK_HOURS: ${{ github.event.schedule == '0 20 * * *' && '3' || '4' }}
@@ -141,7 +143,7 @@ jobs:
             output/bulletin/shorts/.render_cache
           key: wealthradar-scenes-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Capture actual rendered video frames for phone QA
-        if: always() && github.event_name != 'pull_request'
+        if: always()
         run: |
           qa_count=0
           if [ -s output/bulletin/long.mp4 ]; then
