@@ -270,37 +270,35 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
             card_shots = [(shot_index, seconds) for shot_index, (idx, seconds)
                           in enumerate(scene_plan) if idx == card_index]
             card_duration = sum(seconds for _, seconds in card_shots)
-            overlays: list[Path] = []
-            elapsed = 0.0
-            filter_parts = [
-                f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height},setsar=1[base]"
-            ]
-            previous_label = "base"
+            # Build one timed overlay stream from the caption PNGs. The previous
+            # graph opened one looping FFmpeg input and one chained overlay filter
+            # per shot (often 40-100 inputs for a single card), which made filter
+            # initialization and memory usage grow sharply with episode duration.
+            overlay_list = work / f"overlays-{card_index:04d}.ffconcat"
+            overlay_lines = ["ffconcat version 1.0"]
             for local_index, (shot_index, seconds) in enumerate(card_shots):
                 overlay = work / f"overlay-{card_index}-{local_index:04d}.png"
                 _overlay(card, overlay, width, height, caption_index=local_index)
-                overlays.append(overlay)
-                next_label = f"v{local_index + 1}"
-                filter_parts.append(
-                    f"[{previous_label}][{local_index + 1}:v]"
-                    f"overlay=0:0:format=auto:enable='between(t,{elapsed:.3f},{elapsed + seconds:.3f})'"
-                    f"[{next_label}]"
-                )
-                previous_label = next_label
-                elapsed += seconds
+                escaped = str(overlay).replace("\\", "\\\\").replace("'", "\\'")
+                overlay_lines.extend([f"file '{escaped}'", f"duration {seconds:.6f}"])
+            # concat demuxer needs the final still repeated to honor its duration.
+            overlay_lines.append(overlay_lines[-2])
+            overlay_list.write_text("\\n".join(overlay_lines) + "\\n", encoding="utf-8")
 
             segment = work / f"card-{card_index:04d}.mp4"
-            command = [ffmpeg, "-y", "-stream_loop", "-1", "-i", str(source)]
-            for overlay in overlays:
-                command.extend(["-loop", "1", "-i", str(overlay)])
-            command.extend([
-                "-filter_complex", ";".join(filter_parts),
-                "-map", f"[{previous_label}]", "-t", f"{card_duration:.3f}",
+            command = [
+                ffmpeg, "-y", "-stream_loop", "-1", "-i", str(source),
+                "-f", "concat", "-safe", "0", "-i", str(overlay_list),
+                "-filter_complex",
+                f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height},setsar=1[base];"
+                "[1:v]fps=30,format=rgba[caption];"
+                "[base][caption]overlay=0:0:format=auto:shortest=1[v]",
+                "-map", "[v]", "-t", f"{card_duration:.3f}",
                 "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
                 "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
                 str(segment),
-            ])
+            ]
             try:
                 subprocess.run(command, check=True, capture_output=True, text=True, timeout=600)
             except subprocess.CalledProcessError as exc:
