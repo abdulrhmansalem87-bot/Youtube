@@ -102,7 +102,8 @@ jobs:
         if: always()
         env:
           NEWSFLOW_MAX_STORIES: "4"
-          NEWSFLOW_LOOKBACK_HOURS: ${{ github.event.schedule == '0 20 * * *' && '3' || '4' }}
+          # Give the editorial selector a full day of eligible financial coverage.
+          NEWSFLOW_LOOKBACK_HOURS: "24"
           NEWSFLOW_STRICT_FRESHNESS: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
           FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
