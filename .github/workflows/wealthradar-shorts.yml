@@ -1,11 +1,8 @@
 name: WealthRadar Shorts
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "wealthradar_shorts/pipeline.py"
-      - ".github/workflows/wealthradar-shorts.yml"
+  # This workflow requires workflow_dispatch inputs (plan_path and approvals).
+  # Do not run on push: push events have no inputs context and would pass an empty plan path.
   workflow_dispatch:
     inputs:
       validate_only:
