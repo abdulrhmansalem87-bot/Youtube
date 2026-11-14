@@ -657,7 +657,9 @@ def youtube_upload(
         raise RuntimeError("استجابة YouTube لم تؤكد الخصوصية المطلوبة؛ لن نعلن نجاح التحقق.")
     if returned_channel_id != target_channel_id:
         raise RuntimeError("استجابة YouTube لا تطابق القناة التي تم التحقق منها؛ لن نعلن نجاح الرفع.")
-    print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status} channel={target_channel_id}")
+    video_url = f"https://youtu.be/{video_id}"
+    print(f"[UPLOAD_VERIFIED] {video_url} privacy={status} channel={target_channel_id}")
+    return video_url
 
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
