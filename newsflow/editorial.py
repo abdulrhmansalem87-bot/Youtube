@@ -91,6 +91,21 @@ def relevance(story: dict) -> tuple[bool, str]:
     political_hit = _has_term(title, POLITICAL_TITLE_TERMS)
     direct_finance_hit = _has_term(title, DIRECT_FINANCE_TITLE_TERMS)
 
+    # A generic mention of oil is not enough to turn a security/crime story into
+    # a finance item. Require an explicit commercial, price, production or trade angle.
+    oil_smuggling_without_market_angle = (
+        _has_term(title, ("تهريب النفط", "تهريب نفط", "oil smuggling"))
+        and not _has_term(title, (
+            "أسعار النفط", "سعر النفط", "صادرات النفط", "واردات النفط",
+            "إنتاج النفط", "تجارة النفط", "سوق النفط", "شركات النفط",
+            "إيرادات النفط", "عوائد النفط", "النفط الخام", "عقود النفط",
+            "oil prices", "oil exports", "oil imports", "oil production",
+            "oil trade", "oil market", "crude oil", "oil revenue",
+        ))
+    )
+    if oil_smuggling_without_market_angle:
+        return False, "قصة تهريب أو أمن لا تتضمن زاوية سوقية أو تجارية مباشرة للنفط"
+
     if _has_term(title, ENERGY_INFRASTRUCTURE_ONLY_TERMS) and not _has_term(f"{title} {summary}", DIRECT_ENERGY_FINANCE_TERMS):
         return False, "تغطية لانقطاع أو بنية تحتية للطاقة دون أثر مالي مباشر؛ لا تكفي وحدها لتصنيف الخبر اقتصادياً"
     if political_hit and not direct_finance_hit:
