@@ -7,7 +7,7 @@
 - فيديو رأسي 9:16 بدقة 1080×1920 و30 FPS.
 - مدة إجمالية من 30 إلى 45 ثانية.
 - مشاهد فيديو B-roll من Pexels، بمشهد جديد كل 1.5–2.5 ثانية.
-- صوت عربي مصري رجالي عبر Edge TTS.
+- تسجيل صوتي أصلي بصوت مقدم القناة؛ يمنع TTS أو استنساخ الصوت أو أي صوت آلي بديل.
 - كلمتان أو ثلاث كلمات مفتاحية بارزة لكل مشهد.
 - جمل صوتية لا تتجاوز 8 كلمات.
 - عنوان لا يتجاوز 50 حرفاً ويتضمن #shorts.
@@ -18,7 +18,7 @@
 
 انسخ ملف wealthradar/production.example.json إلى ملف JSON جديد، ثم اكتب:
 - title: عنوان الفيديو.
-- loop_phrase: العبارة المشتركة بين أول وآخر جملة.
+- loop_phrase: العبارة المشتركة بين أول وآخر جملة.\n- voiceover_path: مسار تسجيلك الأصلي WAV أو MP3 أو M4A داخل المستودع (مثلاً assets/voice/wealthradar-short.wav).
 - narration: جمل التعليق الصوتي القصيرة.
 - scenes: مشاهد B-roll، ولكل مشهد مدة 1.5–2.5 ثانية، ووصف بحث إنجليزي، وكلمتان أو ثلاث للظهور على الشاشة.
 
@@ -31,7 +31,7 @@
     python -m wealthradar_shorts --plan wealthradar/production.example.json --validate-only
     PEXELS_API_KEY=YOUR_KEY python -m wealthradar_shorts --plan wealthradar/production.example.json
 
-يلزم مفتاح Pexels API في متغير البيئة PEXELS_API_KEY لتنزيل المقاطع. لا تضع المفتاح داخل ملفات المشروع أو Git.
+يلزم تسجيلك الصوتي الأصلي في المسار المحدد داخل الخطة، مع مفتاح Pexels API في GitHub Secret باسم PEXELS_API_KEY لتنزيل المقاطع. لا تضع المفتاح داخل ملفات المشروع أو Git. لا يستخدم مسار Shorts أي خدمة لتوليد الصوت أو استنساخه.
 
 ## GitHub Actions
 

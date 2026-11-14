@@ -22,10 +22,10 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Collect news and render the WealthRadar video package"
+        description: "Collect and validate stories only; disable only for an explicitly approved private test"
         required: false
         type: boolean
-        default: false
+        default: true
       private_test:
         description: "Upload one long video as PRIVATE (manual run only)"
         required: false
@@ -106,23 +106,24 @@ jobs:
           # Keep story-specific Shorts enabled on every scheduled run.
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
           NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.visual_qa_approved && 'true' || 'false' }}
-          # Scheduled runs may upload owner-only PRIVATE staging copies; they never publish publicly.
-          NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
+          # Scheduled runs only collect and validate; no automatic private staging uploads.
+          NEWSFLOW_PRIVATE_STAGING: "false"
           NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
-          YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved)) && 'true' || 'false' }}
+          # Any upload requires a manual private test plus explicit editorial and visual approval.
+          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && 'true' || 'false' }}
           YOUTUBE_PRIVACY_STATUS: "private"
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            python -m newsflow
-          elif [ "${{ inputs.private_test }}" = "true" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] \
+             && [ "${{ inputs.private_test }}" = "true" ] \
+             && [ "${{ inputs.editorial_approved }}" = "true" ] \
+             && [ "${{ inputs.visual_qa_approved }}" = "true" ] \
+             && [ "${{ inputs.dry_run }}" != "true" ]; then
             python -m newsflow --private-test
-          elif [ "${{ inputs.dry_run }}" = "true" ]; then
-            python -m newsflow --dry-run
           else
-            python -m newsflow
+            python -m newsflow --dry-run
           fi
       - name: Save resumable scene cache
         if: always() && github.event_name != 'pull_request'

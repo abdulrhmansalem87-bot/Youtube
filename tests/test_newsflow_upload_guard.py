@@ -1,6 +1,10 @@
+import os
+import sys
 import unittest
+from unittest.mock import patch
 
 from newsflow.editorial import upload_review_blockers
+from newsflow.pipeline import main
 
 
 def valid_report():
@@ -25,12 +29,49 @@ class UploadReviewGateTests(unittest.TestCase):
             upload_review_blockers(report, True),
         )
 
-    def test_allows_owner_only_private_staging_without_claiming_fact_verification(self):
+    def test_private_staging_cannot_bypass_owner_approval_or_fact_checking(self):
         report = valid_report()
         report["fact_checking"] = "not_performed"
-        self.assertEqual(
-            upload_review_blockers(report, False, private_staging=True), []
-        )
+        blockers = upload_review_blockers(report, False, private_staging=True)
+        self.assertIn("المراجعة التحريرية لم تحصل على موافقة صريحة", blockers)
+        self.assertIn("التحقق المستقل من الوقائع لم يكتمل", blockers)
+
+    def test_cli_refuses_full_render_without_private_test(self):
+        with patch.object(sys, "argv", ["newsflow"]):
+            with self.assertRaises(SystemExit) as raised:
+                main()
+        self.assertEqual(raised.exception.code, 2)
+
+    def test_private_test_requires_manual_editorial_and_visual_approval_before_oauth(self):
+        cases = [
+            {
+                "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_EDITORIAL_APPROVED": "false",
+                "NEWSFLOW_VISUAL_QA_APPROVED": "true",
+                "NEWSFLOW_PRIVATE_STAGING": "false",
+            },
+            {
+                "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_EDITORIAL_APPROVED": "true",
+                "NEWSFLOW_VISUAL_QA_APPROVED": "false",
+                "NEWSFLOW_PRIVATE_STAGING": "false",
+            },
+            {
+                "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_EDITORIAL_APPROVED": "true",
+                "NEWSFLOW_VISUAL_QA_APPROVED": "true",
+                "NEWSFLOW_PRIVATE_STAGING": "true",
+            },
+        ]
+        for values in cases:
+            with self.subTest(values=values):
+                with patch.dict(os.environ, values, clear=False):
+                    with patch.object(sys, "argv", ["newsflow", "--private-test"]):
+                        with patch("newsflow.pipeline.validate_youtube_auth") as auth:
+                            with self.assertRaises(SystemExit) as raised:
+                                main()
+                self.assertEqual(raised.exception.code, 2)
+                auth.assert_not_called()
 
     def test_blocks_any_unresolved_editorial_warning(self):
         report = valid_report()
