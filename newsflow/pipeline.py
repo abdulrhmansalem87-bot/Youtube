@@ -232,23 +232,23 @@ def make_script(stories):
 
 
 def make_short_script(story):
-    """Create a hook-first Arabic Short with a practical angle and engagement CTA."""
+    """Create a concise, source-grounded Arabic Short designed for 35–45 seconds."""
     title = clean_narration(str(story.get("title", "")).strip())
     summary = clean_narration(str(story.get("summary", "")).strip())
     if not title or not summary or len(summary) < 45:
         raise ValueError("لا يمكن إعداد Short من عنوان أو ملخص غير مكتمل.")
-    if len(title) > 105:
-        title = title[:102].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
-    # Preserve only source-supported facts; the practical question is framed as a question,
-    # never as a guaranteed effect or investment recommendation.
-    if len(summary) > 520:
-        summary = summary[:520].rsplit(" ", 1)[0]
+    if len(title) > 90:
+        title = title[:87].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+    # Keep the factual core short enough for the 35–45 second voice contract.
+    # Never add a consequence that the source itself does not establish.
+    if len(summary) > 160:
+        summary = summary[:160].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
     return (
         f"الخبر ده ممكن يفرق في فهمك لفلوسك: {title}. "
-        f"خليني أبسطهالك: {summary} "
-        "المهم هنا تتابع الرقم أو القرار الرسمي، لأن تأثيره بيختلف حسب ظروف كل شخص. "
-        "إنت شايف التطور ده هيأثر على قراراتك المالية؟ اكتب رأيك، "
-        "وده محتوى توعوي مش توصية استثمارية. وابعت الفيديو لحد يهمه الموضوع واشترك في WealthRadar."
+        f"{summary} "
+        "تابع المصدر والرقم الرسمي وتاريخه؛ فالتأثير بيختلف من شخص للتاني. "
+        "إنت شايف التطور ده هيأثر على قراراتك المالية؟ اكتب رأيك. "
+        "ده محتوى توعوي مش توصية استثمارية. ابعت الفيديو لحد يهمه واشترك في WealthRadar."
     )
 
 
