@@ -108,8 +108,8 @@ class PipelineSelectionTests(unittest.TestCase):
 
 
 class AudioDurationTests(unittest.TestCase):
-    def test_main_bulletin_stays_within_three_to_five_minutes(self):
-        for duration in (181, 210, 240, 300):
+    def test_main_episode_stays_within_four_to_eight_minutes(self):
+        for duration in (240, 300, 360, 480):
             with self.subTest(duration=duration):
                 self.assertEqual(validate_audio_duration(duration), float(duration))
 
@@ -119,7 +119,7 @@ class AudioDurationTests(unittest.TestCase):
                 self.assertEqual(validate_audio_duration(duration, private_test=True), float(duration))
 
     def test_rejects_main_bulletins_outside_target_duration(self):
-        for duration in (0, -1, 45, 150, 180, 301, 480, float("nan"), "not-a-duration"):
+        for duration in (0, -1, 45, 150, 180, 181, 239, 481, float("nan"), "not-a-duration"):
             with self.subTest(duration=duration):
                 with self.assertRaisesRegex(RuntimeError, "مدة"):
                     validate_audio_duration(duration)
