@@ -1,10 +1,11 @@
+import asyncio
 import os
 import sys
 import unittest
 from unittest.mock import patch
 
 from newsflow.editorial import upload_review_blockers
-from newsflow.pipeline import main
+from newsflow.pipeline import main, make_audio
 
 
 def valid_report():
@@ -95,6 +96,27 @@ class UploadReviewGateTests(unittest.TestCase):
         blockers = upload_review_blockers(report, True)
         self.assertIn("لا توجد أخبار مقبولة", blockers)
         self.assertIn("تقرير المراجعة ليس في حالة قابلة للمراجعة", blockers)
+
+    def test_newsflow_never_synthesizes_or_clones_voice(self):
+        with patch("newsflow.pipeline.urllib.request.urlopen") as urlopen:
+            with self.assertRaisesRegex(RuntimeError, "لا يُسمح بتوليد أو استنساخ الصوت آلياً"):
+                asyncio.run(make_audio("نص تجريبي", __import__("pathlib").Path("voice.mp3")))
+        urlopen.assert_not_called()
+
+    def test_private_test_render_is_blocked_before_oauth_until_original_voiceover_exists(self):
+        approvals = {
+            "YOUTUBE_UPLOAD_ENABLED": "true",
+            "NEWSFLOW_EDITORIAL_APPROVED": "true",
+            "NEWSFLOW_VISUAL_QA_APPROVED": "true",
+            "NEWSFLOW_PRIVATE_STAGING": "false",
+        }
+        with patch.dict(os.environ, approvals, clear=False):
+            with patch.object(sys, "argv", ["newsflow", "--private-test"]):
+                with patch("newsflow.pipeline.validate_youtube_auth") as auth:
+                    with self.assertRaises(SystemExit) as raised:
+                        main()
+        self.assertEqual(raised.exception.code, 2)
+        auth.assert_not_called()
 
 
 if __name__ == "__main__":
