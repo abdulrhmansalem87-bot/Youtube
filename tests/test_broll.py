@@ -1,6 +1,6 @@
 import unittest
 
-from newsflow.broll import MAX_SCENE_SECONDS, require_api_key, split_scene_durations
+from newsflow.broll import MAX_SCENE_SECONDS, clean_visual_text, require_api_key, split_scene_durations, _english_query
 
 
 class BrollPlanningTests(unittest.TestCase):
@@ -27,6 +27,18 @@ class BrollPlanningTests(unittest.TestCase):
             with self.subTest(values=values):
                 with self.assertRaises(ValueError):
                     split_scene_durations(values)
+
+    def test_visual_text_removes_invisible_directional_and_control_marks(self):
+        self.assertEqual(clean_visual_text("إنفيديا\\u2066 80%\\u2069"), "إنفيديا 80%")
+        self.assertEqual(clean_visual_text("  خبر\\u200f   مالي  "), "خبر مالي")
+
+    def test_broll_queries_match_specific_story_subjects(self):
+        self.assertEqual(_english_query({"title": "إنفيديا والذكاء الاصطناعي", "body": ""}),
+                         "semiconductor chip manufacturing data center")
+        self.assertEqual(_english_query({"title": "باينانس واختراق العملات المشفرة", "body": ""}),
+                         "cryptocurrency cybersecurity bitcoin")
+        self.assertEqual(_english_query({"title": "الاستحواذ على شركة بناء السفن ماير فيرفت", "body": ""}),
+                         "shipbuilding shipyard industrial")
 
     def test_missing_pexels_key_fails_closed(self):
         with self.assertRaisesRegex(RuntimeError, "PEXELS_API_KEY"):
