@@ -301,6 +301,394 @@ def collect(max_stories: int):
         story.pop("published_ts", None)
     return selected, rejected
 
+
+LOCAL_IMPACT_LOOKBACK_HOURS = 12
+LOCAL_IMPACT_TERMS = {
+    "الوقود والطاقة": (
+        "بنزين", "سولار", "وقود", "أسطوانة البوتاجاز", "اسطوانة البوتاجاز",
+        "أنبوبة البوتاجاز", "الغاز الطبيعي", "أسعار الغاز", "أسعار الوقود",
+        "سعر الوقود", "تسعيرة الوقود", "fuel prices", "fuel costs",
+    ),
+    "الكهرباء والمرافق": (
+        "الكهرباء", "فاتورة الكهرباء", "شرائح الكهرباء", "تعريفة الكهرباء",
+        "أسعار الكهرباء", "المياه", "فاتورة المياه", "تعريفة المياه",
+        "power tariff", "electricity prices",
+    ),
+    "أسعار السلع والغذاء": (
+        "الخبز", "رغيف العيش", "بطاقات التموين", "التموين", "السلع التموينية",
+        "أسعار السلع", "السلع الغذائية", "أسعار الغذاء", "السكر", "الأرز",
+        "الزيت", "اللحوم", "الدواجن", "البيض", "food prices",
+    ),
+    "الدخل والمعاشات": (
+        "المعاشات", "أصحاب المعاشات", "صرف المعاش", "صرف المرتبات",
+        "صرف الرواتب", "المرتبات", "الرواتب", "الأجور", "الحد الأدنى للأجور",
+        "العلاوة", "تكافل وكرامة", "minimum wage", "pensions",
+    ),
+    "الجنيه والبنوك والفائدة": (
+        "الجنيه المصري", "سعر الصرف", "سعر الدولار", "الدولار في مصر",
+        "البنك المركزي المصري", "البنك المركزي", "أسعار الفائدة",
+        "شهادات الادخار", "الودائع", "القروض", "التحويلات البنكية",
+        "رسوم السحب", "رسوم التحويل", "egyptian pound", "central bank of egypt",
+    ),
+    "الضرائب والرسوم الحكومية": (
+        "الضرائب", "ضريبة", "القيمة المضافة", "الجمارك", "رسوم الخدمات",
+        "رسوم التراخيص", "رسوم التسجيل", "الإعفاء الضريبي", "الرسوم الحكومية",
+        "customs fees", "tax changes",
+    ),
+    "المواصلات والخدمات": (
+        "تذاكر المترو", "أسعار تذاكر", "تذكرة المترو", "القطارات",
+        "السكة الحديد", "تعريفة المواصلات", "النقل العام", "رسوم الطرق",
+        "رسوم المرور", "باقات الإنترنت", "أسعار الإنترنت", "أسعار الاتصالات",
+        "باقات المحمول", "internet packages", "public transport fares",
+    ),
+    "السكن والإيجارات": (
+        "الإيجار القديم", "الإيجارات", "قانون الإيجار", "الإيجار السكني",
+        "زيادة الإيجار", "rent increases", "old rent law",
+    ),
+}
+LOCAL_IMPACT_ACTION_TERMS = (
+    "عاجل", "قرار", "قررت", "يقرر", "تقرر", "أعلن", "أعلنت", "إعلان",
+    "زيادة", "ارتفاع", "رفع", "خفض", "تخفيض", "تراجع", "تثبيت", "تعديل",
+    "تطبيق", "تنفيذ", "يبدأ", "تبدأ", "بدء", "اعتبارا من", "اعتبارًا من",
+    "غدا", "غدًا", "اليوم", "الليلة", "موعد", "مواعيد", "سعر", "أسعار",
+    "تعريفة", "رسوم", "إلغاء", "إيقاف", "وقف", "انقطاع", "تنقطع",
+    "صرف", "مهلة", "إعفاء", "تمديد", "إتاحة", "حظر", "مواعيد جديدة",
+    "effective", "increase", "decrease", "cut", "raise", "new price",
+    "new fees", "will take effect", "starts", "from tomorrow",
+)
+
+
+def local_impact_category(story: dict) -> str | None:
+    """Return a household-impact category only for concrete Egypt-facing changes."""
+    title = str(story.get("title", ""))
+    summary = str(story.get("summary", ""))
+    blob = f"{title} {summary}".casefold()
+    if not _has_any_local_term(blob, LOCAL_IMPACT_ACTION_TERMS):
+        return None
+    for category, terms in LOCAL_IMPACT_TERMS.items():
+        if _has_any_local_term(blob, terms):
+            return category
+    return None
+
+
+def _has_any_local_term(value: str, terms: tuple[str, ...]) -> bool:
+    normalized = str(value or "").casefold()
+    return any(term.casefold() in normalized for term in terms)
+
+
+def _local_story_is_usable(story: dict, now_ts: float, lookback_hours: float) -> tuple[bool, str]:
+    title = str(story.get("title", "")).strip()
+    summary = str(story.get("summary", "")).strip()
+    link = str(story.get("link", "")).strip()
+    if len(title) < 12:
+        return False, "عنوان الخبر قصير أو غير مكتمل"
+    if len(summary) < 45 or summary.endswith(("...", "…", "[...]")):
+        return False, "ملخص المصدر قصير أو مبتور"
+    parsed = urlparse(link)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return False, "رابط المصدر غير صالح"
+    published_ts = float(story.get("published_ts", 0) or 0)
+    if published_ts <= 0:
+        return False, "تاريخ النشر غير متاح؛ لا يمكن إثبات أن الخبر مباشر"
+    age = now_ts - published_ts
+    if age < -300 or age > lookback_hours * 3600:
+        return False, f"الخبر خارج نافذة التحديث المحلية ({lookback_hours:g} ساعة)"
+    category = local_impact_category(story)
+    if not category:
+        return False, "الخبر محلي لكنه لا يتضمن تغييراً مباشراً في الأسعار أو الخدمات أو دخل الأسر"
+    return True, category
+
+
+def collect_local_impact_stories(now: datetime | None = None) -> tuple[list[dict], list[dict]]:
+    """Run an independent, strict-freshness sweep over Egypt-local RSS feeds."""
+    now = now or datetime.now(timezone.utc)
+    now_ts = now.timestamp()
+    try:
+        lookback_hours = float(os.getenv(
+            "NEWSFLOW_LOCAL_LOOKBACK_HOURS", str(LOCAL_IMPACT_LOOKBACK_HOURS)
+        ))
+    except (TypeError, ValueError):
+        raise RuntimeError("NEWSFLOW_LOCAL_LOOKBACK_HOURS غير صالح.")
+    if not math.isfinite(lookback_hours) or lookback_hours <= 0:
+        raise RuntimeError("NEWSFLOW_LOCAL_LOOKBACK_HOURS يجب أن يكون رقماً موجباً.")
+
+    local_sources = [
+        source for source in config().get("sources", [])
+        if source.get("local_impact") is True
+    ]
+    candidates, rejected, seen = [], [], set()
+    for source in local_sources:
+        source_name = source.get("name", "مصدر محلي")
+        try:
+            parsed = feedparser.parse(source["url"])
+            if getattr(parsed, "bozo", False) and not parsed.entries:
+                rejected.append({"source": source_name, "reasons": ["تعذر قراءة موجز RSS"]})
+                continue
+            for entry in parsed.entries[:60]:
+                link = str(entry.get("link", "")).strip()
+                title = re.sub(r"\s+", " ", str(entry.get("title", ""))).strip()
+                if not title or not link or link in seen:
+                    continue
+                seen.add(link)
+                published_struct = entry.get("published_parsed") or entry.get("updated_parsed")
+                published_ts = (
+                    datetime(*published_struct[:6], tzinfo=timezone.utc).timestamp()
+                    if published_struct else 0
+                )
+                summary_candidates = [entry.get("summary", "")]
+                summary_detail = entry.get("summary_detail") or {}
+                summary_candidates.append(summary_detail.get("value", ""))
+                for item in entry.get("content", []) or []:
+                    if isinstance(item, dict):
+                        summary_candidates.append(item.get("value", ""))
+                raw_summary = max(
+                    summary_candidates, key=lambda value: len(str(value or "")), default=""
+                )
+                summary = html.unescape(
+                    re.sub(r"<[^>]+>", " ", str(raw_summary or ""))
+                )
+                summary = re.sub(r"\s+", " ", summary).strip()[:4000]
+                story = {
+                    "id": hashlib.sha256(link.encode()).hexdigest()[:12],
+                    "title": title,
+                    "link": link,
+                    "published": entry.get("published", entry.get("updated", "")),
+                    "published_ts": published_ts,
+                    "summary": summary,
+                    "source": source_name,
+                    "category": source.get("category", "أخبار مصر المحلية"),
+                    "local_impact_source": True,
+                }
+                usable, reason = _local_story_is_usable(story, now_ts, lookback_hours)
+                if usable:
+                    story["local_impact_category"] = reason
+                    candidates.append(story)
+                else:
+                    rejected.append({
+                        "id": story["id"], "title": title, "source": source_name,
+                        "reasons": [reason],
+                    })
+        except Exception as exc:
+            print(f"[LOCAL_IMPACT_WARN] تعذر جلب {source_name}: {type(exc).__name__}")
+            rejected.append({
+                "source": source_name,
+                "reasons": [f"تعذر جلب الموجز: {type(exc).__name__}"],
+            })
+    candidates.sort(key=lambda item: item.get("published_ts", 0), reverse=True)
+    return candidates, rejected
+
+
+def select_local_impact_story(
+    stories: list[dict], history: list[dict], excluded_stories: list[dict] | None = None
+) -> tuple[dict | None, list[dict]]:
+    """Select the freshest direct-impact story and attach independent matching sources."""
+    excluded = list(history or [])
+    excluded.extend(excluded_stories or [])
+    eligible, repeated = filter_recent_repeats(stories, excluded)
+    if not eligible:
+        return None, repeated
+
+    # Group nearly identical headlines from distinct publishers to retain corroboration.
+    best_story = None
+    best_sources: dict[str, dict] = {}
+    best_score = (-1, -1.0)
+    for story in eligible:
+        category = story.get("local_impact_category") or local_impact_category(story)
+        title = normalize_story_title(story.get("title", ""))
+        tokens = set(title.split())
+        matches = []
+        for other in eligible:
+            if other is story or other.get("local_impact_category") != category:
+                continue
+            other_title = normalize_story_title(other.get("title", ""))
+            other_tokens = set(other_title.split())
+            union = tokens | other_tokens
+            overlap = len(tokens & other_tokens) / len(union) if union else 0
+            ratio = difflib.SequenceMatcher(None, title, other_title).ratio()
+            if ratio >= 0.55 or overlap >= 0.34:
+                matches.append(other)
+        sources = {str(story.get("source") or "مصدر محلي"): {
+            "source": story.get("source"), "link": story.get("link")
+        }}
+        for match in matches:
+            sources[str(match.get("source") or match.get("link"))] = {
+                "source": match.get("source"), "link": match.get("link")
+            }
+        age = max(0.0, datetime.now(timezone.utc).timestamp() - float(story.get("published_ts", 0) or 0))
+        score = (len(sources), -age)
+        if score > best_score:
+            best_story, best_sources, best_score = story, sources, score
+
+    if not best_story:
+        return None, repeated
+    selected = dict(best_story)
+    selected["corroborating_sources"] = list(best_sources.values())
+    selected["corroboration_count"] = len(best_sources)
+    selected["local_impact_category"] = best_story.get("local_impact_category") or local_impact_category(best_story)
+    selected.pop("published_ts", None)
+    return selected, repeated
+
+
+def make_local_impact_short_script(story: dict) -> str:
+    """Build a direct Egypt-facing Short without inventing an effect not in the source."""
+    title = clean_narration(str(story.get("title", "")).strip())
+    summary = clean_narration(str(story.get("summary", "")).strip())
+    if not title or len(summary) < 45:
+        raise ValueError("لا يمكن إعداد فيديو محلي من عنوان أو ملخص غير مكتمل.")
+    summary = make_bulletin_summary(summary, limit=260)
+    source = clean_narration(str(story.get("source", "المصدر المحلي")))
+    return (
+        f"الخبر ده يهم الناس في مصر: {title}. "
+        f"بحسب {source}، {summary}. "
+        "خلّينا نفرّق بين التصريح والقرار اللي بدأ تنفيذه فعلاً. "
+        "راجع تاريخ التنفيذ والفئات اللي يشملها الخبر من المصدر الأصلي، "
+        "وما تعتمدش على عنوان متداول من غير تفاصيل. "
+        "هنفضل نتابع أي تحديث رسمي يغيّر الصورة. "
+        "تابع WealthRadar عشان توصلك الأخبار المحلية اللي تمس حياتك مباشرة."
+    )
+
+
+def build_local_impact_metadata(story: dict, script: str) -> tuple[str, str, list[str]]:
+    title_seed = clean_narration(str(story.get("title", "")).strip()).rstrip(" .،؛:؟!")
+    if len(title_seed) > 62:
+        title_seed = title_seed[:59].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+    title = f"{title_seed} | WealthRadar #Shorts"
+    category = str(story.get("local_impact_category") or local_impact_category(story) or "")
+    if category == "الوقود والطاقة":
+        topics = ("أسعار_الوقود", "الطاقة")
+    elif category == "الكهرباء والمرافق":
+        topics = ("الكهرباء", "خدمات_مصر")
+    elif category == "أسعار السلع والغذاء":
+        topics = ("أسعار_السلع", "تكلفة_المعيشة")
+    elif category == "الدخل والمعاشات":
+        topics = ("المعاشات", "المرتبات")
+    elif category == "الجنيه والبنوك والفائدة":
+        topics = ("الجنيه_المصري", "البنوك")
+    elif category == "الضرائب والرسوم الحكومية":
+        topics = ("قرارات_الحكومة", "الرسوم")
+    elif category == "المواصلات والخدمات":
+        topics = ("المواصلات", "خدمات_مصر")
+    else:
+        topics = ("الإيجارات", "اقتصاد_مصر")
+
+    sources = story.get("corroborating_sources") or [{
+        "source": story.get("source", "المصدر الأصلي"), "link": story.get("link", "")
+    }]
+    source_lines = "\n".join(
+        f"{index}. {item.get('source', 'مصدر محلي')}: {item.get('link', '')}"
+        for index, item in enumerate(sources, start=1)
+    )
+    description = (
+        f"تحديث محلي من مصر: {title_seed}.\n"
+        f"التصنيف: {category}. هذا الخبر مرتبط بتغيير أو خدمة تمس الأسر والمواطنين مباشرة.\n"
+        f"ملخص المصدر: {make_bulletin_summary(story.get('summary', ''), 420)}\n\n"
+        f"المصادر:\n{source_lines}\n\n"
+        "نتابع المعلومة من مصدرها وتاريخها، ونفرّق بين الإعلان الرسمي والتوقع أو المقترح. "
+        "ملاحظاتك بتساعدنا نطوّر WealthRadar. هذا محتوى إخباري وتوعوي وليس نصيحة مالية.\n\n"
+        f"#shorts #WealthRadar #{topics[0]} #{topics[1]}"
+    )
+    tags = ["WealthRadar", "Shorts", "أخبار مصر", "أخبار محلية", category, *topics]
+    return title[:100], description[:5000], tags[:30]
+
+
+def produce_local_impact_short(
+    story: dict, output: Path, upload_enabled: bool, auth_credentials=None
+) -> str | None:
+    """Render and optionally stage one separate Egypt-local impact Short as PRIVATE."""
+    folder = output / "local-impact"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "story.json").write_text(
+        json.dumps(story, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    script = make_local_impact_short_script(story)
+    (folder / "script.txt").write_text(script, encoding="utf-8")
+    audio = folder / "short.mp3"
+    video = folder / "short.mp4"
+    asyncio.run(make_audio(script, audio))
+    title, description, tags = build_local_impact_metadata(story, script)
+    (folder / "metadata.json").write_text(json.dumps({
+        "title": title, "description": description, "tags": tags,
+        "sources": story.get("corroborating_sources", []),
+        "local_impact_category": story.get("local_impact_category"),
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    make_video(title, audio, video, short=True, stories=[story])
+    validate_video(video, audio, expected_short=True)
+    ffprobe = shutil.which("ffprobe")
+    if not ffprobe:
+        raise RuntimeError("FFprobe غير متاح لفحص الفيديو المحلي")
+    probe = subprocess.run(
+        [ffprobe, "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
+        check=True, capture_output=True, text=True,
+    )
+    duration = float(probe.stdout.strip())
+    if not 35 <= duration <= 45:
+        raise RuntimeError(f"Short الخبر المحلي يجب أن يكون 35–45 ثانية؛ المدة {duration:.1f} ثانية.")
+    print(
+        f"[LOCAL_IMPACT_SHORT_READY] {video} duration={duration:.1f}s "
+        f"category={story.get('local_impact_category')} corroboration={story.get('corroboration_count', 1)}"
+    )
+    video_url = None
+    if upload_enabled:
+        video_url = youtube_upload(
+            video, title, description, tags,
+            privacy_override="private", credentials=auth_credentials
+        )
+        if video_url:
+            record_story_as_used(story, video_url)
+            print(f"[LOCAL_IMPACT_UPLOAD_VERIFIED] {video_url} privacy=private")
+    else:
+        print("[LOCAL_IMPACT_ARTIFACT_ONLY] YouTube upload is disabled")
+    return video_url
+
+
+def run_local_impact_sweep(
+    output: Path, upload_enabled: bool, auth_credentials=None,
+    excluded_stories: list[dict] | None = None,
+) -> str | None:
+    """After the regular episode, independently check for fresh Egypt-local impact news."""
+    try:
+        candidates, rejected = collect_local_impact_stories()
+    except Exception as exc:
+        print(f"[LOCAL_IMPACT_FAILED] {type(exc).__name__}: {exc}")
+        return None
+    (output / "local-impact").mkdir(parents=True, exist_ok=True)
+    (output / "local-impact" / "review.json").write_text(
+        json.dumps({
+            "candidate_count": len(candidates),
+            "rejected_count": len(rejected),
+            "rejected": rejected,
+        }, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    story, repeats = select_local_impact_story(
+        candidates, load_story_history(), excluded_stories=excluded_stories
+    )
+    if not story:
+        print(
+            f"[LOCAL_IMPACT_NONE] fresh_direct_impact=0 candidates={len(candidates)} "
+            f"rejected={len(rejected)} repeated={len(repeats)}"
+        )
+        return None
+    (output / "local-impact" / "review.json").write_text(
+        json.dumps({
+            "candidate_count": len(candidates),
+            "rejected_count": len(rejected),
+            "rejected": rejected,
+            "selected": story,
+            "repeat_rejections": repeats,
+            "fact_checking": "not_performed",
+            "human_review_required": True,
+        }, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(
+        f"[LOCAL_IMPACT_SELECTED] {story['title']} "
+        f"category={story['local_impact_category']} sources={story.get('corroboration_count', 1)}"
+    )
+    return produce_local_impact_short(
+        story, output, upload_enabled=upload_enabled, auth_credentials=auth_credentials
+    )
+
+
 def make_opening_hook(stories):
     """Lead with the strongest verified story in clear modern Arabic."""
     if not stories:
