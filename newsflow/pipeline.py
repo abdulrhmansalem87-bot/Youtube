@@ -194,7 +194,10 @@ def make_script(stories):
         "سنقدم الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
     ]
     for index, story in enumerate(stories, start=1):
-        summary = make_bulletin_summary(story.get("summary", ""))
+        # A one-story companion episode needs the fuller source detail, not a short bulletin excerpt.
+        summary = make_bulletin_summary(
+            story.get("summary", ""), limit=1800 if len(stories) == 1 else 500
+        )
         if not summary:
             summary = "لم يرفق المصدر ملخصاً كافياً لهذا الخبر؛ راجعوا الرابط الأصلي للتفاصيل."
         parts.append(
