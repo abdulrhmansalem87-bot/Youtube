@@ -64,6 +64,19 @@ class PipelineSelectionTests(unittest.TestCase):
         self.assertIn("التمييز بين التوقعات والتحقق الفعلي", script)
         self.assertIn("لا نبني قراراً مالياً على عنوان منفرد", script)
 
+    def test_companion_episode_keeps_deeper_details_from_the_same_story(self):
+        later_detail = "تفصيل جوهري من المصدر بعد الجزء المختصر"
+        story = {
+            "title": "تطور مالي محدد",
+            "summary": "مقدمة الخبر. " + ("تفاصيل وتحليلات موثقة. " * 35) + later_detail,
+            "source": "الجزيرة",
+        }
+        script = make_script([story])
+        self.assertIn(later_detail, script)
+        self.assertEqual(script.count("الخبر 1:"), 1)
+        self.assertNotIn("الخبر 2:", script)
+        self.assertGreaterEqual(len(script.split()), 300)
+
     def test_source_names_are_rendered_in_arabic(self):
         self.assertEqual(source_display_name("Al Jazeera"), "الجزيرة")
         self.assertEqual(
