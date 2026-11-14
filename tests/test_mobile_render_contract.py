@@ -32,7 +32,10 @@ class MobileRenderContractTests(unittest.TestCase):
 
         workflow = (ROOT / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
         self.assertIn('NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"', workflow)
-        self.assertIn('NEWSFLOW_MAX_STORIES: "4"', workflow)
+        self.assertIn(
+            "NEWSFLOW_MAX_STORIES: ${{ github.event_name == 'pull_request' && '1' || '4' }}",
+            workflow,
+        )
         self.assertIn("visual_qa_approved", workflow)
         self.assertIn("actions/cache/restore@v4", workflow)
         self.assertIn("actions/cache/save@v4", workflow)
