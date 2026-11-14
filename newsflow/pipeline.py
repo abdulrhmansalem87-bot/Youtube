@@ -247,7 +247,7 @@ def make_short_script(story):
     )
 
 
-def build_short_youtube_metadata(story, script):
+def build_short_youtube_metadata(story, script, long_video_url=None):
     """Short-specific title, two-line benefit summary, numbered source and four hashtags."""
     title_seed = clean_narration(story.get("title", "")).rstrip(" .،؛:؟!")
     if len(title_seed) > 62:
@@ -270,7 +270,9 @@ def build_short_youtube_metadata(story, script):
     description = (
         f"في هذا الفيديو نفهم ببساطة: {title_seed}.\n"
         f"ملخص الخبر: {summary}.\n\n"
-        f"المصادر:\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\n\n"
+        f"المصادر:\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\n"
+        + (f"الحلقة الكاملة التي تشرح تفاصيل هذا الخبر: {long_video_url}\n" if long_video_url else "")
+        + "\n"
         "بنحاول نقدّم لك المعلومة بأفضل صورة نقدر عليها، ولو حصلت هفوة بسيطة في الصوت فملاحظتك بتساعدنا نتحسن. "
         "بدعمك بنتطور سوا خطوة بخطوة. شكرًا إنك مع WealthRadar.\n\n"
         f"#shorts #WealthRadar #{topic.replace(' ', '_')} #{second_topic}"
