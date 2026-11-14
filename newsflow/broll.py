@@ -160,8 +160,17 @@ def _overlay(card: dict, path: Path, width: int, height: int) -> None:
     brand_font = ImageFont.truetype(brand_path, max(26, int(width * 0.027)))
     title_font = ImageFont.truetype(_font(True), max(34, int(width * (0.036 if width > height else 0.048))))
     body_font = ImageFont.truetype(_font(False), max(23, int(width * (0.019 if width > height else 0.029))))
-    draw.text((width // 2, int(height * 0.075)), "WealthRadar", font=brand_font,
-              fill=(255, 255, 255, 245), anchor="mm")
+    brand_x, brand_y = width // 2, int(height * 0.075)
+    brand_box = draw.textbbox((brand_x, brand_y), "WealthRadar", font=brand_font, anchor="mm")
+    brand_pad_x, brand_pad_y = max(14, width // 100), max(8, height // 180)
+    draw.rounded_rectangle(
+        (brand_box[0] - brand_pad_x, brand_box[1] - brand_pad_y,
+         brand_box[2] + brand_pad_x, brand_box[3] + brand_pad_y),
+        radius=max(10, width // 100), fill=(5, 17, 31, 205),
+        outline=(52, 205, 190, 220), width=max(1, width // 900),
+    )
+    draw.text((brand_x, brand_y), "WealthRadar", font=brand_font,
+              fill=(255, 255, 255, 255), anchor="mm")
     title = str(card.get("title") or "").strip()[:125]
     body = str(card.get("body") or "").strip()[:180]
     def lines_for(text: str, font: ImageFont.FreeTypeFont, limit: int) -> list[str]:
