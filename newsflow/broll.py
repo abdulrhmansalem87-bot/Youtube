@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
+import unicodedata
 import shutil
 import subprocess
 import tempfile
@@ -73,6 +75,9 @@ def _request_json(url: str, api_key: str) -> dict:
 def _english_query(card: dict) -> str:
     text = f"{card.get('title', '')} {card.get('body', '')}".casefold()
     terms = (
+        (("إنفيديا", "رقائق", "أشباه الموصلات", "الذكاء الاصطناعي", "معالجات", "nvidia", "semiconductor", "chip", "artificial intelligence"), "semiconductor chip manufacturing data center"),
+        (("ماير", "سفن", "السفن", "أحواض", "بناء السفن", "shipyard", "shipbuilding", "cruise ship"), "shipbuilding shipyard industrial"),
+        (("باينانس", "عملات مشفرة", "اختراق", "بيتكوين", "بلوك تشين", "binance", "crypto", "bitcoin", "blockchain", "cybersecurity"), "cryptocurrency cybersecurity bitcoin"),
         (("ذهب", "gold"), "gold bullion trading"),
         (("دولار", "عملة", "currency", "exchange"), "currency exchange finance"),
         (("تضخم", "أسعار", "inflation", "consumer"), "grocery shopping price inflation"),
@@ -135,16 +140,28 @@ def _download(url: str, destination: Path) -> None:
 
 def _font(bold: bool = False) -> str:
     candidates = (
-        ["/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+        ["/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
+         "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
          "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
         if bold else
-        ["/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        ["/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
+         "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
          "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
     )
     for path in candidates:
         if Path(path).is_file():
             return path
     raise RuntimeError("لم يتم العثور على خط عربي مناسب للكتابة فوق لقطات B-roll.")
+
+
+def clean_visual_text(value: str) -> str:
+    """Normalize Arabic overlay text and remove invisible bidi/control marks that render as tofu."""
+    normalized = unicodedata.normalize("NFC", str(value or ""))
+    visible = "".join(
+        char for char in normalized
+        if unicodedata.category(char) not in {"Cf", "Cc", "Cs"}
+    )
+    return re.sub(r"\s+", " ", visible).strip()
 
 
 def _overlay(card: dict, path: Path, width: int, height: int) -> None:
@@ -177,8 +194,8 @@ def _overlay(card: dict, path: Path, width: int, height: int) -> None:
     )
     draw.text((brand_x, brand_y), "WealthRadar", font=brand_font,
               fill=(255, 255, 255, 255), anchor="mm")
-    title = str(card.get("title") or "").strip()[:125]
-    body = str(card.get("body") or "").strip()[:180]
+    title = clean_visual_text(card.get("title"))[:125]
+    body = clean_visual_text(card.get("body"))[:180]
     def lines_for(text: str, font: ImageFont.FreeTypeFont, limit: int) -> list[str]:
         rows, current = [], ""
         for word in text.split():
