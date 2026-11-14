@@ -327,8 +327,8 @@ def make_bulletin_summary(value, limit=500):
 
 def make_script(stories):
     parts = [
-        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar.",
         make_opening_hook(stories),
+        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar.",
         "سنقدم الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
     ]
     for index, story in enumerate(stories, start=1):
