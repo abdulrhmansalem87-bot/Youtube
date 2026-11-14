@@ -153,6 +153,18 @@ def _font(bold: bool = False) -> str:
             return path
     raise RuntimeError("لم يتم العثور على خط عربي مناسب للكتابة فوق لقطات B-roll.")
 
+def _font_for_text(value: str, bold: bool = False) -> str:
+    """Choose a font with Latin glyph coverage for mixed Arabic/Latin captions."""
+    if re.search(r"[A-Za-z]", str(value or "")):
+        latin_path = (
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+            if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+        )
+        if Path(latin_path).is_file():
+            return latin_path
+    return _font(bold)
+
+
 
 def clean_visual_text(value: str) -> str:
     """Normalize Arabic overlay text and remove invisible bidi/control marks that render as tofu."""
@@ -181,8 +193,6 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     if not Path(brand_path).is_file():
         brand_path = _font(True)
     brand_font = ImageFont.truetype(brand_path, max(26, int(width * 0.027)))
-    title_font = ImageFont.truetype(_font(True), max(34, int(width * (0.036 if width > height else 0.048))))
-    body_font = ImageFont.truetype(_font(False), max(23, int(width * (0.019 if width > height else 0.029))))
     brand_x, brand_y = width // 2, int(height * 0.075)
     brand_box = draw.textbbox((brand_x, brand_y), "WealthRadar", font=brand_font, anchor="mm")
     brand_pad_x, brand_pad_y = max(14, width // 100), max(8, height // 180)
@@ -201,6 +211,14 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     else:
         title = clean_visual_text(card.get("title"))[:125]
         body = clean_visual_text(card.get("body"))[:180]
+    title_font = ImageFont.truetype(
+        _font_for_text(title, True),
+        max(34, int(width * (0.036 if width > height else 0.048))),
+    )
+    body_font = ImageFont.truetype(
+        _font_for_text(body, False),
+        max(23, int(width * (0.019 if width > height else 0.029))),
+    )
     def lines_for(text: str, font: ImageFont.FreeTypeFont, limit: int) -> list[str]:
         rows, current = [], ""
         for word in text.split():
