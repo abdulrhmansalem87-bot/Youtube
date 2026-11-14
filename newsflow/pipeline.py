@@ -114,8 +114,18 @@ def collect(max_stories: int):
                 published = entry.get("published", entry.get("updated", ""))
                 published_struct = entry.get("published_parsed") or entry.get("updated_parsed")
                 published_ts = datetime(*published_struct[:6], tzinfo=timezone.utc).timestamp() if published_struct else 0
-                summary = re.sub(r"<[^>]+>", " ", entry.get("summary", ""))
-                summary = re.sub(r"\s+", " ", summary).strip()[:280]
+                # Prefer the fullest RSS payload (content:encoded/content) over the
+                # short display summary. The previous 280-character slice truncated
+                # otherwise usable stories and caused editorial review to reject them.
+                summary_candidates = [entry.get("summary", "")]
+                summary_detail = entry.get("summary_detail") or {}
+                summary_candidates.append(summary_detail.get("value", ""))
+                for content_item in entry.get("content", []) or []:
+                    if isinstance(content_item, dict):
+                        summary_candidates.append(content_item.get("value", ""))
+                raw_summary = max(summary_candidates, key=lambda value: len(str(value or "")), default="")
+                summary = html.unescape(re.sub(r"<[^>]+>", " ", str(raw_summary or "")))
+                summary = re.sub(r"\\s+", " ", summary).strip()[:4000]
                 stories.append({
                     "id": hashlib.sha256(link.encode()).hexdigest()[:12],
                     "title": title, "link": link, "published": published,
