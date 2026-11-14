@@ -97,9 +97,8 @@ jobs:
           count=$(find output/bulletin/.render_cache output/bulletin/shorts/.render_cache -type f -name manifest.json 2>/dev/null | wc -l)
           echo "[RENDER_CACHE_RESTORE] manifests=$count"
       - name: Run NewsFlow
-        # PR runs execute a full dry-run render with secrets available only to this same-repository PR;
-        # the command below keeps YouTube uploads disabled unless explicit manual approvals are supplied.
-        if: always()
+        # Never render after failed tests; PR runs remain upload-disabled review renders.
+        if: success()
         env:
           NEWSFLOW_MAX_STORIES: "4"
           # Give the editorial selector a full day of eligible financial coverage.
