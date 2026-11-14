@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -32,7 +33,7 @@ def split_scene_durations(durations: list[float], maximum: float = MAX_SCENE_SEC
     result: list[tuple[int, float]] = []
     for index, raw in enumerate(durations):
         total = float(raw)
-        if total <= 0:
+        if not math.isfinite(total) or total <= 0:
             raise ValueError("مدة المشهد يجب أن تكون أكبر من صفر.")
         count = max(1, int((total + maximum - 0.001) // maximum))
         chunk = round(total / count, 3)
