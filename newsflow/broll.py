@@ -250,52 +250,64 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                 "scene_seconds_max": MAX_SCENE_SECONDS, "sources": []}
     with tempfile.TemporaryDirectory(prefix="wealthradar-broll-") as temp_dir:
         work = Path(temp_dir)
-        footage_by_card: dict[int, list[Path]] = {}
+        # Render one FFmpeg process per story card, not one process per 2.5s shot.
+        # The old per-shot encoding launched dozens/hundreds of FFmpeg processes for
+        # a 4-minute episode and could exceed the 45-minute GitHub job limit.
+        segments: list[Path] = []
         for card_index in sorted({index for index, _ in scene_plan}):
             card = cards[card_index]
             query = _english_query(card)
             candidates = _search_videos(query, api_key, portrait)
-            paths = []
-            for candidate_index, candidate in enumerate(candidates[:3]):
-                source = work / f"source-{card_index}-{candidate_index}.mp4"
-                _download(candidate["url"], source)
-                paths.append(source)
-                manifest["sources"].append({
-                    "query": query, "video_id": candidate.get("id"),
-                    "photographer": candidate.get("photographer"),
-                    "source_page": candidate.get("page"),
-                })
-            footage_by_card[card_index] = paths
+            candidate = candidates[0]
+            source = work / f"source-{card_index}.mp4"
+            _download(candidate["url"], source)
+            manifest["sources"].append({
+                "query": query, "video_id": candidate.get("id"),
+                "photographer": candidate.get("photographer"),
+                "source_page": candidate.get("page"),
+            })
 
-        segments: list[Path] = []
-        usage: dict[int, int] = {}
-        for index, (card_index, seconds) in enumerate(scene_plan):
-            sources = footage_by_card[card_index]
-            cursor = usage.get(card_index, 0)
-            source = sources[cursor % len(sources)]
-            usage[card_index] = cursor + 1
-            overlay = work / f"overlay-{index:04d}.png"
-            segment = work / f"segment-{index:04d}.mp4"
-            _overlay(cards[card_index], overlay, width, height, caption_index=cursor)
-            offset = ((cursor // len(sources)) * MAX_SCENE_SECONDS) % 12
-            filter_graph = (
-                f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height},setsar=1[bg];[bg][1:v]overlay=0:0:format=auto,"
-                "format=yuv420p"
-            )
-            command = [
-                ffmpeg, "-y", "-stream_loop", "-1", "-ss", f"{offset:.2f}",
-                "-i", str(source), "-loop", "1", "-i", str(overlay),
-                "-t", f"{seconds:.3f}", "-filter_complex", filter_graph,
+            card_shots = [(shot_index, seconds) for shot_index, (idx, seconds)
+                          in enumerate(scene_plan) if idx == card_index]
+            card_duration = sum(seconds for _, seconds in card_shots)
+            overlays: list[Path] = []
+            elapsed = 0.0
+            filter_parts = [
+                f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                f"crop={width}:{height},setsar=1[base]"
+            ]
+            previous_label = "base"
+            for local_index, (shot_index, seconds) in enumerate(card_shots):
+                overlay = work / f"overlay-{card_index}-{local_index:04d}.png"
+                _overlay(card, overlay, width, height, caption_index=local_index)
+                overlays.append(overlay)
+                next_label = f"v{local_index + 1}"
+                filter_parts.append(
+                    f"[{previous_label}][{local_index + 1}:v]"
+                    f"overlay=0:0:format=auto:enable='between(t,{elapsed:.3f},{elapsed + seconds:.3f})'"
+                    f"[{next_label}]"
+                )
+                previous_label = next_label
+                elapsed += seconds
+
+            segment = work / f"card-{card_index:04d}.mp4"
+            command = [ffmpeg, "-y", "-stream_loop", "-1", "-i", str(source)]
+            for overlay in overlays:
+                command.extend(["-loop", "1", "-i", str(overlay)])
+            command.extend([
+                "-filter_complex", ";".join(filter_parts),
+                "-map", f"[{previous_label}]", "-t", f"{card_duration:.3f}",
                 "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
                 "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
                 str(segment),
-            ]
+            ])
             try:
-                subprocess.run(command, check=True, capture_output=True, text=True, timeout=240)
+                subprocess.run(command, check=True, capture_output=True, text=True, timeout=600)
             except subprocess.CalledProcessError as exc:
-                detail = (exc.stderr or "")[-900:]
-                raise RuntimeError(f"فشل تركيب لقطة B-roll رقم {index + 1}: {detail}") from None
+                detail = (exc.stderr or "")[-1200:]
+                raise RuntimeError(f"فشل تركيب B-roll للقصة رقم {card_index + 1}: {detail}") from None
+            except subprocess.TimeoutExpired:
+                raise RuntimeError(f"انتهت مهلة تركيب B-roll للقصة رقم {card_index + 1} بعد 10 دقائق.") from None
             segments.append(segment)
 
         concat = work / "concat.txt"
