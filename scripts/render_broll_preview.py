@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
-
-from newsflow.broll import render_broll_video
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from newsflow.broll import render_broll_video
 OUT = ROOT / "output" / "broll-preview"
 
 
