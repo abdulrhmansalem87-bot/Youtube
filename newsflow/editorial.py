@@ -167,7 +167,7 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
 def upload_review_blockers(
     report: dict, editorial_approved: bool, *, private_staging: bool = False
 ) -> list[str]:
-    """Fail closed for every upload; private staging never bypasses owner approval."""
+    """Fail closed for public/manual uploads; scheduled private staging is an owner-review queue."""
     blockers = []
     if not editorial_approved and not private_staging:
         blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
