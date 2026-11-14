@@ -283,7 +283,7 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                 overlay_lines.extend([f"file '{escaped}'", f"duration {seconds:.6f}"])
             # concat demuxer needs the final still repeated to honor its duration.
             overlay_lines.append(overlay_lines[-2])
-            overlay_list.write_text("\\n".join(overlay_lines) + "\\n", encoding="utf-8")
+            overlay_list.write_text("\n".join(overlay_lines) + "\n", encoding="utf-8")
 
             segment = work / f"card-{card_index:04d}.mp4"
             command = [
