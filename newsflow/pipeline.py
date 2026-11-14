@@ -662,12 +662,17 @@ def main():
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy after manual approvals")
     parser.add_argument("--private-staging", action="store_true", help="Scheduled production: render bulletin and Shorts and upload as PRIVATE for owner review")
+    parser.add_argument("--shorts-only", action="store_true", help="Render and stage one story-specific Short only; never render the long bulletin")
     args = parser.parse_args()
     args.max_stories = clamp_max_stories(args.max_stories)
     if (args.private_test or args.private_staging) and args.dry_run:
         parser.error("Private production modes cannot be combined with --dry-run")
     if args.private_test and args.private_staging:
         parser.error("Choose either manual private-test or scheduled private-staging, not both")
+    if args.shorts_only and not args.private_staging:
+        parser.error("--shorts-only is restricted to PRIVATE staging")
+    if args.shorts_only and args.private_test:
+        parser.error("--shorts-only cannot be combined with --private-test")
     if not args.dry_run and not args.private_test and not args.private_staging:
         parser.error("الرندر الكامل محظور؛ استخدم --dry-run أو وضع PRIVATE المعتمد.")
     staging_env = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
@@ -737,6 +742,42 @@ def main():
         json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     if args.dry_run:
+        return
+
+    if args.shorts_only:
+        # Reuse the already-proven Fish Audio + NewsFlow vertical renderer.
+        # This path deliberately creates exactly one story-specific Short and no long video.
+        shorts_dir = bulletin / "shorts"
+        shorts_dir.mkdir(exist_ok=True)
+        story = stories[0]
+        short_script = make_short_script(story)
+        short_audio = shorts_dir / "short-1.mp3"
+        short_video = shorts_dir / "short-1.mp4"
+        asyncio.run(make_audio(short_script, short_audio))
+        short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
+        make_video(short_title, short_audio, short_video, short=True, stories=[story])
+        validate_video(short_video, short_audio, expected_short=True)
+        ffprobe = shutil.which("ffprobe")
+        if not ffprobe:
+            raise RuntimeError("FFprobe غير متاح للتحقق من مدة Short")
+        short_probe = subprocess.run(
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(short_audio)],
+            check=True, capture_output=True, text=True,
+        )
+        short_duration = float(short_probe.stdout.strip())
+        if not 35 <= short_duration <= 45:
+            raise RuntimeError(
+                f"مدة Short يجب أن تكون بين 35 و45 ثانية؛ المدة الحالية {short_duration:.1f} ثانية."
+            )
+        print(f"[SHORT_READY] {short_video} duration={short_duration:.1f}s story={story['id']}")
+        if upload_enabled:
+            youtube_upload(
+                short_video, short_title, short_description, short_tags,
+                privacy_override="private", credentials=auth_credentials
+            )
+        else:
+            print("[SAFE] Short rendered but not uploaded; upload approval is disabled.")
         return
 
     audio = bulletin / "voice.mp3"

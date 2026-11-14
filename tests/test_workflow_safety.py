@@ -78,7 +78,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('inputs.editorial_approved', visual_upload_approval)
         self.assertIn('inputs.visual_qa_approved', visual_upload_approval)
 
-    def test_shorts_private_upload_requires_explicit_editorial_approval(self):
+    def test_shorts_workflow_uses_the_proven_fish_audio_pipeline(self):
         import yaml
 
         workflow_path = (
@@ -89,46 +89,33 @@ class WorkflowSafetyTests(unittest.TestCase):
             workflow_path.read_text(encoding="utf-8"),
             Loader=yaml.BaseLoader,
         )
-        dispatch_inputs = workflow["on"]["workflow_dispatch"]["inputs"]
-        self.assertEqual(dispatch_inputs["editorial_approved"]["default"], "false")
-        self.assertEqual(dispatch_inputs["editorial_approved"]["required"], "true")
-
+        self.assertIn("workflow_dispatch", workflow["on"])
+        self.assertNotIn("schedule", workflow["on"])
         steps = workflow["jobs"]["produce"]["steps"]
-        upload = next(
+        render = next(
             step for step in steps
-            if step.get("name") == "Upload WealthRadar Short privately"
+            if step.get("name") == "Render one Short with the cloned WealthRadar voice and upload privately"
         )
-        self.assertIn("inputs.upload_private", upload["if"])
-        self.assertIn("inputs.editorial_approved", upload["if"])
-        self.assertIn("--upload-private", upload["run"])
+        self.assertEqual(render["run"], "python -m newsflow --private-staging --shorts-only --max-stories 1")
+        self.assertEqual(render["env"]["FISH_AUDIO_MODEL"], "s2.1-pro-free")
+        self.assertEqual(render["env"]["YOUTUBE_PRIVACY_STATUS"], "private")
+        self.assertEqual(render["env"]["NEWSFLOW_PRIVATE_STAGING"], "true")
+        self.assertEqual(render["env"]["YOUTUBE_UPLOAD_ENABLED"], "true")
+        self.assertIn("secrets.FISH_AUDIO_API_KEY", render["env"]["FISH_AUDIO_API_KEY"])
+        self.assertIn("secrets.FISH_AUDIO_REFERENCE_ID", render["env"]["FISH_AUDIO_REFERENCE_ID"])
+        self.assertIn("shorts-only", render["run"])
 
-        gate = next(
-            step for step in steps
-            if step.get("name") == "Explain private upload approval gate"
-        )
-        self.assertIn("!inputs.editorial_approved", gate["if"])
-
-    def test_shorts_workflow_requires_explicit_real_plan_for_render(self):
-        import yaml
-
-        workflow_path = (
+    def test_newsflow_shorts_only_is_private_and_does_not_render_long_video(self):
+        pipeline = (
             Path(__file__).resolve().parents[1]
-            / ".github" / "workflows" / "wealthradar-shorts.yml"
-        )
-        workflow = yaml.load(
-            workflow_path.read_text(encoding="utf-8"),
-            Loader=yaml.BaseLoader,
-        )
-        inputs = workflow["on"]["workflow_dispatch"]["inputs"]
-        self.assertEqual(inputs["validate_only"]["default"], "true")
-        self.assertEqual(inputs["plan_path"]["default"], "wealthradar/production.example.json")
-        steps = workflow["jobs"]["produce"]["steps"]
-        resolve = next(step for step in steps if step.get("name") == "Resolve production plan")
-        script = resolve["run"]
-        self.assertIn("if [ -z \"$PLAN_PATH\" ]", script)
-        self.assertIn("wealthradar/production.example.json", script)
-        self.assertIn("VALIDATE_ONLY", resolve["env"])
-        self.assertIn("if [ ! -f \"$PLAN_PATH\" ]", script)
+            / "newsflow" / "pipeline.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('parser.add_argument("--shorts-only"', pipeline)
+        self.assertIn('if args.shorts_only and not args.private_staging:', pipeline)
+        self.assertIn('if args.shorts_only:', pipeline)
+        self.assertIn('privacy_override="private"', pipeline)
+        self.assertIn('[SHORT_READY]', pipeline)
+
 
 
 if __name__ == "__main__":
