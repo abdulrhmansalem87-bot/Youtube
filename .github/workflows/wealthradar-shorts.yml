@@ -91,9 +91,6 @@ jobs:
         if: ${{ !inputs.validate_only }}
         env:
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
-          FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
-          FISH_AUDIO_MODEL: s2.1-pro-free
         run: python -m wealthradar_shorts --plan "$WEALTHRADAR_PLAN"
       - name: Explain private upload approval gate
         if: ${{ github.event_name == 'workflow_dispatch' && !inputs.validate_only && inputs.upload_private && !inputs.editorial_approved }}
