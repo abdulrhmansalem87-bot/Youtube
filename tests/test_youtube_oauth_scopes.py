@@ -3,7 +3,6 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from newsflow.pipeline import create_youtube_credentials
