@@ -1,6 +1,9 @@
 import unittest
+import tempfile
+from pathlib import Path
+from PIL import features
 
-from newsflow.broll import MAX_SCENE_SECONDS, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text
+from newsflow.broll import MAX_SCENE_SECONDS, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text, _overlay
 
 
 class BrollPlanningTests(unittest.TestCase):
@@ -42,6 +45,16 @@ class BrollPlanningTests(unittest.TestCase):
                          "cryptocurrency cybersecurity bitcoin")
         self.assertEqual(_english_query({"title": "الاستحواذ على شركة بناء السفن ماير فيرفت", "body": ""}),
                          "shipbuilding shipyard industrial")
+
+    @unittest.skipUnless(features.check("raqm"), "Arabic RAQM shaping is unavailable")
+    def test_overlay_caption_changes_between_short_shots(self):
+        card = {"captions": ["حركة الأسواق اليوم", "ما أثر الخبر على الأسعار؟", "راقب الأرقام قبل القرار"]}
+        with tempfile.TemporaryDirectory() as directory:
+            first = Path(directory) / "first.png"
+            second = Path(directory) / "second.png"
+            _overlay(card, first, 1920, 1080, caption_index=0)
+            _overlay(card, second, 1920, 1080, caption_index=1)
+            self.assertNotEqual(first.read_bytes(), second.read_bytes())
 
     def test_missing_pexels_key_fails_closed(self):
         with self.assertRaisesRegex(RuntimeError, "PEXELS_API_KEY"):
