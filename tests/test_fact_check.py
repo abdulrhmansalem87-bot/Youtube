@@ -246,9 +246,13 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
             "status": "readable",
             "article_text": "نص أصلي كامل " * 100,
         }]
+        story = {
+            "id": "story-1",
+            "link": "https://original-publisher.example/article",
+        }
         with patch("newsflow.fact_check.urlopen") as opened:
             report = fact_check_stories(
-                [self.story], mismatched_evidence, api_key="test-secret"
+                [story], mismatched_evidence, api_key="test-secret"
             )
         opened.assert_not_called()
         self.assertEqual(report["status"], "needs_review")
