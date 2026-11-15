@@ -490,9 +490,9 @@ def append_broll_attribution(description, video_path):
             break
     if not credits:
         raise RuntimeError("لا توجد روابط إسناد صالحة لمقاطع Pexels؛ أوقفنا تجهيز وصف النشر.")
-    attribution = "لقطات الفيديو المتحركة المرخّصة من Pexels (Pexels License):\\n" + "\\n".join(credits)
+    attribution = "لقطات الفيديو المتحركة المرخّصة من Pexels (Pexels License):\n" + "\n".join(credits)
     base = str(description or "").strip()
-    return (base[:3900] + "\\n\\n" + attribution)[:5000]
+    return (base[:3900] + "\n\n" + attribution)[:5000]
 
 
 def make_video(title, audio, output, short=False, stories=None, portrait=None):
@@ -768,7 +768,7 @@ def main():
     editorial_report.update({
         "voice_source": "tts",
         "presenter_source": "none",
-        "broll_source": "pending",
+        "broll_source": "none",
     })
     editorial_report["rejected"].extend(filtered_stories)
     editorial_report["rejected_count"] += len(filtered_stories)
