@@ -3,10 +3,13 @@ import tempfile
 from pathlib import Path
 from PIL import features
 
-from newsflow.broll import MAX_SCENE_SECONDS, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text, _overlay, _select_distinct_candidates
+from newsflow.broll import MAX_SCENE_SECONDS, PEXELS_API, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text, _overlay, _select_distinct_candidates
 
 
 class BrollPlanningTests(unittest.TestCase):
+    def test_uses_current_official_pexels_video_search_endpoint(self):
+        self.assertEqual(PEXELS_API, "https://api.pexels.com/v1/videos/search")
+
     def test_long_audio_is_split_into_short_moving_shots(self):
         plan = split_scene_durations([12.0, 7.0, 2.0])
         self.assertTrue(all(seconds <= MAX_SCENE_SECONDS for _, seconds in plan))
