@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, features
 
-PEXELS_API = "https://api.pexels.com/videos/search"
+PEXELS_API = "https://api.pexels.com/v1/videos/search"
 MAX_SCENE_SECONDS = 2.5
 MIN_SCENE_SECONDS = 1.5
 MAX_BROLL_CLIPS_PER_CARD = 4
