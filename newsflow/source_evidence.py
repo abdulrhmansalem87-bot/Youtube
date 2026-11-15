@@ -67,7 +67,7 @@ class ArticleTextParser(HTMLParser):
         if tag == "title":
             self.in_title = False
         if self.capture_tag == tag:
-            value = re.sub(r"\\s+", " ", " ".join(self.capture_parts)).strip()
+            value = re.sub(r"\s+", " ", " ".join(self.capture_parts)).strip()
             if len(value) >= 25:
                 self.paragraphs.append(value)
             self.capture_tag = None
@@ -76,7 +76,7 @@ class ArticleTextParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self.skip_depth:
             return
-        text = re.sub(r"\\s+", " ", data).strip()
+        text = re.sub(r"\s+", " ", data).strip()
         if not text:
             return
         if self.in_title:
@@ -95,9 +95,9 @@ class ArticleTextParser(HTMLParser):
                 paragraphs.append(paragraph)
         title = self.meta_og_title or " ".join(self.page_title_parts)
         return {
-            "page_title": re.sub(r"\\s+", " ", title).strip()[:500],
+            "page_title": re.sub(r"\s+", " ", title).strip()[:500],
             "meta_description": self.meta_description[:1200],
-            "article_text": "\\n\\n".join(paragraphs)[:MAX_ARTICLE_CHARS],
+            "article_text": "\n\n".join(paragraphs)[:MAX_ARTICLE_CHARS],
         }
 
 
