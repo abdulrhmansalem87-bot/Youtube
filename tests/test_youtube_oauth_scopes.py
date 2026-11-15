@@ -1,4 +1,6 @@
+import json
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -40,8 +42,19 @@ class YouTubeOAuthScopeTests(unittest.TestCase):
         }
         build.return_value.videos.return_value.insert.return_value = fake_request
 
-        with patch.dict(os.environ, OAUTH_ENV):
-            upload_private_video(Path("unused.mp4"), "WealthRadar private smoke test")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            metadata = {
+                "voice_source": "owner_recording",
+                "presenter_source": "owner_video",
+                "broll_source": "pexels",
+                "broll_scene_count": 18,
+            }
+            (root / "render_metadata.json").write_text(
+                json.dumps(metadata), encoding="utf-8"
+            )
+            with patch.dict(os.environ, OAUTH_ENV):
+                upload_private_video(root / "WealthRadar-Short.mp4", "WealthRadar private smoke test")
 
         scopes = set(credentials_class.call_args.kwargs["scopes"])
         self.assertIn("https://www.googleapis.com/auth/youtube.upload", scopes)
