@@ -28,6 +28,11 @@ def main() -> None:
         "heading": "اختبار B-roll",
         "title": "حركة الأسواق والاقتصاد",
         "body": "لقطات فيديو حقيقية متغيرة مع نص عربي واضح وصوت تجريبي",
+        "captions": [
+            "حركة الأسواق اليوم",
+            "ما أثر الخبر على الأسعار؟",
+            "راقب الأرقام قبل القرار",
+        ],
     }]
     for portrait, name in ((False, "landscape"), (True, "portrait")):
         target = OUT / f"{name}-broll-preview.mp4"
