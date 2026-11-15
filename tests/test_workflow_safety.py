@@ -91,6 +91,10 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("8-hour history cache", workflow)
         self.assertIn("github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("cancel-in-progress:", workflow)
+        self.assertIn(
+            "if: always() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true')",
+            workflow,
+        )
 
     def test_shorts_workflow_uses_the_proven_fish_audio_pipeline(self):
         import yaml
