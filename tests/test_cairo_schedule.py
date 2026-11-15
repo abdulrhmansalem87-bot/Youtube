@@ -34,10 +34,11 @@ class CairoScheduleTests(unittest.TestCase):
         now = datetime(2026, 11, 14, 16, 45, tzinfo=timezone.utc)
         self.assertFalse(resolve_schedule_slot("0 13 * * *", now)["run"])
 
-    def test_non_schedule_events_continue(self):
+    def test_non_schedule_events_are_not_treated_as_daily_slots(self):
         result = resolve_schedule_slot("")
-        self.assertTrue(result["run"])
+        self.assertFalse(result["run"])
         self.assertEqual(result["lookback_hours"], 4)
+        self.assertEqual(result["reason"], "not a scheduled event")
 
 
 if __name__ == "__main__":
