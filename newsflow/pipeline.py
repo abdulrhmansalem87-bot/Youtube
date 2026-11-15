@@ -175,7 +175,7 @@ def make_opening_hook(stories):
 
 def make_script(stories):
     parts = [
-        "أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar.",
+        "أهلاً بكم. إليكم أهم الأخبار الاقتصادية والمالية، ببساطة ووضوح.",
         make_opening_hook(stories),
         "سنقدم الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
     ]
@@ -231,7 +231,7 @@ def make_script(stories):
         "روابط المصادر في وصف الفيديو، وقد تتغير الأرقام مع صدور بيانات جديدة. "
         "تذكّروا أن الأخبار والمعلومات الواردة من المصادر قد تتغير، "
         "وأن هذا الموجز لا يمثل نصيحة استثمارية. "
-        "ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس."
+        "تابعوا التحديثات القادمة، وشاركونا آراءكم وتعليقاتكم."
     )
     return "\n\n".join(parts)
 
@@ -253,7 +253,7 @@ def make_short_script(story):
         f"خليني أبسطهالك: {summary} "
         "المهم هنا تتابع الرقم أو القرار الرسمي، لأن تأثيره بيختلف حسب ظروف كل شخص. "
         "إنت شايف التطور ده هيأثر على قراراتك المالية؟ اكتب رأيك، "
-        "وده محتوى توعوي مش توصية استثمارية. وابعت الفيديو لحد يهمه الموضوع واشترك في WealthRadar."
+        "وده محتوى توعوي، مش توصية استثمارية. ابعت الفيديو لحد يهمه الموضوع، واكتب رأيك في التعليقات."
     )
 
 
@@ -262,7 +262,7 @@ def build_short_youtube_metadata(story, script):
     title_seed = clean_narration(story.get("title", "")).rstrip(" .،؛:؟!")
     if len(title_seed) > 62:
         title_seed = title_seed[:59].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
-    title = f"{title_seed} | WealthRadar #Shorts"
+    title = f"{title_seed} | #Shorts"
     summary = clean_narration(story.get("summary", ""))[:220].rsplit(" ", 1)[0]
     topic = "الاقتصاد"
     second_topic = "الأسواق"
@@ -281,8 +281,7 @@ def build_short_youtube_metadata(story, script):
         f"في هذا الفيديو نفهم ببساطة: {title_seed}.\n"
         f"ملخص الخبر: {summary}.\n\n"
         f"المصادر:\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\n\n"
-        "بنحاول نقدّم لك المعلومة بأفضل صورة نقدر عليها، ولو حصلت هفوة بسيطة في الصوت فملاحظتك بتساعدنا نتحسن. "
-        "بدعمك بنتطور سوا خطوة بخطوة. شكرًا إنك مع WealthRadar.\n\n"
+        "نحرص على تقديم المعلومة بوضوح، مع ذكر المصادر حتى تراجع التفاصيل بنفسك. شكرًا لمتابعتك.\n\n"
         f"#shorts #WealthRadar #{topic.replace(' ', '_')} #{second_topic}"
     )
     tags = ["WealthRadar", "Shorts", "أخبار اقتصادية", topic, second_topic]
@@ -297,9 +296,9 @@ def build_youtube_metadata(stories, script):
         lead_title = lead_title.rstrip(" .،؛:؟!")
         if len(lead_title) > 65:
             lead_title = lead_title[:62].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
-        title = f"{lead_title} | التفاصيل التي تهمك | WealthRadar"
+        title = f"{lead_title} | التفاصيل التي تهمك"
     else:
-        title = "أهم تطورات المال والأسواق اليوم | WealthRadar"
+        title = "أهم تطورات المال والأسواق اليوم"
     text_blob = " ".join(
         f"{item.get('title', '')} {item.get('summary', '')} {item.get('category', '')}"
         for item in stories
@@ -327,16 +326,15 @@ def build_youtube_metadata(stories, script):
         hashtags.append("#البورصة")
     else:
         hashtags.append("#الاقتصاد")
+    hashtags.append("#الأسواق")
     source_lines = "\n".join(
         f"{i}. {item['source']}: {item['link']}"
         for i, item in enumerate(stories, start=1)
     )
     description = (
-        "موجز WealthRadar اليومي لأهم تطورات المال والاقتصاد والأسواق. "
-        "عناوين واضحة ومصادر مباشرة لمساعدتك على متابعة ما يحدث.\n\n"
+        "أهم تطورات المال والاقتصاد والأسواق. عناوين واضحة ومصادر مباشرة لمتابعة ما يحدث.\n\n"
         + script + "\n\nمصادر الأخبار وروابطها:\n" + source_lines
-        + "\n\nبنحاول نقدّم لك المعلومة بأفضل صورة نقدر عليها، ولو حصلت هفوة بسيطة في الصوت فملاحظتك بتساعدنا نتحسن. "
-        + "بدعمك بنتطور سوا خطوة بخطوة. شكرًا إنك مع WealthRadar.\n\n"
+        + "\n\nنحرص على تقديم المعلومة بوضوح، مع ذكر المصادر حتى تراجع التفاصيل بنفسك. شكرًا لمتابعتك.\n\n"
         + "هذا المحتوى إخباري وتثقيفي، ولا يُعد توصية أو نصيحة استثمارية. "
         + "تحقق من المصدر الأصلي قبل اتخاذ أي قرار مالي.\n\n"
         + " ".join(hashtags)
@@ -464,7 +462,7 @@ def caption_phrases(value, words_per_caption=4):
     return [
         " ".join(words[index:index + words_per_caption])
         for index in range(0, len(words), words_per_caption)
-    ] or ["WealthRadar"]
+    ] or ["تابع التفاصيل"]
 
 
 def append_broll_attribution(description, video_path):
@@ -498,7 +496,7 @@ def append_broll_attribution(description, video_path):
 def add_private_review_notice(description):
     """Mark a private staging upload as an owner-review copy, not public-ready."""
     notice = (
-        "نسخة مراجعة خاصة لقناة WealthRadar — ليست معتمدة للنشر العام بعد. "
+        "نسخة مراجعة خاصة — ليست معتمدة للنشر العام بعد. "
         "التحقق المستقل من الوقائع ومراجعة المصادر مطلوبان قبل إتاحتها للعامة."
     )
     base = str(description or "").strip()
@@ -534,11 +532,11 @@ def make_video(title, audio, output, short=False, stories=None, portrait=None):
             "body": story_summary[:180] or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
             "captions": caption_phrases(f"{story_title}. {story_summary[:1800]}"),
         })
-    closing = "تابع المصدر الأصلي وقارن المعلومات قبل أي قرار مالي واشترك في WealthRadar"
+    closing = "تابع المصدر الأصلي، وقارن المعلومات قبل أي قرار مالي."
     cards.append({
         "heading": "الخلاصة",
         "title": "قبل أي قرار مالي",
-        "body": "تابع المصدر الأصلي وقارن المعلومات. اشترك في WealthRadar وفعّل زر الجرس لمتابعة الموجز القادم.",
+        "body": "تابع المصدر الأصلي، وقارن المعلومات قبل أي قرار مالي.",
         "captions": caption_phrases(closing),
     })
 
