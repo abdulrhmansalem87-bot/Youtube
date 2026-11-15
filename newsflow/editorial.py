@@ -178,7 +178,7 @@ def upload_review_blockers(
     private_staging: bool = False,
     require_broll: bool = True,
 ) -> list[str]:
-    """Separate private owner-review staging from approval to publish publicly."""
+    """Require independent fact-checking before rendering or uploading any media."""
     blockers = []
     if not editorial_approved and not private_staging:
         blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
@@ -194,10 +194,10 @@ def upload_review_blockers(
     if warning_count > 0 or report.get("warnings"):
         blockers.append("توجد تحذيرات تحريرية غير محسومة")
 
-    # Independent fact checking remains mandatory before public release.
-    # Private review drafts are not public and are clearly marked as pending review.
-    if not private_staging and report.get("fact_checking") != "verified":
-        blockers.append("التحقق المستقل من الوقائع لم يكتمل")
+    # Private staging is still a rendered video and can mislead reviewers or be
+    # accidentally shared. Never create media from unverified claims.
+    if report.get("fact_checking") != "verified":
+        blockers.append("التحقق المستقل من الوقائع لم يكتمل؛ أوقفنا إنتاج الصوت والفيديو")
 
     # Use the channel owner's original recording or their own authorized voice clone.
     if report.get("voice_source") not in {"owner_recording", "owner_voice_clone"}:
