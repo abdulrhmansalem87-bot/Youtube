@@ -187,7 +187,13 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
     margin = int(width * 0.055)
-    panel_top = int(height * (0.60 if width > height else 0.68))
+    captions = card.get("captions")
+    caption_only = isinstance(captions, list) and bool(captions)
+    # When only a short caption is displayed, keep the lower-third compact so
+    # it does not obscure a large part of the licensed footage on mobile.
+    panel_top = int(height * (0.76 if width > height else 0.82)) if caption_only else int(
+        height * (0.60 if width > height else 0.68)
+    )
     panel_bottom = int(height * 0.94)
     draw.rounded_rectangle(
         (margin, panel_top, width - margin, panel_bottom),
@@ -209,7 +215,6 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     )
     draw.text((brand_x, brand_y), "WealthRadar", font=brand_font,
               fill=(255, 255, 255, 255), anchor="mm")
-    captions = card.get("captions")
     if isinstance(captions, list) and captions:
         title = clean_visual_text(captions[min(caption_index, len(captions) - 1)])[:90]
         body = ""
@@ -241,16 +246,22 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     max_width = width - margin * 3
     title_lines = lines_for(title, title_font, max_width)[:2]
     body_lines = lines_for(body, body_font, max_width)[:2]
-    y = panel_top + int((panel_bottom - panel_top) * 0.16)
+    title_step = max(1, int(title_font.size * 1.3))
+    body_step = max(1, int(body_font.size * 1.35))
+    body_gap = int(body_font.size * 0.45) if body_lines else 0
+    text_block_height = len(title_lines) * title_step + body_gap + len(body_lines) * body_step
+    y = panel_top + max(0, (panel_bottom - panel_top - text_block_height) // 2)
+    y += title_step // 2
     for line in title_lines:
         draw.text((width // 2, y), line, font=title_font, fill=(255, 255, 255, 255),
                   anchor="mm", direction="rtl", language="ar")
-        y += int(title_font.size * 1.3)
-    y += int(body_font.size * 0.45)
+        y += title_step
+    if body_lines:
+        y += body_gap - title_step // 2 + body_step // 2
     for line in body_lines:
         draw.text((width // 2, y), line, font=body_font, fill=(196, 222, 232, 255),
                   anchor="mm", direction="rtl", language="ar")
-        y += int(body_font.size * 1.35)
+        y += body_step
     image.save(path)
 
 
