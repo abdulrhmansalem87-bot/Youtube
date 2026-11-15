@@ -131,7 +131,8 @@ def _annotation_sources(response: dict) -> list[dict]:
                     continue
                 url = _clean_url(annotation.get("url", ""))
                 domain = _registrable_domain(url)
-                if not url or not domain or domain in BLOCKED_SOURCE_ROOTS:
+                blocked_labels = {"google", "bing", "duckduckgo", "wikipedia", "reddit", "quora", "facebook", "instagram", "tiktok", "twitter", "x", "youtube"}
+        if not url or not domain or domain in BLOCKED_SOURCE_ROOTS or domain.split(".")[0] in blocked_labels:
                     continue
                 if url in seen:
                     continue
@@ -243,7 +244,7 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
         "model": model,
         "reasoning": {"effort": "medium"},
         "tools": [{"type": "web_search", "search_context_size": "high"}],
-        "tool_choice": "auto",
+        "tool_choice": "required",
         "max_output_tokens": 3500,
         "text": {
             "format": {
