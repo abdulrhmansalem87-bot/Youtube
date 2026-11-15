@@ -75,7 +75,7 @@ class UploadReviewGateTests(unittest.TestCase):
             self.assertEqual(report["presenter_source"], "none")
             self.assertEqual(report["broll_source"], "none")
             blockers = upload_review_blockers(report, True, private_staging=True)
-            self.assertTrue(any("تسجيلاً أصلياً" in item for item in blockers))
+            self.assertTrue(any("مصدر التعليق الصوتي" in item for item in blockers))
             self.assertFalse(any("المقدم الأصلي" in item for item in blockers))
             self.assertTrue(any("B-roll" in item for item in blockers))
 
