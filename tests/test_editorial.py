@@ -64,13 +64,13 @@ class EditorialReviewTests(unittest.TestCase):
         }])
         self.assertEqual(report["accepted_count"], 0)
         self.assertEqual(report["rejected_count"], 1)
-        self.assertIn("قصة تهريب أو أمن", report["rejected"][0]["reasons"][0])
+        self.assertIn("أمني أو جنائي", report["rejected"][0]["reasons"][0])
 
     def test_rejects_security_crime_finance_keyword_without_summary_evidence(self):
         report = review_stories([{
             "id": "profit-fraud-security",
             "title": "اتهامات بتزوير الأرباح تفتح تحقيقاً جنائياً",
-            "summary": "تبحث السلطات في اتهامات تتعلق بمستندات داخل الشركة دون ذكر أثر على النتائج أو السوق.",
+            "summary": "تبحث السلطات في مستندات داخل الشركة وتراجع الإجراءات المرتبطة بالقضية.",
             "link": "https://example.com/profit-fraud",
             "source": "مصدر إخباري",
             "category": "اقتصاد وأسواق",
