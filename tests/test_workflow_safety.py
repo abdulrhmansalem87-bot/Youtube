@@ -82,7 +82,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("EVENT_SCHEDULE:", workflow)
         self.assertIn("Report Cairo schedule decision", workflow)
         self.assertIn("validation-only; no video render or YouTube upload", workflow)
-        self.assertIn("pull_request || github.event_name == 'workflow_dispatch'", workflow)
+        self.assertIn("github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("cancel-in-progress:", workflow)
 
     def test_shorts_workflow_uses_the_proven_fish_audio_pipeline(self):
