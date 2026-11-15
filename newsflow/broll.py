@@ -103,6 +103,9 @@ def _search_videos(query: str, api_key: str, portrait: bool) -> list[dict]:
     payload = _request_json(f"{PEXELS_API}?{params}", api_key)
     candidates = []
     for video in payload.get("videos", []):
+        video_duration = float(video.get("duration") or 0)
+        if video_duration < MAX_SCENE_SECONDS:
+            continue
         files = video.get("video_files", [])
         matching = []
         for item in files:
@@ -121,6 +124,7 @@ def _search_videos(query: str, api_key: str, portrait: bool) -> list[dict]:
         candidates.append({
             "id": video.get("id"),
             "url": matching[0][1],
+            "duration": video_duration,
             "photographer": video.get("user", {}).get("name", ""),
             "page": video.get("url", ""),
         })
@@ -340,8 +344,8 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                 f"{concat_inputs}concat=n={clip_count}:v=1:a=0[outv]"
             )
             loop_command = [ffmpeg, "-y"]
-            for source in source_paths:
-                loop_command.extend(["-stream_loop", "-1", "-i", str(source)])
+            for source, seconds in zip(source_paths, loop_durations):
+                loop_command.extend(["-t", f"{seconds:.3f}", "-i", str(source)])
             loop_command.extend([
                 "-filter_complex", ";".join(filter_parts),
                 "-map", "[outv]",
