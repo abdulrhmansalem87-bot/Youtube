@@ -1,9 +1,14 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from urllib.error import HTTPError
 
 from wealthradar_shorts.pipeline import (
     require_pexels_api_key,
+    require_owner_identity_metadata,
+    upload_private_video,
     stock_footage_error,
     validate_plan,
     validate_video_probe,
@@ -119,6 +124,67 @@ class WealthRadarBrollSafetyTests(unittest.TestCase):
         self.assertIn("HTTP 403", str(error))
         self.assertIn("قيود المفتاح", str(error))
         self.assertIn("لا يمكن تجاوز الرفض برمجياً", str(error))
+
+
+class WealthRadarUploadIdentityTests(unittest.TestCase):
+    def test_rejects_missing_render_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            video = Path(directory) / "WealthRadar-Short.mp4"
+            with self.assertRaisesRegex(RuntimeError, "سجل مصادر الرندر غير موجود"):
+                require_owner_identity_metadata(video)
+
+    def test_private_upload_blocks_missing_identity_before_oauth(self):
+        with tempfile.TemporaryDirectory() as directory:
+            video = Path(directory) / "WealthRadar-Short.mp4"
+            with self.assertRaisesRegex(RuntimeError, "سجل مصادر الرندر غير موجود"):
+                upload_private_video(video, "WealthRadar private smoke test")
+
+    def test_rejects_tts_or_missing_owner_presenter(self):
+        cases = [
+            ({"voice_source": "tts", "presenter_source": "owner_video",
+              "broll_source": "pexels", "broll_scene_count": 18}, "TTS مسموح للمعاينة فقط"),
+            ({"voice_source": "owner_recording", "presenter_source": "none",
+              "broll_source": "pexels", "broll_scene_count": 18}, "لا يوجد فيديو أصلي"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            video = root / "WealthRadar-Short.mp4"
+            metadata_path = root / "render_metadata.json"
+            for metadata, expected in cases:
+                with self.subTest(expected=expected):
+                    metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+                    with self.assertRaisesRegex(RuntimeError, expected):
+                        require_owner_identity_metadata(video)
+
+    def test_rejects_missing_or_unlicensed_broll(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            video = root / "WealthRadar-Short.mp4"
+            metadata_path = root / "render_metadata.json"
+            metadata = {
+                "voice_source": "owner_recording",
+                "presenter_source": "owner_video",
+                "broll_source": "none",
+                "broll_scene_count": 18,
+            }
+            metadata_path.write_text(json.dumps(metadata), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "B-roll المرخصة"):
+                require_owner_identity_metadata(video)
+
+    def test_accepts_only_owner_voice_video_and_licensed_broll(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            video = root / "WealthRadar-Short.mp4"
+            metadata = {
+                "voice_source": "owner_recording",
+                "presenter_source": "owner_video",
+                "broll_source": "pexels",
+                "broll_scene_count": 18,
+            }
+            (root / "render_metadata.json").write_text(
+                json.dumps(metadata), encoding="utf-8"
+            )
+            self.assertEqual(require_owner_identity_metadata(video), metadata)
 
 
 class WealthRadarRenderedVideoTests(unittest.TestCase):
