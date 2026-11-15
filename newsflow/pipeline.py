@@ -830,6 +830,21 @@ def make_script(stories):
     return "\\n\\n".join(parts)
 
 
+MIN_COMPANION_SUMMARY_CHARS = 1200
+
+
+def select_companion_story(stories: list[dict]) -> dict:
+    """Choose the newest accepted story with enough source detail for a 4–8 minute episode."""
+    for story in stories:
+        summary = clean_narration(story.get("summary", ""))
+        if len(summary) >= MIN_COMPANION_SUMMARY_CHARS:
+            return story
+    raise RuntimeError(
+        "لا يوجد خبر بملخص مصدري كافٍ لإعداد حلقة من 4 إلى 8 دقائق؛ "
+        "أوقفنا الإنتاج بدلاً من حشو الحلقة بمعلومات عامة أو غير موثقة."
+    )
+
+
 def make_short_script(story):
     """Create a concise, source-grounded Arabic Short designed for 35–45 seconds."""
     title = clean_narration(str(story.get("title", "")).strip())
@@ -1376,7 +1391,10 @@ def main():
 
     # The long episode is a multi-story bulletin. Its lead story is also the source
     # for the companion Short, so both formats stay editorially connected.
-    companion_story = stories[0]
+    companion_story = (
+        stories[0] if args.dry_run or args.shorts_only
+        else select_companion_story(stories)
+    )
     companion_stories = [companion_story]
     # The companion long episode must explain the exact same single lead story as its Short.
     bulletin_stories = [companion_story]
