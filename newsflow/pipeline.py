@@ -230,6 +230,21 @@ def record_story_as_used(story: dict, video_url: str) -> None:
     os.replace(temporary, path)
 
 
+def upload_short_and_record_story(
+    video: Path, title: str, description: str, tags: list[str],
+    story: dict, credentials=None, *, record_history: bool = True,
+) -> str | None:
+    """Upload a Short as PRIVATE and persist its story only after YouTube verifies it."""
+    video_url = youtube_upload(
+        video, title, description, tags,
+        privacy_override="private", credentials=credentials,
+    )
+    if video_url and record_history:
+        record_story_as_used(story, video_url)
+        print(f"[HISTORY_RECORDED] story={story.get('id')} after PRIVATE Short upload")
+    return video_url
+
+
 def caption_phrases(value: str, words_per_caption: int = 4) -> list[str]:
     """Make short Arabic captions that refresh on each moving B-roll cut."""
     words = clean_narration(value).split()
@@ -1447,9 +1462,9 @@ def main():
             )
         print(f"[SHORT_READY] {short_video} duration={short_duration:.1f}s story={story['id']}")
         if upload_enabled:
-            youtube_upload(
+            upload_short_and_record_story(
                 short_video, short_title, short_description, short_tags,
-                privacy_override="private", credentials=auth_credentials
+                story, credentials=auth_credentials,
             )
         else:
             print("[SAFE] Short rendered but not uploaded; upload approval is disabled.")
@@ -1541,9 +1556,10 @@ def main():
                 )
             print(f"[SHORT_READY] {short_video} duration={short_duration:.1f}s story={story['id']}")
             if upload_enabled:
-                youtube_upload(
+                upload_short_and_record_story(
                     short_video, short_title, short_description, short_tags,
-                    privacy_override="private" if args.private_staging else os.getenv("YOUTUBE_PRIVACY_STATUS", "private"), credentials=auth_credentials
+                    story, credentials=auth_credentials,
+                    record_history=not bool(long_video_url),
                 )
 
 
