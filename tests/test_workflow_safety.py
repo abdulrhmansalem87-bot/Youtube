@@ -58,6 +58,10 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("visual_qa_approved:", workflow)
         self.assertIn("newsflow-pr-{0}", workflow)
         self.assertIn("newsflow-schedule", workflow)
+        self.assertIn(
+            "contains(github.event.head_commit.message, '[private-stage]') && 'newsflow-schedule'",
+            workflow,
+        )
         self.assertIn("newsflow-manual", workflow)
         self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow)
         self.assertIn('default: true', workflow)
