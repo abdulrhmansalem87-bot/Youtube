@@ -66,6 +66,33 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["rejected_count"], 1)
         self.assertIn("قصة تهريب أو أمن", report["rejected"][0]["reasons"][0])
 
+    def test_rejects_security_crime_finance_keyword_without_summary_evidence(self):
+        report = review_stories([{
+            "id": "profit-fraud-security",
+            "title": "اتهامات بتزوير الأرباح تفتح تحقيقاً جنائياً",
+            "summary": "تبحث السلطات في اتهامات تتعلق بمستندات داخل الشركة دون ذكر أثر على النتائج أو السوق.",
+            "link": "https://example.com/profit-fraud",
+            "source": "مصدر إخباري",
+            "category": "اقتصاد وأسواق",
+            "published": "2026-11-14",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+        self.assertIn("أمني أو جنائي", report["rejected"][0]["reasons"][0])
+
+    def test_accepts_security_story_when_summary_proves_direct_oil_market_impact(self):
+        report = review_stories([{
+            "id": "oil-smuggling-market",
+            "title": "اتهامات بتهريب النفط تثير مخاوف بشأن السوق",
+            "summary": "تتعلق القضية بصادرات النفط والإيرادات الحكومية وتكاليف الشحن والتأمين في السوق.",
+            "link": "https://example.com/oil-market",
+            "source": "مصدر اقتصادي",
+            "category": "اقتصاد وأسواق",
+            "published": "2026-11-14",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["rejected_count"], 0)
+
     def test_bulletin_script_covers_multiple_accepted_stories(self):
         script = make_script([
             {
