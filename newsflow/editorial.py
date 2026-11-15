@@ -75,6 +75,11 @@ DIRECT_FINANCE_TITLE_TERMS = tuple(
     if term.casefold() not in GENERIC_ECONOMIC_TERMS
 ) + ("أسواق", "الأسواق", "السوق", "سوق")
 
+SECURITY_OR_CRIME_TERMS = (
+    "تهريب", "اتهامات", "اتهام", "نفوذ أمني", "ميليشيا", "مسلح",
+    "smuggling", "trafficking", "militia", "armed group",
+)
+
 
 def _has_term(text: str, terms: tuple[str, ...]) -> bool:
     value = (text or "").casefold()
@@ -91,27 +96,14 @@ def relevance(story: dict) -> tuple[bool, str]:
     political_hit = _has_term(title, POLITICAL_TITLE_TERMS)
     direct_finance_hit = _has_term(title, DIRECT_FINANCE_TITLE_TERMS)
 
-    # A generic mention of oil is not enough to turn a security/crime story into
-    # a finance item. Require an explicit commercial, price, production or trade angle.
-    oil_smuggling_without_market_angle = (
-        _has_term(title, ("تهريب النفط", "تهريب نفط", "oil smuggling"))
-        and not _has_term(title, (
-            "أسعار النفط", "سعر النفط", "صادرات النفط", "واردات النفط",
-            "إنتاج النفط", "تجارة النفط", "سوق النفط", "شركات النفط",
-            "إيرادات النفط", "عوائد النفط", "النفط الخام", "عقود النفط",
-            "oil prices", "oil exports", "oil imports", "oil production",
-            "oil trade", "oil market", "crude oil", "oil revenue",
-        ))
-    )
-    if oil_smuggling_without_market_angle:
-        return False, "قصة تهريب أو أمن لا تتضمن زاوية سوقية أو تجارية مباشرة للنفط"
-
     if _has_term(title, ENERGY_INFRASTRUCTURE_ONLY_TERMS) and not _has_term(f"{title} {summary}", DIRECT_ENERGY_FINANCE_TERMS):
         return False, "تغطية لانقطاع أو بنية تحتية للطاقة دون أثر مالي مباشر؛ لا تكفي وحدها لتصنيف الخبر اقتصادياً"
     if political_hit and not direct_finance_hit:
         return False, "عنوان سياسي عام؛ الإشارة الاقتصادية غير كافية لتصنيفه خبراً مالياً"
     if sport_hit and not title_finance_hit:
         return False, "عنوان رياضي لا يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
+    if title_finance_hit and _has_term(title, SECURITY_OR_CRIME_TERMS) and not summary_finance_hit:
+        return False, "عنوان أمني أو جنائي يستخدم مصطلحاً مالياً دون أن يدعم الملخص أثراً اقتصادياً مباشراً"
     if title_finance_hit:
         return True, "عنوان الخبر يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
     if category in EXPLICIT_FINANCE_CATEGORIES and summary_finance_hit:
@@ -182,7 +174,7 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
 def upload_review_blockers(
     report: dict, editorial_approved: bool, *, private_staging: bool = False
 ) -> list[str]:
-    """Fail closed for public/manual uploads; scheduled private staging is an owner-review queue."""
+    """Require independent fact verification for every upload, including PRIVATE staging."""
     blockers = []
     if not editorial_approved and not private_staging:
         blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
@@ -197,6 +189,6 @@ def upload_review_blockers(
         blockers.append("لا توجد أخبار مقبولة")
     if warning_count > 0 or report.get("warnings"):
         blockers.append("توجد تحذيرات تحريرية غير محسومة")
-    if report.get("fact_checking") != "verified" and not private_staging:
+    if report.get("fact_checking") != "verified":
         blockers.append("التحقق المستقل من الوقائع لم يكتمل")
     return blockers
