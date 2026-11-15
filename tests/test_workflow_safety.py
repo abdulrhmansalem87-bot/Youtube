@@ -50,11 +50,10 @@ class WorkflowSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "restricted to PRIVATE"):
             resolve_upload_privacy("public")
 
-    def test_scheduled_runs_are_validation_only_and_never_auto_upload(self):
+    def test_scheduled_runs_upload_only_private_review_drafts(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
-        manual_upload_gate = "YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && 'true' || 'false' }}"
-        self.assertIn(manual_upload_gate, workflow)
-        self.assertIn('NEWSFLOW_PRIVATE_STAGING: "false"', workflow)
+        self.assertIn("YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'schedule'", workflow)
+        self.assertIn("NEWSFLOW_PRIVATE_STAGING: ${{ (github.event_name == 'schedule'", workflow)
         self.assertIn("NEWSFLOW_EDITORIAL_APPROVED:", workflow)
         self.assertIn("visual_qa_approved:", workflow)
         self.assertIn("newsflow-pr-{0}", workflow)
@@ -64,8 +63,8 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('default: true', workflow)
         self.assertIn("python -m newsflow --dry-run", workflow)
         self.assertIn("python -m newsflow --private-test", workflow)
-        self.assertNotIn("python -m newsflow --private-staging", workflow)
-        self.assertNotIn("NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'schedule'", workflow)
+        self.assertIn("python -m newsflow --private-staging", workflow)
+        self.assertIn("[private-stage]", workflow)
         self.assertIn("github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true'", workflow)
         self.assertIn("github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn('NEWSFLOW_UPLOAD_SINGLE_LONG: "false"', workflow)
@@ -87,7 +86,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("NEWSFLOW_RECORD_DRAFT_HISTORY:", workflow)
         self.assertIn("NEWSFLOW_HISTORY_FILE: output/history/used_stories.json", workflow)
         self.assertIn("wealthradar-story-history-${{ runner.os }}-v1-", workflow)
-        self.assertIn("render long + Shorts with licensed Pexels B-roll; YouTube upload remains disabled", workflow)
+        self.assertIn("render and upload long + Shorts as PRIVATE owner-review drafts; never public automatically", workflow)
         self.assertIn("8-hour history cache", workflow)
         self.assertIn("github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("cancel-in-progress:", workflow)
