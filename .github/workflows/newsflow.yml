@@ -56,7 +56,7 @@ permissions:
 
 concurrency:
   # Keep production schedule/manual runs independent from push validation and PR previews.
-  group: ${{ github.event_name == 'pull_request' && format('newsflow-pr-{0}', github.event.pull_request.number) || (github.event_name == 'schedule' && 'newsflow-schedule') || (github.event_name == 'workflow_dispatch' && 'newsflow-manual') || format('newsflow-validation-{0}', github.ref) }}
+  group: ${{ github.event_name == 'pull_request' && format('newsflow-pr-{0}', github.event.pull_request.number) || (github.event_name == 'schedule' && 'newsflow-schedule') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]') && 'newsflow-schedule') || (github.event_name == 'workflow_dispatch' && 'newsflow-manual') || format('newsflow-validation-{0}', github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
