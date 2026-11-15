@@ -26,7 +26,7 @@ def resolve_schedule_slot(schedule: str, now: datetime | None = None) -> dict:
     they must never be interpreted as a due production slot.
     """
     current = now or datetime.now(timezone.utc)
-    if current.tzinfo is None:
+    if current.tzinfo is None or current.utcoffset() is None:
         raise ValueError("now must be timezone-aware")
     local = current.astimezone(CAIRO)
     local_offset = local.utcoffset() or timedelta(0)
@@ -56,7 +56,8 @@ def resolve_schedule_slot(schedule: str, now: datetime | None = None) -> dict:
 
     target_hour, expected_offset, lookback_hours = slot
     offset_matches = local_offset == timedelta(hours=expected_offset)
-    minutes_from_target = (local.hour - target_hour) * 60 + local.minute
+    target_local = local.replace(hour=target_hour, minute=0, second=0, microsecond=0)
+    minutes_from_target = int((local - target_local).total_seconds() // 60)
 
     if not offset_matches:
         reason = (
