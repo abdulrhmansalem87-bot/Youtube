@@ -84,7 +84,7 @@ jobs:
       - name: Resolve Cairo schedule slot
         id: cairo_schedule
         env:
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
         run: python -m newsflow.schedule "$EVENT_SCHEDULE" >> "$GITHUB_OUTPUT"
       - name: Render real-story landscape and portrait phone previews
         if: github.event_name == 'pull_request'
