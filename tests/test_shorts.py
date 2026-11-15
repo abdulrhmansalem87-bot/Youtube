@@ -15,13 +15,24 @@ class ShortScriptTests(unittest.TestCase):
         script = make_short_script(story)
         self.assertIn(story["title"], script)
         self.assertIn(story["summary"], script)
-        self.assertTrue(script.startswith("الخبر ده ممكن يفرق في فهمك لفلوسك:"))
+        self.assertTrue(script.startswith(story["title"] + "."))
         self.assertNotIn("أهلاً بكم", script)
         self.assertIn("WealthRadar", script)
         self.assertIn("مش توصية استثمارية", script)
         self.assertIn("اكتب رأيك", script)
         self.assertIn("ابعت الفيديو", script)
         self.assertIn("اشترك في WealthRadar", script)
+        self.assertLessEqual(len(script), 620)
+
+    def test_long_source_summary_is_compacted_for_short_duration(self):
+        story = {
+            "title": "البنك المركزي يثبت أسعار الفائدة",
+            "summary": "قرر البنك تثبيت أسعار الفائدة مع استمرار متابعة التضخم وتطورات الأسواق. " * 12,
+            "source": "وكالة الأنباء",
+        }
+        script = make_short_script(story)
+        self.assertLessEqual(len(script), 620)
+        self.assertIn("تابع المصدر والرقم الرسمي", script)
 
     def test_main_script_uses_requested_channel_opening(self):
         script = make_script([{
@@ -29,7 +40,7 @@ class ShortScriptTests(unittest.TestCase):
             "summary": "ارتفع التضخم الأساسي في الولايات المتحدة خلال أكتوبر.",
             "source": "Reuters",
         }])
-        self.assertTrue(script.startswith("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar"))
+        self.assertLess(script.index("التضخم الأمريكي يضغط على الأسواق"), script.index("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar"))
 
     def test_short_rejects_incomplete_summary(self):
         with self.assertRaises(ValueError):

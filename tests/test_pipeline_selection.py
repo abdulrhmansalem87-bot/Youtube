@@ -1,6 +1,10 @@
 import unittest
+from datetime import datetime, timezone
 
-from newsflow.pipeline import clamp_max_stories, make_script, select_stories, source_display_name, validate_audio_duration
+from newsflow.pipeline import (
+    caption_phrases, clamp_max_stories, filter_recent_repeats, make_script,
+    select_companion_story, select_stories, source_display_name, validate_audio_duration,
+)
 
 
 class PipelineSelectionTests(unittest.TestCase):
@@ -25,6 +29,40 @@ class PipelineSelectionTests(unittest.TestCase):
         self.assertEqual(len(selected), 4)
         self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3"])
         self.assertEqual(rejected, [])
+
+    def test_recently_uploaded_story_is_not_selected_again(self):
+        now = datetime(2026, 11, 15, 0, 30, tzinfo=timezone.utc)
+        previous = [{
+            "id": "old-story",
+            "title": "إنفيديا تسجل أطول سلسلة خسائر أسبوعية منذ 2012 وسط اضطرابات القيادة",
+            "link": "https://example.com/nvidia-shares",
+            "used_at": now.isoformat(),
+        }]
+        candidates = [
+            {
+                "id": "new-id",
+                "title": "اضطرابات القيادة تدفع إنفيديا إلى أطول سلسلة خسائر أسبوعية منذ 2012",
+                "link": "https://example.com/nvidia-update",
+                "source": "مصدر مالي",
+            },
+            {
+                "id": "different",
+                "title": "البنك المركزي يثبت أسعار الفائدة في اجتماعه الأخير",
+                "link": "https://example.com/rates",
+                "source": "مصدر مالي",
+            },
+        ]
+        selected, rejected = filter_recent_repeats(candidates, previous, now=now)
+        self.assertEqual([item["id"] for item in selected], ["different"])
+        self.assertEqual(len(rejected), 1)
+        self.assertIn("منعنا تكراره", rejected[0]["reasons"][0])
+
+    def test_caption_phrases_are_short_and_preserve_narration_words(self):
+        text = "هذا خبر مالي مهم يؤثر على المستثمرين وحركة الأسواق العالمية"
+        phrases = caption_phrases(text, 4)
+        self.assertTrue(phrases)
+        self.assertTrue(all(len(item.split()) <= 4 for item in phrases))
+        self.assertEqual(" ".join(phrases).split(), text.split())
 
     def test_actual_egypt_gold_headline_deduplicates_other_local_gold_prices(self):
         stories = [
@@ -63,6 +101,61 @@ class PipelineSelectionTests(unittest.TestCase):
         self.assertGreaterEqual(len(script.split()), 300)
         self.assertIn("التمييز بين التوقعات والتحقق الفعلي", script)
         self.assertIn("لا نبني قراراً مالياً على عنوان منفرد", script)
+
+    def test_single_story_episode_includes_topic_specific_depth(self):
+        script = make_script([{
+            "title": "هبوط البيتكوين بأكثر من 5% إلى نحو 64733 دولاراً",
+            "summary": "انخفضت عملة البيتكوين بنحو 5.3% إلى 64733 دولاراً خلال التعاملات.",
+            "source": "CNBC عربية",
+        }])
+        self.assertIn("حجم التداول", script)
+        self.assertIn("السيولة المتاحة", script)
+        self.assertGreaterEqual(len(script.split()), 500)
+
+    def test_companion_episode_keeps_deeper_details_from_the_same_story(self):
+        later_detail = "تفصيل جوهري من المصدر بعد الجزء المختصر"
+        story = {
+            "title": "تطور مالي محدد",
+            "summary": "مقدمة الخبر. " + ("تفاصيل وتحليلات موثقة. " * 35) + later_detail,
+            "source": "الجزيرة",
+        }
+        script = make_script([story])
+        self.assertIn(later_detail, script)
+        self.assertEqual(script.count("الخبر 1:"), 1)
+        self.assertNotIn("الخبر 2:", script)
+        self.assertGreaterEqual(len(script.split()), 300)
+
+    def test_companion_story_skips_newer_but_truncated_source_summaries(self):
+        stories = [
+            {
+                "id": "newest-short",
+                "title": "خبر مالي حديث",
+                "summary": "ملخص RSS قصير لا يكفي لحلقة طويلة.",
+                "source": "مصدر أول",
+            },
+            {
+                "id": "next-complete",
+                "title": "تطور مالي بتفاصيل كافية",
+                "summary": "تفاصيل موثقة عن الخبر. " * 70,
+                "source": "مصدر ثان",
+            },
+            {
+                "id": "older-complete",
+                "title": "تطور آخر بتفاصيل أطول",
+                "summary": "تفاصيل إضافية. " * 120,
+                "source": "مصدر ثالث",
+            },
+        ]
+        self.assertEqual(select_companion_story(stories)["id"], "next-complete")
+
+    def test_companion_story_fails_closed_when_no_source_has_enough_detail(self):
+        with self.assertRaisesRegex(RuntimeError, "ملخص مصدري كافٍ"):
+            select_companion_story([{
+                "id": "short",
+                "title": "خبر اقتصادي",
+                "summary": "ملخص قصير لا يثبت تفاصيل الخبر.",
+                "source": "مصدر",
+            }])
 
     def test_source_names_are_rendered_in_arabic(self):
         self.assertEqual(source_display_name("Al Jazeera"), "الجزيرة")
@@ -108,8 +201,8 @@ class PipelineSelectionTests(unittest.TestCase):
 
 
 class AudioDurationTests(unittest.TestCase):
-    def test_main_bulletin_stays_within_three_to_five_minutes(self):
-        for duration in (181, 210, 240, 300):
+    def test_main_episode_stays_within_four_to_eight_minutes(self):
+        for duration in (240, 300, 360, 480):
             with self.subTest(duration=duration):
                 self.assertEqual(validate_audio_duration(duration), float(duration))
 
@@ -119,7 +212,7 @@ class AudioDurationTests(unittest.TestCase):
                 self.assertEqual(validate_audio_duration(duration, private_test=True), float(duration))
 
     def test_rejects_main_bulletins_outside_target_duration(self):
-        for duration in (0, -1, 45, 150, 180, 301, 480, float("nan"), "not-a-duration"):
+        for duration in (0, -1, 45, 150, 180, 181, 239, 481, float("nan"), "not-a-duration"):
             with self.subTest(duration=duration):
                 with self.assertRaisesRegex(RuntimeError, "مدة"):
                     validate_audio_duration(duration)

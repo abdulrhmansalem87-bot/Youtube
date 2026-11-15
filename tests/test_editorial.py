@@ -16,7 +16,7 @@ class EditorialReviewTests(unittest.TestCase):
             "summary": "ارتفعت الأرباح والإيرادات مقارنة بالفترة نفسها من العام الماضي.",
             "source": "مصدر مالي",
         }])
-        self.assertTrue(script.startswith("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar"))
+        self.assertLess(script.index("أرباح الشركة ترتفع"), script.index("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar"))
         self.assertIn("أهلاً بكم في أهم الأخبار الاقتصادية والمالية من WealthRadar", script)
         self.assertTrue(script.endswith("ولا تنسوا الاشتراك في WealthRadar وتفعيل زر الجرس."))
         self.assertNotIn("إيه اللي حصل", script)
@@ -52,12 +52,26 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["accepted_count"], 1)
         self.assertEqual(report["rejected_count"], 0)
 
-    def test_rejects_security_story_that_uses_oil_without_market_impact(self):
+    def test_rejects_oil_smuggling_security_story_without_market_angle(self):
         report = review_stories([{
-            "id": "oil-smuggling-security",
-            "title": "اتهامات بتهريب النفط تعيد الملفات الأمنية إلى الواجهة",
+            "id": "oil-smuggling",
+            "title": "جرف الصخر أم جرف النصر؟ اتهامات بتهريب النفط تعيد الملفات العالقة إلى الواجهة",
             "summary": "تتمتع المنطقة بحساسية أمنية خاصة وتشير تقارير إلى نفوذ جماعات مسلحة داخلها.",
-            "link": "https://example.com/oil-security",
+            "link": "https://example.com/oil-smuggling",
+            "source": "مصدر إخباري",
+            "category": "اقتصاد وأسواق",
+            "published": "2026-11-14",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+        self.assertIn("أمني أو جنائي", report["rejected"][0]["reasons"][0])
+
+    def test_rejects_security_crime_finance_keyword_without_summary_evidence(self):
+        report = review_stories([{
+            "id": "profit-fraud-security",
+            "title": "اتهامات بتزوير الأرباح تفتح تحقيقاً جنائياً",
+            "summary": "تبحث السلطات في مستندات داخل الشركة وتراجع الإجراءات المرتبطة بالقضية.",
+            "link": "https://example.com/profit-fraud",
             "source": "مصدر إخباري",
             "category": "اقتصاد وأسواق",
             "published": "2026-11-14",
@@ -78,6 +92,22 @@ class EditorialReviewTests(unittest.TestCase):
         }])
         self.assertEqual(report["accepted_count"], 1)
         self.assertEqual(report["rejected_count"], 0)
+
+    def test_bulletin_script_covers_multiple_accepted_stories(self):
+        script = make_script([
+            {
+                "title": "التضخم الأمريكي يضغط على الأسواق",
+                "summary": "ارتفع مؤشر أسعار المستهلكين مع ترقب قرارات الفائدة والأسواق.",
+                "source": "مصدر أول",
+            },
+            {
+                "title": "أسعار الذهب ترتفع مع تراجع الدولار",
+                "summary": "صعد الذهب في التعاملات مع تغير توقعات المستثمرين بشأن أسعار الفائدة.",
+                "source": "مصدر ثان",
+            },
+        ])
+        self.assertIn("الخبر 1: التضخم الأمريكي", script)
+        self.assertIn("الخبر 2: أسعار الذهب", script)
 
     def test_accepts_financial_story(self):
         report = review_stories([{
