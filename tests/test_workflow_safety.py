@@ -90,7 +90,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         ):
             self.assertIn(cron, workflow)
         self.assertIn("id: cairo_schedule", workflow)
-        self.assertIn('python -m newsflow.schedule "$EVENT_SCHEDULE"', workflow)
+        self.assertIn('python -m newsflow.schedule "$EVENT_SCHEDULE" | tee -a "$GITHUB_OUTPUT"', workflow)
         self.assertIn("steps.cairo_schedule.outputs.run == 'true'", workflow)
         self.assertIn("steps.cairo_schedule.outputs.lookback_hours", workflow)
         self.assertIn("NEWSFLOW_STRICT_FRESHNESS:", workflow)
