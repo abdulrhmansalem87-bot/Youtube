@@ -103,7 +103,7 @@ jobs:
             echo "- Target Cairo slot: $TARGET_LOCAL_TIME"
             echo "- Run enabled: $RUN_ENABLED"
             echo "- Decision: $SCHEDULE_REASON"
-            echo "- Scheduled mode: render long + Shorts with licensed Pexels B-roll; YouTube upload remains disabled"
+            echo "- Scheduled mode: render and upload long + Shorts as PRIVATE owner-review drafts; never public automatically"
             echo "- Story repeat guard: 8-hour history cache"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Restore recent scheduled story history
@@ -150,7 +150,7 @@ jobs:
           count=$(find output/bulletin/.render_cache output/bulletin/shorts/.render_cache -type f -name manifest.json 2>/dev/null | wc -l)
           echo "[RENDER_CACHE_RESTORE] manifests=$count"
       - name: Run NewsFlow
-        if: success() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || github.event_name == 'workflow_dispatch')
+        if: success() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
         env:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_LOOKBACK_HOURS: ${{ steps.cairo_schedule.outputs.lookback_hours }}
@@ -158,26 +158,25 @@ jobs:
           NEWSFLOW_RECORD_DRAFT_HISTORY: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           NEWSFLOW_HISTORY_FILE: output/history/used_stories.json
           NEWSFLOW_STRICT_FRESHNESS: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
-          FISH_AUDIO_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.FISH_AUDIO_API_KEY || '' }}
-          FISH_AUDIO_REFERENCE_ID: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.FISH_AUDIO_REFERENCE_ID || '' }}
+          FISH_AUDIO_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.FISH_AUDIO_API_KEY || '' }}
+          FISH_AUDIO_REFERENCE_ID: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.FISH_AUDIO_REFERENCE_ID || '' }}
           FISH_AUDIO_MODEL: s2.1-pro-free
-          PEXELS_API_KEY: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && secrets.PEXELS_API_KEY || '' }}
+          PEXELS_API_KEY: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && secrets.PEXELS_API_KEY || '' }}
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
           NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && 'true' || 'false' }}
-          # Scheduled runs never receive approval and only collect/validate story drafts.
-          NEWSFLOW_PRIVATE_STAGING: "false"
+          # Schedule and the one-time [private-stage] push may upload PRIVATE review drafts only.
+          NEWSFLOW_PRIVATE_STAGING: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
           NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
-          # YouTube upload is available only for an explicitly approved manual PRIVATE test.
-          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && 'true' || 'false' }}
+          YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && 'true' || 'false' }}
           YOUTUBE_PRIVACY_STATUS: "private"
-          YOUTUBE_CLIENT_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.YOUTUBE_CLIENT_ID || '' }}
-          YOUTUBE_CLIENT_SECRET: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.YOUTUBE_CLIENT_SECRET || '' }}
-          YOUTUBE_REFRESH_TOKEN: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.YOUTUBE_REFRESH_TOKEN || '' }}
+          YOUTUBE_CLIENT_ID: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.YOUTUBE_CLIENT_ID || '' }}
+          YOUTUBE_CLIENT_SECRET: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.YOUTUBE_CLIENT_SECRET || '' }}
+          YOUTUBE_REFRESH_TOKEN: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.YOUTUBE_REFRESH_TOKEN || '' }}
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            echo "[SCHEDULED_RENDER_ONLY] Producing long video and Shorts as review artifacts; YouTube upload is disabled."
-            python -m newsflow --render-only
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "push" -a "${{ contains(github.event.head_commit.message, '[private-stage]') }}" = "true" ]; then
+            echo "[PRIVATE_REVIEW_UPLOAD] Producing and uploading long + Shorts as PRIVATE only."
+            python -m newsflow --private-staging
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ] \
              && [ "${{ inputs.private_test }}" = "true" ] \
              && [ "${{ inputs.editorial_approved }}" = "true" ] \
