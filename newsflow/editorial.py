@@ -75,6 +75,11 @@ DIRECT_FINANCE_TITLE_TERMS = tuple(
     if term.casefold() not in GENERIC_ECONOMIC_TERMS
 ) + ("أسواق", "الأسواق", "السوق", "سوق")
 
+SECURITY_OR_CRIME_TERMS = (
+    "تهريب", "اتهامات", "اتهام", "نفوذ أمني", "ميليشيا", "مسلح",
+    "smuggling", "trafficking", "militia", "armed group",
+)
+
 
 def _has_term(text: str, terms: tuple[str, ...]) -> bool:
     value = (text or "").casefold()
@@ -97,6 +102,8 @@ def relevance(story: dict) -> tuple[bool, str]:
         return False, "عنوان سياسي عام؛ الإشارة الاقتصادية غير كافية لتصنيفه خبراً مالياً"
     if sport_hit and not title_finance_hit:
         return False, "عنوان رياضي لا يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
+    if title_finance_hit and _has_term(title, SECURITY_OR_CRIME_TERMS) and not summary_finance_hit:
+        return False, "عنوان أمني أو جنائي يستخدم مصطلحاً مالياً دون أن يدعم الملخص أثراً اقتصادياً مباشراً"
     if title_finance_hit:
         return True, "عنوان الخبر يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
     if category in EXPLICIT_FINANCE_CATEGORIES and summary_finance_hit:
@@ -167,7 +174,7 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
 def upload_review_blockers(
     report: dict, editorial_approved: bool, *, private_staging: bool = False
 ) -> list[str]:
-    """Fail closed for public/manual uploads; scheduled private staging is an owner-review queue."""
+    """Require independent fact verification for every upload, including PRIVATE staging."""
     blockers = []
     if not editorial_approved and not private_staging:
         blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
@@ -182,6 +189,6 @@ def upload_review_blockers(
         blockers.append("لا توجد أخبار مقبولة")
     if warning_count > 0 or report.get("warnings"):
         blockers.append("توجد تحذيرات تحريرية غير محسومة")
-    if report.get("fact_checking") != "verified" and not private_staging:
+    if report.get("fact_checking") != "verified":
         blockers.append("التحقق المستقل من الوقائع لم يكتمل")
     return blockers

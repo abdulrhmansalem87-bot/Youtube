@@ -52,6 +52,33 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["accepted_count"], 1)
         self.assertEqual(report["rejected_count"], 0)
 
+    def test_rejects_security_story_that_uses_oil_without_market_impact(self):
+        report = review_stories([{
+            "id": "oil-smuggling-security",
+            "title": "اتهامات بتهريب النفط تعيد الملفات الأمنية إلى الواجهة",
+            "summary": "تتمتع المنطقة بحساسية أمنية خاصة وتشير تقارير إلى نفوذ جماعات مسلحة داخلها.",
+            "link": "https://example.com/oil-security",
+            "source": "مصدر إخباري",
+            "category": "اقتصاد وأسواق",
+            "published": "2026-11-14",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+        self.assertIn("أمني أو جنائي", report["rejected"][0]["reasons"][0])
+
+    def test_accepts_security_story_when_summary_proves_direct_oil_market_impact(self):
+        report = review_stories([{
+            "id": "oil-smuggling-market",
+            "title": "اتهامات بتهريب النفط تثير مخاوف بشأن السوق",
+            "summary": "تتعلق القضية بصادرات النفط والإيرادات الحكومية وتكاليف الشحن والتأمين في السوق.",
+            "link": "https://example.com/oil-market",
+            "source": "مصدر اقتصادي",
+            "category": "اقتصاد وأسواق",
+            "published": "2026-11-14",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["rejected_count"], 0)
+
     def test_accepts_financial_story(self):
         report = review_stories([{
             "id": "1",
