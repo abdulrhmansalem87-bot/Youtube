@@ -503,8 +503,23 @@ def caption_phrases(value, words_per_caption=4):
     ] or ["تابع التفاصيل"]
 
 
+def split_required_hashtags(description):
+    """Separate the mandatory four-tag footer so later edits cannot truncate it."""
+    base = str(description or "").strip()
+    if not base:
+        raise RuntimeError("وصف يوتيوب فارغ؛ تم إيقاف الرفع.")
+    lines = base.splitlines()
+    tag_line = lines[-1].strip()
+    hashtags = tag_line.split()
+    if len(hashtags) != 4 or any(not tag.startswith("#") for tag in hashtags):
+        raise RuntimeError("الوصف يجب أن ينتهي بأربعة هاشتاجات قبل إضافة بيانات الترخيص.")
+    if len(set(hashtags)) != 4 or "#WealthRadar" not in hashtags or "#أخبار_اقتصادية" not in hashtags:
+        raise RuntimeError("الهاشتاجات المطلوبة ناقصة أو مكررة.")
+    return "\\n".join(lines[:-1]).rstrip(), tag_line
+
+
 def append_broll_attribution(description, video_path):
-    """Require a valid Pexels manifest and keep contributor credits in the YouTube description."""
+    """Require a valid Pexels manifest and preserve sources and hashtags in full."""
     manifest_path = video_path.with_suffix(".broll-manifest.json")
     if not manifest_path.is_file():
         raise RuntimeError("ملف توثيق لقطات Pexels غير موجود؛ أوقفنا تجهيز وصف النشر.")
@@ -526,19 +541,25 @@ def append_broll_attribution(description, video_path):
             break
     if not credits:
         raise RuntimeError("لا توجد روابط إسناد صالحة لمقاطع Pexels؛ أوقفنا تجهيز وصف النشر.")
-    attribution = "لقطات الفيديو المتحركة المرخّصة من Pexels (Pexels License):\n" + "\n".join(credits)
-    base = str(description or "").strip()
-    return (base[:3900] + "\n\n" + attribution)[:5000]
+    body, hashtag_line = split_required_hashtags(description)
+    attribution = "لقطات الفيديو المتحركة المرخّصة من Pexels (Pexels License):\\n" + "\\n".join(credits)
+    result = body + "\\n\\n" + attribution + "\\n\\n" + hashtag_line
+    if len(result) > 5000:
+        raise RuntimeError("إضافة إسناد لقطات Pexels تتجاوز حد يوتيوب؛ تم إيقاف الرفع بدلاً من حذف الروابط أو الهاشتاجات.")
+    return result
 
 
 def add_private_review_notice(description):
-    """Mark a private staging upload as an owner-review copy, not public-ready."""
+    """Mark a private review copy without dropping any source links or required hashtags."""
     notice = (
         "نسخة مراجعة خاصة — ليست معتمدة للنشر العام بعد. "
         "التحقق المستقل من الوقائع ومراجعة المصادر مطلوبان قبل إتاحتها للعامة."
     )
-    base = str(description or "").strip()
-    return (notice + "\n\n" + base)[:5000]
+    body, hashtag_line = split_required_hashtags(description)
+    result = notice + "\\n\\n" + body + "\\n\\n" + hashtag_line
+    if len(result) > 5000:
+        raise RuntimeError("إضافة تنبيه المراجعة الخاصة تتجاوز حد يوتيوب؛ تم إيقاف الرفع.")
+    return result
 
 
 def make_video(title, audio, output, short=False, stories=None, portrait=None):
