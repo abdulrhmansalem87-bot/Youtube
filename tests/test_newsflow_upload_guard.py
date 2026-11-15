@@ -17,8 +17,8 @@ def valid_report():
         "warning_count": 0,
         "warnings": [],
         "fact_checking": "verified",
-        "voice_source": "owner_recording",
-        "presenter_source": "owner_video",
+        "voice_source": "owner_voice_clone",
+        "presenter_source": "none",
         "broll_source": "licensed_video",
     }
 
@@ -27,18 +27,25 @@ class UploadReviewGateTests(unittest.TestCase):
     def test_allows_upload_only_after_verified_review_and_approval(self):
         self.assertEqual(upload_review_blockers(valid_report(), True), [])
 
-    def test_blocks_tts_missing_presenter_and_missing_licensed_broll(self):
-        cases = [
-            ("voice_source", "tts", "التعليق الصوتي ليس تسجيلاً أصلياً لصاحب القناة"),
-            ("presenter_source", "none", "فيديو المقدم الأصلي غير مدمج في النسخة"),
-            ("broll_source", "none", "لقطات B-roll مرخصة غير مدمجة في النسخة"),
-        ]
-        for field, value, expected in cases:
-            with self.subTest(field=field):
-                report = valid_report()
-                report[field] = value
-                self.assertIn(expected, upload_review_blockers(report, True))
-                self.assertIn(expected, upload_review_blockers(report, False, private_staging=True))
+    def test_non_owner_voice_blocks_but_an_on_camera_presenter_is_optional(self):
+        report = valid_report()
+        report["voice_source"] = "generic_tts"
+        self.assertIn("مصدر التعليق الصوتي", upload_review_blockers(report, True))
+        report["voice_source"] = "owner_voice_clone"
+        report["presenter_source"] = "none"
+        self.assertEqual(upload_review_blockers(report, True), [])
+
+    def test_licensed_broll_is_checked_after_rendering(self):
+        report = valid_report()
+        report["broll_source"] = "none"
+        self.assertNotIn(
+            "لقطات B-roll مرخصة غير مدمجة في النسخة",
+            upload_review_blockers(report, False, private_staging=True, require_broll=False),
+        )
+        self.assertIn(
+            "لقطات B-roll مرخصة غير مدمجة في النسخة",
+            upload_review_blockers(report, False, private_staging=True, require_broll=True),
+        )
 
     def test_newsflow_marks_tts_and_pending_broll_provenance_before_render(self):
         story = {
@@ -69,7 +76,7 @@ class UploadReviewGateTests(unittest.TestCase):
             self.assertEqual(report["broll_source"], "none")
             blockers = upload_review_blockers(report, True, private_staging=True)
             self.assertTrue(any("تسجيلاً أصلياً" in item for item in blockers))
-            self.assertTrue(any("المقدم الأصلي" in item for item in blockers))
+            self.assertFalse(any("المقدم الأصلي" in item for item in blockers))
             self.assertTrue(any("B-roll" in item for item in blockers))
 
     def test_blocks_when_fact_checking_was_not_performed_for_approved_upload(self):
@@ -80,19 +87,25 @@ class UploadReviewGateTests(unittest.TestCase):
             upload_review_blockers(report, True),
         )
 
-    def test_private_staging_does_not_bypass_independent_fact_checking(self):
+    def test_private_staging_is_only_a_private_review_and_not_publication(self):
         report = valid_report()
         report["fact_checking"] = "not_performed"
-        self.assertIn(
-            "التحقق المستقل من الوقائع لم يكتمل",
-            upload_review_blockers(report, False, private_staging=True),
-        )
-        report["fact_checking"] = "verified"
+        report["voice_source"] = "owner_voice_clone"
+        report["presenter_source"] = "none"
         self.assertEqual(upload_review_blockers(report, False, private_staging=True), [])
         report["warning_count"] = 1
         report["warnings"] = [{"title": "خبر", "warnings": ["ملخص غير مكتمل"]}]
-        self.assertIn("توجد تحذيرات تحريرية غير محسومة",
-                      upload_review_blockers(report, False, private_staging=True))
+        self.assertIn(
+            "توجد تحذيرات تحريرية غير محسومة",
+            upload_review_blockers(report, False, private_staging=True),
+        )
+        report["warning_count"] = 0
+        report["warnings"] = []
+        report["accepted_count"] = 0
+        self.assertIn(
+            "لا توجد أخبار مقبولة",
+            upload_review_blockers(report, False, private_staging=True),
+        )
 
     def test_private_staging_requires_upload_switch_before_oauth(self):
         with patch.dict(os.environ, {
