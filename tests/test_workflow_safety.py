@@ -87,7 +87,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("NEWSFLOW_RECORD_DRAFT_HISTORY:", workflow)
         self.assertIn("NEWSFLOW_HISTORY_FILE: output/history/used_stories.json", workflow)
         self.assertIn("wealthradar-story-history-${{ runner.os }}-v1-", workflow)
-        self.assertIn("validation-only; no video render or YouTube upload", workflow)
+        self.assertIn("render long + Shorts with licensed Pexels B-roll; YouTube upload remains disabled", workflow)
         self.assertIn("8-hour history cache", workflow)
         self.assertIn("github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn("cancel-in-progress:", workflow)
