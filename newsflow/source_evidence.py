@@ -8,6 +8,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from html.parser import HTMLParser
+import ipaddress
 import re
 import time
 from urllib.error import HTTPError, URLError
@@ -105,8 +106,14 @@ def _validate_http_url(value: str) -> None:
     if parsed.scheme != "https" or not parsed.hostname:
         raise ValueError("رابط المصدر يجب أن يكون HTTPS صالحاً.")
     host = parsed.hostname.casefold()
-    if host in {"localhost", "127.0.0.1", "::1"} or host.endswith((".local", ".internal")):
+    if host in {"localhost"} or host.endswith((".local", ".internal")):
         raise ValueError("رابط المصدر غير مسموح به.")
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if address is not None and not address.is_global:
+        raise ValueError("عناوين الشبكات الخاصة أو المحلية غير مسموح بها.")
 
 
 def fetch_original_source(story: dict) -> dict:
@@ -151,6 +158,7 @@ def fetch_original_source(story: dict) -> dict:
                 charset = response.headers.get_content_charset() or "utf-8"
                 raw = response.read(MAX_RESPONSE_BYTES + 1)
                 final_url = response.geturl()
+                _validate_http_url(final_url)
             if len(raw) > MAX_RESPONSE_BYTES:
                 raw = raw[:MAX_RESPONSE_BYTES]
                 record["warnings"].append("تم قص صفحة المصدر بعد حد الحجم الآمن.")
