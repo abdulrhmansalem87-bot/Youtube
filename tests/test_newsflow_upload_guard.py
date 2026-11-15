@@ -94,6 +94,11 @@ class UploadReviewGateTests(unittest.TestCase):
         report["fact_checking"] = "not_performed"
         report["voice_source"] = "owner_voice_clone"
         report["presenter_source"] = "none"
+        self.assertIn(
+            "التحقق المستقل من الوقائع لم يكتمل؛ أوقفنا إنتاج الصوت والفيديو",
+            upload_review_blockers(report, False, private_staging=True),
+        )
+        report["fact_checking"] = "verified"
         self.assertEqual(upload_review_blockers(report, False, private_staging=True), [])
         report["warning_count"] = 1
         report["warnings"] = [{"title": "خبر", "warnings": ["ملخص غير مكتمل"]}]
@@ -206,6 +211,43 @@ class UploadReviewGateTests(unittest.TestCase):
         blockers = upload_review_blockers(report, True)
         self.assertIn("لا توجد أخبار مقبولة", blockers)
         self.assertIn("تقرير المراجعة ليس في حالة قابلة للمراجعة", blockers)
+
+    def test_private_staging_blocks_unverified_story_before_oauth_or_media_generation(self):
+        story = {
+            "id": "unverified-story",
+            "title": "البنك المركزي يعلن قراراً جديداً بشأن أسعار الفائدة",
+            "link": "https://example.com/story",
+            "published": "2026-11-15T10:00:00Z",
+            "summary": "ملخص اقتصادي مكتمل يوضح أثر القرار على أسعار الفائدة والتمويل والأسواق.",
+            "source": "مصدر اقتصادي",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            values = {
+                "NEWSFLOW_OUTPUT_DIR": directory,
+                "NEWSFLOW_HISTORY_FILE": str(Path(directory) / "history.json"),
+                "NEWSFLOW_DEDUPE_HISTORY_ENABLED": "false",
+                "NEWSFLOW_RECORD_DRAFT_HISTORY": "false",
+                "NEWSFLOW_PRIVATE_STAGING": "true",
+                "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_EDITORIAL_APPROVED": "false",
+                "NEWSFLOW_VISUAL_QA_APPROVED": "false",
+                "FISH_AUDIO_REFERENCE_ID": "owner-voice-reference",
+            }
+            with patch.dict(os.environ, values, clear=False):
+                with patch.object(sys, "argv", ["newsflow", "--private-staging"]):
+                    with patch("newsflow.pipeline.collect", return_value=([story], [])), \
+                         patch("newsflow.pipeline.validate_youtube_auth") as auth, \
+                         patch("newsflow.pipeline.make_audio") as audio, \
+                         patch("newsflow.pipeline.make_video") as video:
+                        with self.assertRaisesRegex(RuntimeError, "قبل OAuth/audio/render"):
+                            main()
+            auth.assert_not_called()
+            audio.assert_not_called()
+            video.assert_not_called()
+            report = json.loads(
+                (Path(directory) / "editorial_review.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(report["fact_checking"], "not_performed")
 
 
 if __name__ == "__main__":
