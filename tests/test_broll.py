@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from PIL import features
 
-from newsflow.broll import MAX_SCENE_SECONDS, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text, _overlay
+from newsflow.broll import MAX_SCENE_SECONDS, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text, _overlay, _select_distinct_candidates
 
 
 class BrollPlanningTests(unittest.TestCase):
@@ -55,6 +55,27 @@ class BrollPlanningTests(unittest.TestCase):
             _overlay(card, first, 1920, 1080, caption_index=0)
             _overlay(card, second, 1920, 1080, caption_index=1)
             self.assertNotEqual(first.read_bytes(), second.read_bytes())
+
+    def test_broll_selects_a_distinct_pexels_source_for_each_scene(self):
+        candidates = [
+            {"id": 1, "url": "one"},
+            {"id": 1, "url": "duplicate"},
+            {"id": 2, "url": "two"},
+            {"id": 3, "url": "three"},
+        ]
+        selected, used = _select_distinct_candidates(candidates, 3)
+        self.assertEqual([item["id"] for item in selected], [1, 2, 3])
+        self.assertEqual(len(used), 3)
+
+    def test_broll_does_not_reuse_sources_from_previous_cards(self):
+        candidates = [{"id": 1}, {"id": 2}, {"id": 3}]
+        selected, used = _select_distinct_candidates(candidates, 2, {"1"})
+        self.assertEqual([item["id"] for item in selected], [2, 3])
+        self.assertEqual(used, {"1", "2", "3"})
+
+    def test_broll_fails_closed_when_pexels_repeats_the_same_clip(self):
+        with self.assertRaisesRegex(RuntimeError, "لقطات مختلفة"):
+            _select_distinct_candidates([{"id": 1}, {"id": 1}], 2)
 
     def test_missing_pexels_key_fails_closed(self):
         with self.assertRaisesRegex(RuntimeError, "PEXELS_API_KEY"):
