@@ -104,7 +104,25 @@ jobs:
             echo "- Run enabled: $RUN_ENABLED"
             echo "- Decision: $SCHEDULE_REASON"
             echo "- Scheduled mode: validation-only; no video render or YouTube upload"
+            echo "- Story repeat guard: 8-hour history cache"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Restore recent scheduled story history
+        if: github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: output/history
+          key: wealthradar-story-history-${{ runner.os }}-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            wealthradar-story-history-${{ runner.os }}-v1-
+      - name: Report restored story history
+        if: github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true'
+        run: |
+          if [ -s output/history/used_stories.json ]; then
+            count=$(python -c "import json; print(len(json.load(open('output/history/used_stories.json', encoding='utf-8')).get('stories', [])))")
+          else
+            count=0
+          fi
+          echo "[STORY_HISTORY_RESTORED] records=$count cooldown_hours=8"
       - name: Render real-story landscape and portrait phone previews
         if: github.event_name == 'pull_request'
         run: python scripts/render_mobile_preview.py
@@ -128,6 +146,9 @@ jobs:
         env:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_LOOKBACK_HOURS: ${{ steps.cairo_schedule.outputs.lookback_hours }}
+          NEWSFLOW_DEDUPE_HISTORY_ENABLED: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
+          NEWSFLOW_RECORD_DRAFT_HISTORY: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
+          NEWSFLOW_HISTORY_FILE: output/history/used_stories.json
           NEWSFLOW_STRICT_FRESHNESS: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           FISH_AUDIO_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.FISH_AUDIO_API_KEY || '' }}
           FISH_AUDIO_REFERENCE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.FISH_AUDIO_REFERENCE_ID || '' }}
@@ -157,6 +178,12 @@ jobs:
           else
             python -m newsflow --dry-run
           fi
+      - name: Save recent scheduled story history
+        if: success() && github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true' && hashFiles('output/history/used_stories.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: output/history
+          key: wealthradar-story-history-${{ runner.os }}-v1-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Save resumable scene cache
         if: always() && github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true
         uses: actions/cache/save@v4
