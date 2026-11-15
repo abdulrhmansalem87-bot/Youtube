@@ -68,6 +68,7 @@ class UploadReviewGateTests(unittest.TestCase):
                 "YOUTUBE_UPLOAD_ENABLED": "false",
                 "NEWSFLOW_EDITORIAL_APPROVED": "false",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "false",
+                "OPENAI_API_KEY": "",
             }, clear=False):
                 with patch.object(sys, "argv", ["newsflow", "--dry-run"]):
                     with patch("newsflow.pipeline.collect", return_value=([story], [])), \
@@ -84,6 +85,8 @@ class UploadReviewGateTests(unittest.TestCase):
             self.assertEqual(report["broll_source"], "none")
             self.assertEqual(report["source_evidence_summary"]["readable"], 1)
             self.assertEqual(report["source_evidence"][0]["status"], "readable")
+            self.assertFalse((Path(directory) / "test-story" / "script.txt").exists())
+            self.assertFalse((Path(directory) / "bulletin" / "script.txt").exists())
             evidence_file = Path(directory) / "source-evidence" / "test-story.json"
             self.assertTrue(evidence_file.is_file())
             saved_evidence = json.loads(evidence_file.read_text(encoding="utf-8"))
@@ -244,6 +247,7 @@ class UploadReviewGateTests(unittest.TestCase):
                 "NEWSFLOW_EDITORIAL_APPROVED": "false",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "false",
                 "FISH_AUDIO_REFERENCE_ID": "owner-voice-reference",
+                "OPENAI_API_KEY": "",
             }
             with patch.dict(os.environ, values, clear=False):
                 with patch.object(sys, "argv", ["newsflow", "--private-staging"]):

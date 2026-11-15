@@ -32,6 +32,10 @@ BLOCKED_SOURCE_ROOTS = {
     "reddit.com", "quora.com", "facebook.com", "instagram.com",
     "tiktok.com", "twitter.com", "x.com", "youtube.com",
 }
+BLOCKED_SOURCE_LABELS = {
+    "google", "bing", "duckduckgo", "wikipedia", "reddit", "quora",
+    "facebook", "instagram", "tiktok", "twitter", "x", "youtube",
+}
 
 
 FACT_CHECK_SCHEMA = {
@@ -131,7 +135,7 @@ def _annotation_sources(response: dict) -> list[dict]:
                     continue
                 url = _clean_url(annotation.get("url", ""))
                 domain = _registrable_domain(url)
-                if not url or not domain or domain in BLOCKED_SOURCE_ROOTS:
+                if not url or not domain or domain in BLOCKED_SOURCE_ROOTS or domain.split(".")[0] in BLOCKED_SOURCE_LABELS:
                     continue
                 if url in seen:
                     continue
@@ -148,6 +152,8 @@ def validate_fact_check_decision(
     story: dict,
     decision: dict,
     citation_sources: list[dict],
+    *,
+    original_url: str | None = None,
 ) -> tuple[bool, list[str], list[dict]]:
     """Apply hard evidence rules outside the model before accepting a verdict."""
     blockers = []
@@ -156,7 +162,7 @@ def validate_fact_check_decision(
         for item in citation_sources
         if _clean_url(item.get("url", ""))
     }
-    original_domain = _registrable_domain(str(story.get("link") or ""))
+    original_domain = _registrable_domain(str(original_url or story.get("link") or ""))
     claims = decision.get("claims")
     if decision.get("decision") != "verified":
         blockers.append("المراجع الآلي لم يصدر حكماً بالتحقق الكامل.")
@@ -234,7 +240,7 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
             "title": str(story.get("title") or ""),
             "summary": str(story.get("summary") or ""),
             "publisher": str(story.get("source") or ""),
-            "original_url": str(story.get("link") or ""),
+            "original_url": str(evidence.get("final_url") or story.get("link") or ""),
             "published_at": str(story.get("published") or ""),
         },
         "original_article_text": article_text,
@@ -243,7 +249,7 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
         "model": model,
         "reasoning": {"effort": "medium"},
         "tools": [{"type": "web_search", "search_context_size": "high"}],
-        "tool_choice": "auto",
+        "tool_choice": "required",
         "max_output_tokens": 3500,
         "text": {
             "format": {
@@ -293,7 +299,10 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
         raise RuntimeError("لم يرجع OpenAI تقرير تحقق صالحاً.")
     parsed = json.loads(_extract_output_text(response_payload))
     sources = _annotation_sources(response_payload)
-    verified, blockers, claims = validate_fact_check_decision(story, parsed, sources)
+    verified, blockers, claims = validate_fact_check_decision(
+        story, parsed, sources,
+        original_url=evidence.get("final_url") or story.get("link"),
+    )
     return {
         "story_id": str(story.get("id") or ""),
         "status": "verified" if verified else "needs_review",

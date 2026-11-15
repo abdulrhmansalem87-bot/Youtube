@@ -24,6 +24,7 @@ from newsflow.editorial import relevance, review_stories, upload_review_blockers
 from newsflow.history import filter_recent_repeats, load_story_history, record_story_history
 from newsflow.broll import render_broll_video
 from newsflow.source_evidence import collect_source_evidence
+from newsflow.fact_check import fact_check_stories
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -852,7 +853,42 @@ def main():
         "[SOURCE_EVIDENCE] "
         f"total={len(evidence_records)} readable={evidence_counts['readable']} "
         f"partial={evidence_counts['partial']} thin={evidence_counts['thin']} "
-        f"unavailable={evidence_counts['unavailable']} fact_checking=not_performed"
+        f"unavailable={evidence_counts['unavailable']}"
+    )
+
+    # Independent corroboration: a verdict must be supported by actual web-search citations.
+    fact_check_enabled = os.getenv("NEWSFLOW_FACT_CHECK_ENABLED", "true").strip().lower() == "true"
+    if fact_check_enabled:
+        fact_check_report = fact_check_stories(editorial_report["accepted"], evidence_records)
+    else:
+        fact_check_report = {
+            "status": "not_performed",
+            "verified_count": 0,
+            "rejected_count": len(editorial_report["accepted"]),
+            "results": [],
+            "reason": "NEWSFLOW_FACT_CHECK_ENABLED=false",
+        }
+    editorial_report["fact_check_report"] = fact_check_report
+    editorial_report["fact_checking"] = (
+        "verified" if fact_check_report.get("status") == "verified"
+        else str(fact_check_report.get("status") or "not_performed")
+    )
+    fact_check_dir = out / "fact-check"
+    fact_check_dir.mkdir(parents=True, exist_ok=True)
+    (fact_check_dir / "report.json").write_text(
+        json.dumps(fact_check_report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    for result in fact_check_report.get("results", []):
+        safe_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(result.get("story_id") or "unknown"))
+        (fact_check_dir / f"{safe_id}.json").write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    print(
+        "[FACT_CHECK] "
+        f"status={editorial_report['fact_checking']} "
+        f"verified={fact_check_report.get('verified_count', 0)} "
+        f"rejected={fact_check_report.get('rejected_count', len(editorial_report['accepted']))} "
+        f"method={fact_check_report.get('method', 'none')}"
     )
     # Fish Audio uses the channel owner's configured voice reference; no presenter footage
     # is required for a narrated news video. Licensed B-roll is confirmed after rendering.
@@ -877,13 +913,21 @@ def main():
     if os.getenv("NEWSFLOW_RECORD_DRAFT_HISTORY", "false").lower() == "true" and stories:
         count = record_story_history(story_history_path(), stories)
         print(f"[DRAFT_HISTORY_RECORDED] stories={count} cooldown_hours=8")
-    print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
+    print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking={editorial_report['fact_checking']}")
     upload_blockers = upload_review_blockers(
         editorial_report,
         editorial_approved or args.render_only,
         private_staging=args.private_staging,
         require_broll=False,
     )
+    # A dry run is collection and validation only: never write scripts or render media.
+    if args.dry_run:
+        print("[DRY_RUN] Collection, source evidence, and review reports saved; no scripts, audio, or video generated.")
+        if upload_blockers:
+            print("[DRY_RUN_BLOCKED] " + " | ".join(upload_blockers))
+        else:
+            print("[DRY_RUN_VALIDATED] Editorial review and independent fact-check passed.")
+        return
     # No media is rendered while source verification is incomplete, even for
     # PRIVATE owner-review copies. This prevents unverified claims entering video.
     if args.private_test and upload_blockers:
@@ -896,6 +940,12 @@ def main():
     if args.render_only and upload_blockers:
         raise RuntimeError(
             "RENDER ONLY blocked before audio/video because editorial verification is incomplete: "
+            + " | ".join(upload_blockers)
+        )
+    # Every non-dry-run production path must stop before scripts/audio/video on blockers.
+    if upload_blockers:
+        raise RuntimeError(
+            "PRODUCTION blocked before script/audio/video because review requirements are incomplete: "
             + " | ".join(upload_blockers)
         )
     if not args.dry_run and not args.render_only and (

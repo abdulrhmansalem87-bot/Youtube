@@ -43,6 +43,19 @@ class ArticleTextParserTests(unittest.TestCase):
         self.assertNotIn("حقوق النشر والتنقل", result["article_text"])
         self.assertGreaterEqual(len(result["article_text"]), 700)
 
+    def test_normalizes_whitespace_and_uses_real_paragraph_separators(self):
+        parser = ArticleTextParser()
+        parser.feed(
+            "<article>"
+            "<p>جملة أولى تحتوي    مسافات   متكررة بين الكلمات حتى نهاية الفقرة</p>"
+            "<p>الفقرة الثانية توضح تفاصيل أخرى وتؤكد شكل الفصل الصحيح</p>"
+            "</article>"
+        )
+        article_text = parser.result()["article_text"]
+        self.assertIn("جملة أولى تحتوي مسافات متكررة", article_text)
+        self.assertIn("\n\n", article_text)
+        self.assertNotIn("\\n\\n", article_text)
+        self.assertNotIn("  ", article_text)
 
 class OriginalSourceFetchTests(unittest.TestCase):
     def _response(self, body=HTML.encode("utf-8"), content_type="text/html"):
