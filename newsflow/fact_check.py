@@ -32,6 +32,10 @@ BLOCKED_SOURCE_ROOTS = {
     "reddit.com", "quora.com", "facebook.com", "instagram.com",
     "tiktok.com", "twitter.com", "x.com", "youtube.com",
 }
+BLOCKED_SOURCE_LABELS = {
+    "google", "bing", "duckduckgo", "wikipedia", "reddit", "quora",
+    "facebook", "instagram", "tiktok", "twitter", "x", "youtube",
+}
 
 
 FACT_CHECK_SCHEMA = {
@@ -131,8 +135,7 @@ def _annotation_sources(response: dict) -> list[dict]:
                     continue
                 url = _clean_url(annotation.get("url", ""))
                 domain = _registrable_domain(url)
-                blocked_labels = {"google", "bing", "duckduckgo", "wikipedia", "reddit", "quora", "facebook", "instagram", "tiktok", "twitter", "x", "youtube"}
-        if not url or not domain or domain in BLOCKED_SOURCE_ROOTS or domain.split(".")[0] in blocked_labels:
+                if not url or not domain or domain in BLOCKED_SOURCE_ROOTS or domain.split(".")[0] in BLOCKED_SOURCE_LABELS:
                     continue
                 if url in seen:
                     continue
