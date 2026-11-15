@@ -94,7 +94,7 @@ class OriginalSourceFetchTests(unittest.TestCase):
         self.assertEqual(result["status"], "readable")
 
     def test_fetch_rejects_non_https_and_local_urls(self):
-        for url in ("http://publisher.example/story", "https://localhost/story", "file:///etc/passwd"):
+        for url in ("http://publisher.example/story", "https://localhost/story", "https://10.0.0.8/story", "file:///etc/passwd"):
             with self.subTest(url=url):
                 result = fetch_original_source({"id": "bad", "link": url})
                 self.assertEqual(result["status"], "unavailable")
