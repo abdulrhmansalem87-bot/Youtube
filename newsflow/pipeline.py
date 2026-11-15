@@ -716,6 +716,13 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     stories, filtered_stories = collect(args.max_stories)
     editorial_report = review_stories(stories)
+    # Current NewsFlow produces Edge TTS narration and text-card visuals only.
+    # Keep provenance explicit so these review drafts can never pass a final-upload gate.
+    editorial_report.update({
+        "voice_source": "tts",
+        "presenter_source": "none",
+        "broll_source": "none",
+    })
     editorial_report["rejected"].extend(filtered_stories)
     editorial_report["rejected_count"] += len(filtered_stories)
     (out / "editorial_review.json").write_text(
