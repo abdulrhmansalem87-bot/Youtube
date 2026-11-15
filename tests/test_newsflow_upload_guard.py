@@ -82,6 +82,12 @@ class UploadReviewGateTests(unittest.TestCase):
             self.assertEqual(report["voice_source"], "tts")
             self.assertEqual(report["presenter_source"], "none")
             self.assertEqual(report["broll_source"], "none")
+            self.assertEqual(report["source_evidence_summary"]["readable"], 1)
+            self.assertEqual(report["source_evidence"][0]["status"], "readable")
+            evidence_file = Path(directory) / "source-evidence" / "test-story.json"
+            self.assertTrue(evidence_file.is_file())
+            saved_evidence = json.loads(evidence_file.read_text(encoding="utf-8"))
+            self.assertEqual(saved_evidence["evidence_level"], "article_text")
             blockers = upload_review_blockers(report, True, private_staging=True)
             self.assertTrue(any("مصدر التعليق الصوتي" in item for item in blockers))
             self.assertFalse(any("المقدم الأصلي" in item for item in blockers))
