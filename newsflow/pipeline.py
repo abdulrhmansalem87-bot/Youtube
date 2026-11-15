@@ -502,7 +502,7 @@ def add_private_review_notice(description):
         "التحقق المستقل من الوقائع ومراجعة المصادر مطلوبان قبل إتاحتها للعامة."
     )
     base = str(description or "").strip()
-    return (notice + "\\n\\n" + base)[:5000]
+    return (notice + "\n\n" + base)[:5000]
 
 
 def make_video(title, audio, output, short=False, stories=None, portrait=None):
