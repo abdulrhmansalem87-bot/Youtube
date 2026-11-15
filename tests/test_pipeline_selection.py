@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from newsflow.pipeline import (
     caption_phrases, clamp_max_stories, filter_recent_repeats, make_script,
-    select_stories, source_display_name, validate_audio_duration,
+    select_companion_story, select_stories, source_display_name, validate_audio_duration,
 )
 
 
@@ -124,6 +124,38 @@ class PipelineSelectionTests(unittest.TestCase):
         self.assertEqual(script.count("الخبر 1:"), 1)
         self.assertNotIn("الخبر 2:", script)
         self.assertGreaterEqual(len(script.split()), 300)
+
+    def test_companion_story_skips_newer_but_truncated_source_summaries(self):
+        stories = [
+            {
+                "id": "newest-short",
+                "title": "خبر مالي حديث",
+                "summary": "ملخص RSS قصير لا يكفي لحلقة طويلة.",
+                "source": "مصدر أول",
+            },
+            {
+                "id": "next-complete",
+                "title": "تطور مالي بتفاصيل كافية",
+                "summary": "تفاصيل موثقة عن الخبر. " * 70,
+                "source": "مصدر ثان",
+            },
+            {
+                "id": "older-complete",
+                "title": "تطور آخر بتفاصيل أطول",
+                "summary": "تفاصيل إضافية. " * 120,
+                "source": "مصدر ثالث",
+            },
+        ]
+        self.assertEqual(select_companion_story(stories)["id"], "next-complete")
+
+    def test_companion_story_fails_closed_when_no_source_has_enough_detail(self):
+        with self.assertRaisesRegex(RuntimeError, "ملخص مصدري كافٍ"):
+            select_companion_story([{
+                "id": "short",
+                "title": "خبر اقتصادي",
+                "summary": "ملخص قصير لا يثبت تفاصيل الخبر.",
+                "source": "مصدر",
+            }])
 
     def test_source_names_are_rendered_in_arabic(self):
         self.assertEqual(source_display_name("Al Jazeera"), "الجزيرة")
