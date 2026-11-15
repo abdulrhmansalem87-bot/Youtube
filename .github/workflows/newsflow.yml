@@ -42,8 +42,14 @@ on:
         type: boolean
         default: false
   schedule:
-    # Cairo (UTC+2 in winter): 3 PM, 7 PM, 10 PM
-    - cron: "0 13,17,20 * * *"
+    # Cairo winter (UTC+2): 3 PM, 7 PM, 10 PM
+    - cron: "0 13 * * *"
+    - cron: "0 17 * * *"
+    - cron: "0 20 * * *"
+    # Cairo summer (UTC+3): 3 PM, 7 PM, 10 PM
+    - cron: "0 12 * * *"
+    - cron: "0 16 * * *"
+    - cron: "0 19 * * *"
 
 permissions:
   contents: read
@@ -75,11 +81,16 @@ jobs:
         run: python -m compileall -q newsflow
       - name: Run editorial and render tests
         run: python -m unittest discover -s tests -v
+      - name: Resolve Cairo schedule slot
+        id: cairo_schedule
+        env:
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: python -m newsflow.schedule "$EVENT_SCHEDULE" >> "$GITHUB_OUTPUT"
       - name: Render real-story landscape and portrait phone previews
         if: github.event_name == 'pull_request'
         run: python scripts/render_mobile_preview.py
       - name: Restore resumable scene cache
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -89,15 +100,15 @@ jobs:
           restore-keys: |
             wealthradar-scenes-${{ runner.os }}-
       - name: Report restored scene cache
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
         run: |
           count=$(find output/bulletin/.render_cache output/bulletin/shorts/.render_cache -type f -name manifest.json 2>/dev/null | wc -l)
           echo "[RENDER_CACHE_RESTORE] manifests=$count"
       - name: Run NewsFlow
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
         env:
           NEWSFLOW_MAX_STORIES: "4"
-          NEWSFLOW_LOOKBACK_HOURS: ${{ github.event.schedule == '0 20 * * *' && '3' || '4' }}
+          NEWSFLOW_LOOKBACK_HOURS: ${{ steps.cairo_schedule.outputs.lookback_hours }}
           NEWSFLOW_STRICT_FRESHNESS: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
           FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
@@ -128,7 +139,7 @@ jobs:
             python -m newsflow --dry-run
           fi
       - name: Save resumable scene cache
-        if: always() && github.event_name != 'pull_request'
+        if: always() && github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
         uses: actions/cache/save@v4
         with:
           path: |
@@ -136,7 +147,7 @@ jobs:
             output/bulletin/shorts/.render_cache
           key: wealthradar-scenes-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Capture actual rendered video frames for phone QA
-        if: always() && github.event_name != 'pull_request'
+        if: always() && github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
         run: |
           qa_count=0
           if [ -s output/bulletin/long.mp4 ]; then
@@ -153,7 +164,7 @@ jobs:
           done
           echo "[PHONE_QA_COMPLETE] videos=$qa_count (main + available Shorts)"
       - name: Upload generated files
-        if: always()
+        if: always() && steps.cairo_schedule.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: newsflow-output-${{ github.run_number }}
