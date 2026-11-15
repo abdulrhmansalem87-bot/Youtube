@@ -97,7 +97,7 @@ def _search_videos(query: str, api_key: str, portrait: bool) -> list[dict]:
     params = urllib.parse.urlencode({
         "query": query,
         "orientation": "portrait" if portrait else "landscape",
-        "size": "large",
+        "size": "medium",
         "per_page": 15,
     })
     payload = _request_json(f"{PEXELS_API}?{params}", api_key)
