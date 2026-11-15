@@ -18,6 +18,7 @@ from PIL import Image, ImageDraw, ImageFont, features
 PEXELS_API = "https://api.pexels.com/videos/search"
 MAX_SCENE_SECONDS = 2.5
 MIN_SCENE_SECONDS = 1.5
+MAX_BROLL_CLIPS_PER_CARD = 4
 
 
 def require_api_key(value: str | None) -> str:
@@ -127,7 +128,7 @@ def _search_videos(query: str, api_key: str, portrait: bool) -> list[dict]:
         raise RuntimeError(
             f"لم يعثر Pexels على لقطات فيديو مناسبة لعبارة: {query}؛ أوقفنا الرندر."
         )
-    return candidates[:4]
+    return candidates[:15]
 
 
 def _download(url: str, destination: Path) -> None:
@@ -249,9 +250,29 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     image.save(path)
 
 
+def _select_distinct_candidates(candidates: list[dict], count: int,
+                               used_ids: set[str] | None = None) -> tuple[list[dict], set[str]]:
+    """Choose a fresh Pexels source for each cut; never silently reuse a scene."""
+    seen = set(used_ids or ())
+    selected = []
+    for candidate in candidates:
+        key = str(candidate.get("id") or candidate.get("page") or candidate.get("url") or "").strip()
+        if not key or key in seen:
+            continue
+        selected.append(candidate)
+        seen.add(key)
+        if len(selected) >= count:
+            break
+    if len(selected) != count:
+        raise RuntimeError(
+            f"لم يوفر Pexels {count} لقطات مختلفة للمشهد؛ أوقفنا الرندر بدلاً من تكرار نفس اللقطة."
+        )
+    return selected, seen
+
+
 def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                        output: Path, portrait: bool = False) -> Path:
-    """Render real Pexels footage with Arabic overlays; never falls back to static cards."""
+    """Render licensed Pexels footage with a new moving scene and Arabic caption every 2.5s."""
     api_key = require_api_key(os.getenv("PEXELS_API_KEY"))
     if not cards or len(cards) != len(durations):
         raise ValueError("يجب توفير مشهد ومدة مستقلة لكل جزء من التعليق الصوتي.")
@@ -263,35 +284,91 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
     width, height = (1080, 1920) if portrait else (1920, 1080)
     scene_plan = split_scene_durations(durations)
     output.parent.mkdir(parents=True, exist_ok=True)
-    manifest = {"provider": "Pexels", "license": "Pexels License",
-                "orientation": "portrait" if portrait else "landscape",
-                "scene_seconds_max": MAX_SCENE_SECONDS, "sources": []}
+    manifest = {
+        "provider": "Pexels",
+        "license": "Pexels License",
+        "orientation": "portrait" if portrait else "landscape",
+        "scene_seconds_max": MAX_SCENE_SECONDS,
+        "sources": [],
+    }
+    used_video_ids: set[str] = set()
     with tempfile.TemporaryDirectory(prefix="wealthradar-broll-") as temp_dir:
         work = Path(temp_dir)
-        # Render one FFmpeg process per story card, not one process per 2.5s shot.
-        # The old per-shot encoding launched dozens/hundreds of FFmpeg processes for
-        # a 4-minute episode and could exceed the 45-minute GitHub job limit.
         segments: list[Path] = []
         for card_index in sorted({index for index, _ in scene_plan}):
             card = cards[card_index]
             query = _english_query(card)
             candidates = _search_videos(query, api_key, portrait)
-            candidate = candidates[0]
-            source = work / f"source-{card_index}.mp4"
-            _download(candidate["url"], source)
-            manifest["sources"].append({
-                "query": query, "video_id": candidate.get("id"),
-                "photographer": candidate.get("photographer"),
-                "source_page": candidate.get("page"),
-            })
+            card_shots = [
+                (shot_index, seconds)
+                for shot_index, (idx, seconds) in enumerate(scene_plan)
+                if idx == card_index
+            ]
+            clip_count = min(MAX_BROLL_CLIPS_PER_CARD, len(card_shots))
+            selected, used_video_ids = _select_distinct_candidates(
+                candidates, clip_count, used_video_ids
+            )
 
-            card_shots = [(shot_index, seconds) for shot_index, (idx, seconds)
-                          in enumerate(scene_plan) if idx == card_index]
-            card_duration = sum(seconds for _, seconds in card_shots)
-            # Build one timed overlay stream from the caption PNGs. The previous
-            # graph opened one looping FFmpeg input and one chained overlay filter
-            # per shot (often 40-100 inputs for a single card), which made filter
-            # initialization and memory usage grow sharply with episode duration.
+            source_paths: list[Path] = []
+            for clip_index, candidate in enumerate(selected):
+                source = work / f"source-{card_index}-{clip_index}.mp4"
+                _download(candidate["url"], source)
+                source_paths.append(source)
+                manifest["sources"].append({
+                    "card_index": card_index,
+                    "scene_index": clip_index + 1,
+                    "query": query,
+                    "video_id": candidate.get("id"),
+                    "photographer": candidate.get("photographer"),
+                    "source_page": candidate.get("page"),
+                })
+
+            # Build a short loop from distinct Pexels clips. Each clip occupies
+            # one 2.5s scene; the loop repeats only after four different shots.
+            loop_durations = [seconds for _, seconds in card_shots[:clip_count]]
+            loop_duration = sum(loop_durations)
+            loop = work / f"broll-loop-{card_index:04d}.mp4"
+            filter_parts = []
+            for clip_index, seconds in enumerate(loop_durations):
+                filter_parts.append(
+                    f"[{clip_index}:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+                    f"crop={width}:{height},setsar=1,fps=30,trim=duration={seconds:.6f},"
+                    f"setpts=PTS-STARTPTS,format=yuv420p[v{clip_index}]"
+                )
+            concat_inputs = "".join(f"[v{clip_index}]" for clip_index in range(clip_count))
+            filter_parts.append(
+                f"{concat_inputs}concat=n={clip_count}:v=1:a=0[outv]"
+            )
+            loop_command = [ffmpeg, "-y"]
+            for source in source_paths:
+                loop_command.extend(["-stream_loop", "-1", "-i", str(source)])
+            loop_command.extend([
+                "-filter_complex", ";".join(filter_parts),
+                "-map", "[outv]",
+                "-t", f"{loop_duration:.3f}",
+                "-an", "-r", "30", "-c:v", "libx264",
+                "-preset", "veryfast", "-crf", "22",
+                "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                str(loop),
+            ])
+            try:
+                subprocess.run(
+                    loop_command, check=True, capture_output=True, text=True, timeout=900
+                )
+            except subprocess.CalledProcessError as exc:
+                detail = (exc.stderr or "")[-1400:]
+                raise RuntimeError(
+                    f"فشل تجهيز مشاهد B-roll المختلفة للقصة رقم {card_index + 1}: {detail}"
+                ) from None
+            except subprocess.TimeoutExpired:
+                raise RuntimeError(
+                    f"انتهت مهلة تجهيز مشاهد B-roll للقصة رقم {card_index + 1}."
+                ) from None
+            if not loop.is_file() or loop.stat().st_size < 20_000:
+                raise RuntimeError("ملف تسلسل B-roll غير صالح؛ أوقفنا الرندر.")
+
+            # Build one timed Arabic overlay stream. Both the caption and the
+            # underlying Pexels source change on every shot boundary.
             overlay_list = work / f"overlays-{card_index:04d}.ffconcat"
             overlay_lines = ["ffconcat version 1.0"]
             for local_index, (shot_index, seconds) in enumerate(card_shots):
@@ -299,36 +376,42 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                 _overlay(card, overlay, width, height, caption_index=local_index)
                 escaped = str(overlay).replace("\\", "\\\\").replace("'", "\\'")
                 overlay_lines.extend([f"file '{escaped}'", f"duration {seconds:.6f}"])
-            # concat demuxer needs the final still repeated to honor its duration.
             overlay_lines.append(overlay_lines[-2])
-            overlay_list.write_text("\n".join(overlay_lines) + "\n", encoding="utf-8")
+            overlay_list.write_text("\\n".join(overlay_lines) + "\\n", encoding="utf-8")
 
+            card_shots_duration = sum(seconds for _, seconds in card_shots)
             segment = work / f"card-{card_index:04d}.mp4"
             command = [
-                ffmpeg, "-y", "-stream_loop", "-1", "-i", str(source),
+                ffmpeg, "-y", "-stream_loop", "-1", "-i", str(loop),
                 "-f", "concat", "-safe", "0", "-i", str(overlay_list),
                 "-filter_complex",
                 f"[0:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
                 f"crop={width}:{height},setsar=1[base];"
                 "[1:v]fps=30,format=rgba[caption];"
                 "[base][caption]overlay=0:0:format=auto:shortest=1[v]",
-                "-map", "[v]", "-t", f"{card_duration:.3f}",
+                "-map", "[v]", "-t", f"{card_shots_duration:.3f}",
                 "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
                 "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
                 str(segment),
             ]
             try:
-                subprocess.run(command, check=True, capture_output=True, text=True, timeout=600)
+                subprocess.run(
+                    command, check=True, capture_output=True, text=True, timeout=900
+                )
             except subprocess.CalledProcessError as exc:
-                detail = (exc.stderr or "")[-1200:]
-                raise RuntimeError(f"فشل تركيب B-roll للقصة رقم {card_index + 1}: {detail}") from None
+                detail = (exc.stderr or "")[-1400:]
+                raise RuntimeError(
+                    f"فشل تركيب B-roll للقصة رقم {card_index + 1}: {detail}"
+                ) from None
             except subprocess.TimeoutExpired:
-                raise RuntimeError(f"انتهت مهلة تركيب B-roll للقصة رقم {card_index + 1} بعد 10 دقائق.") from None
+                raise RuntimeError(
+                    f"انتهت مهلة تركيب B-roll للقصة رقم {card_index + 1}."
+                ) from None
             segments.append(segment)
 
         concat = work / "concat.txt"
         concat.write_text(
-            "".join(f"file '{item.as_posix()}'\n" for item in segments), encoding="utf-8"
+            "".join(f"file '{item.as_posix()}'\\n" for item in segments), encoding="utf-8"
         )
         silent = work / "visual.mp4"
         subprocess.run(
@@ -363,9 +446,13 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
             raise RuntimeError("فشل فحص فيديو B-roll النهائي: الأبعاد أو الصوت أو المدة غير مطابقة.")
         os.replace(temporary, output)
     manifest["scene_count"] = len(scene_plan)
+    manifest["unique_source_count"] = len(used_video_ids)
     manifest["output"] = output.name
     manifest_path = output.with_suffix(".broll-manifest.json")
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[BROLL_RENDER_OK] provider=Pexels scenes={len(scene_plan)} "
-          f"scene_max={MAX_SCENE_SECONDS}s orientation={manifest['orientation']}")
+    print(
+        f"[BROLL_RENDER_OK] provider=Pexels scenes={len(scene_plan)} "
+        f"unique_sources={len(used_video_ids)} scene_max={MAX_SCENE_SECONDS}s "
+        f"orientation={manifest['orientation']}"
+    )
     return output
