@@ -139,14 +139,15 @@ class WorkflowSafetyTests(unittest.TestCase):
 
     def test_workflows_use_current_node24_github_actions_releases(self):
         root = Path(__file__).resolve().parents[1] / ".github" / "workflows"
-        for filename in ("newsflow.yml", "wealthradar-shorts.yml"):
+        for filename in ("newsflow.yml", "wealthradar-shorts.yml", "quality.yml"):
             workflow = (root / filename).read_text(encoding="utf-8")
             self.assertIn("actions/checkout@v7.0.1", workflow)
             self.assertIn("actions/setup-python@v7.1.0", workflow)
-            self.assertIn("actions/upload-artifact@v7.0.2", workflow)
             self.assertNotIn("actions/checkout@v4", workflow)
             self.assertNotIn("actions/setup-python@v5", workflow)
-            self.assertNotIn("actions/upload-artifact@v4", workflow)
+            if filename != "quality.yml":
+                self.assertIn("actions/upload-artifact@v7.0.2", workflow)
+                self.assertNotIn("actions/upload-artifact@v4", workflow)
         main_workflow = (root / "newsflow.yml").read_text(encoding="utf-8")
         self.assertIn("actions/cache/restore@v6.1.0", main_workflow)
         self.assertIn("actions/cache/save@v6.1.0", main_workflow)
