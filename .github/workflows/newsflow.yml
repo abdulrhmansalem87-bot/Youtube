@@ -202,7 +202,7 @@ jobs:
             output/bulletin/shorts/.render_cache
           key: wealthradar-scenes-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Capture actual rendered video frames for phone QA
-        if: always() && github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true
+        if: always() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true))
         run: |
           qa_count=0
           if [ -s output/bulletin/long.mp4 ]; then
