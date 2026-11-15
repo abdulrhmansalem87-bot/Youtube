@@ -59,6 +59,18 @@ class BrollPlanningTests(unittest.TestCase):
             _overlay(card, second, 1920, 1080, caption_index=1)
             self.assertNotEqual(first.read_bytes(), second.read_bytes())
 
+    @unittest.skipUnless(features.check("raqm"), "Arabic RAQM shaping is unavailable")
+    def test_caption_only_panel_is_compact_in_portrait_layout(self):
+        card = {"captions": ["حركة الأسواق اليوم"]}
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "portrait.png"
+            _overlay(card, target, 1080, 1920)
+            image = Image.open(target).convert("RGBA")
+            # The old panel began at 68% of the image height; caption-only
+            # overlays now start at 82% and leave more licensed footage visible.
+            self.assertEqual(image.getpixel((540, 1500))[3], 0)
+            self.assertGreater(image.getpixel((540, 1700))[3], 200)
+
     def test_broll_selects_a_distinct_pexels_source_for_each_scene(self):
         candidates = [
             {"id": 1, "url": "one"},
