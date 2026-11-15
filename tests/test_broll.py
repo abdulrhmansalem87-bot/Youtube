@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 from pathlib import Path
-from PIL import features
+from PIL import Image, features
 
 from newsflow.broll import MAX_SCENE_SECONDS, PEXELS_API, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text, _overlay, _select_distinct_candidates
 
