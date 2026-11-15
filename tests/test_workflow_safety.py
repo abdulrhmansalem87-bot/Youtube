@@ -50,21 +50,24 @@ class WorkflowSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "restricted to PRIVATE"):
             resolve_upload_privacy("public")
 
-    def test_scheduled_runs_render_and_stage_private_for_owner_review(self):
+    def test_scheduled_runs_are_validation_only_and_never_auto_upload(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
-        editorial_approval = "NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}"
-        visual_upload_approval = "YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'schedule' && 'true' || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && 'true') || 'false' }}"
-        self.assertIn(editorial_approval, workflow)
-        self.assertIn(visual_upload_approval, workflow)
-        self.assertIn("NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'schedule' && 'true' || 'false' }}", workflow)
+        manual_upload_gate = "YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && 'true' || 'false' }}"
+        self.assertIn(manual_upload_gate, workflow)
+        self.assertIn('NEWSFLOW_PRIVATE_STAGING: "false"', workflow)
+        self.assertIn("NEWSFLOW_EDITORIAL_APPROVED:", workflow)
         self.assertIn("visual_qa_approved:", workflow)
         self.assertIn("newsflow-pr-{0}", workflow)
-        self.assertIn("newsflow-production", workflow)
+        self.assertIn("newsflow-schedule", workflow)
+        self.assertIn("newsflow-manual", workflow)
         self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow)
         self.assertIn('default: true', workflow)
         self.assertIn("python -m newsflow --dry-run", workflow)
         self.assertIn("python -m newsflow --private-test", workflow)
-        self.assertIn("python -m newsflow --private-staging", workflow)
+        self.assertNotIn("python -m newsflow --private-staging", workflow)
+        self.assertNotIn("NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'schedule'", workflow)
+        self.assertIn("github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true'", workflow)
+        self.assertIn("github.event_name == 'workflow_dispatch'", workflow)
         self.assertIn('NEWSFLOW_UPLOAD_SINGLE_LONG: "false"', workflow)
         for cron in (
             '- cron: "0 13 * * *"', '- cron: "0 17 * * *"', '- cron: "0 20 * * *"',
@@ -76,15 +79,11 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("steps.cairo_schedule.outputs.run == 'true'", workflow)
         self.assertIn("steps.cairo_schedule.outputs.lookback_hours", workflow)
         self.assertIn("NEWSFLOW_STRICT_FRESHNESS:", workflow)
-        self.assertIn("FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}", workflow)
-        self.assertIn("FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}", workflow)
-        # Scheduled production is limited to PRIVATE owner-review staging.
-        self.assertIn("github.event_name == 'schedule'", visual_upload_approval)
-        pipeline = (Path(__file__).resolve().parents[1] / "newsflow" / "pipeline.py").read_text(encoding="utf-8")
-        self.assertIn('privacy_override="private"', pipeline)
-        self.assertIn('inputs.private_test', visual_upload_approval)
-        self.assertIn('inputs.editorial_approved', visual_upload_approval)
-        self.assertIn('inputs.visual_qa_approved', visual_upload_approval)
+        self.assertIn("EVENT_SCHEDULE:", workflow)
+        self.assertIn("Report Cairo schedule decision", workflow)
+        self.assertIn("validation-only; no video render or YouTube upload", workflow)
+        self.assertIn("pull_request || github.event_name == 'workflow_dispatch'", workflow)
+        self.assertIn("cancel-in-progress:", workflow)
 
     def test_shorts_workflow_uses_the_proven_fish_audio_pipeline(self):
         import yaml
@@ -123,7 +122,6 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn('if args.shorts_only:', pipeline)
         self.assertIn('privacy_override="private"', pipeline)
         self.assertIn('[SHORT_READY]', pipeline)
-
 
 
 if __name__ == "__main__":
