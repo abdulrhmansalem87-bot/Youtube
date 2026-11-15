@@ -21,10 +21,16 @@ import yaml
 from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from newsflow.editorial import relevance, review_stories, upload_review_blockers
+from newsflow.history import filter_recent_repeats, load_story_history, record_story_history
 from newsflow.rendering import render_cards_video
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
+
+
+def story_history_path() -> Path:
+    raw = Path(os.getenv("NEWSFLOW_HISTORY_FILE", "output/history/used_stories.json"))
+    return raw if raw.is_absolute() else ROOT / raw
 
 
 def config():
@@ -146,7 +152,12 @@ def collect(max_stories: int):
         )
     ]
     stories.sort(key=lambda item: item["published_ts"], reverse=True)
+    recent_repeats = []
+    if os.getenv("NEWSFLOW_DEDUPE_HISTORY_ENABLED", "false").lower() == "true":
+        history = load_story_history(story_history_path())
+        stories, recent_repeats = filter_recent_repeats(stories, history, cooldown_hours=8)
     selected, rejected = select_stories(stories, max_stories)
+    rejected.extend(recent_repeats)
     for story in selected:
         story.pop("published_ts", None)
     return selected, rejected
@@ -712,6 +723,9 @@ def main():
     )
     stories = editorial_report["accepted"]
     (out / "stories.json").write_text(json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8")
+    if os.getenv("NEWSFLOW_RECORD_DRAFT_HISTORY", "false").lower() == "true" and stories:
+        count = record_story_history(story_history_path(), stories)
+        print(f"[DRAFT_HISTORY_RECORDED] stories={count} cooldown_hours=8")
     print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
     upload_blockers = upload_review_blockers(editorial_report, editorial_approved, private_staging=args.private_staging)
     if args.private_test and upload_blockers:
