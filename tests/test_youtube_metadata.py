@@ -112,7 +112,7 @@ class YouTubeMetadataTests(unittest.TestCase):
                     "photographer": "Photographer One",
                 }],
             }), encoding="utf-8")
-            with self.assertRaisesRegex(RuntimeError, "يتجاوز حد يوتيوب"):
+            with self.assertRaisesRegex(RuntimeError, "تتجاوز حد يوتيوب"):
                 append_broll_attribution(description, video)
 
 
