@@ -762,13 +762,8 @@ def main():
             parser.error("Private test requires YOUTUBE_UPLOAD_ENABLED=true")
         if not visual_qa_approved:
             parser.error("Private test requires explicit phone visual QA approval.")
-    # Verify OAuth before spending time generating audio/video.
+    # OAuth validation is deliberately delayed until editorial and fact-check gates pass.
     auth_credentials = None
-    if args.private_test or args.private_staging or (not args.dry_run and upload_enabled):
-        try:
-            auth_credentials = validate_youtube_auth()
-        except RuntimeError as exc:
-            parser.error(str(exc))
     out = ROOT / os.getenv("NEWSFLOW_OUTPUT_DIR", "output")
     out.mkdir(parents=True, exist_ok=True)
     stories, filtered_stories = collect(args.max_stories)
@@ -799,17 +794,31 @@ def main():
     print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
     upload_blockers = upload_review_blockers(
         editorial_report,
-        editorial_approved,
+        editorial_approved or args.render_only,
         private_staging=args.private_staging,
         require_broll=False,
     )
+    # No media is rendered while source verification is incomplete, even for
+    # PRIVATE owner-review copies. This prevents unverified claims entering video.
     if args.private_test and upload_blockers:
-        print("[SAFE] PRIVATE test blocked before rendering: " + " | ".join(upload_blockers))
+        print("[SAFE] PRIVATE test blocked before OAuth/audio/render: " + " | ".join(upload_blockers))
         return
     if args.private_staging and upload_blockers:
         raise RuntimeError(
-            "PRIVATE review staging blocked before rendering: " + " | ".join(upload_blockers)
+            "PRIVATE review staging blocked before OAuth/audio/render: " + " | ".join(upload_blockers)
         )
+    if args.render_only and upload_blockers:
+        raise RuntimeError(
+            "RENDER ONLY blocked before audio/video because editorial verification is incomplete: "
+            + " | ".join(upload_blockers)
+        )
+    if not args.dry_run and not args.render_only and (
+        args.private_test or args.private_staging or upload_enabled
+    ):
+        try:
+            auth_credentials = validate_youtube_auth()
+        except RuntimeError as exc:
+            parser.error(str(exc))
     if upload_enabled and not visual_qa_approved and not args.private_staging:
         print("[SAFE] PRIVATE upload blocked: phone visual QA has not been explicitly approved.")
         upload_enabled = False
