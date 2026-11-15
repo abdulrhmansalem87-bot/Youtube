@@ -377,7 +377,7 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                 escaped = str(overlay).replace("\\", "\\\\").replace("'", "\\'")
                 overlay_lines.extend([f"file '{escaped}'", f"duration {seconds:.6f}"])
             overlay_lines.append(overlay_lines[-2])
-            overlay_list.write_text("\\n".join(overlay_lines) + "\\n", encoding="utf-8")
+            overlay_list.write_text("\n".join(overlay_lines) + "\n", encoding="utf-8")
 
             card_shots_duration = sum(seconds for _, seconds in card_shots)
             segment = work / f"card-{card_index:04d}.mp4"
@@ -411,7 +411,7 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
 
         concat = work / "concat.txt"
         concat.write_text(
-            "".join(f"file '{item.as_posix()}'\\n" for item in segments), encoding="utf-8"
+            "".join(f"file '{item.as_posix()}'\n" for item in segments), encoding="utf-8"
         )
         silent = work / "visual.mp4"
         subprocess.run(
