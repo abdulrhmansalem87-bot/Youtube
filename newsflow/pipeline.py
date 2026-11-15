@@ -913,7 +913,7 @@ def main():
     if os.getenv("NEWSFLOW_RECORD_DRAFT_HISTORY", "false").lower() == "true" and stories:
         count = record_story_history(story_history_path(), stories)
         print(f"[DRAFT_HISTORY_RECORDED] stories={count} cooldown_hours=8")
-    print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
+    print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking={editorial_report['fact_checking']}")
     upload_blockers = upload_review_blockers(
         editorial_report,
         editorial_approved or args.render_only,
