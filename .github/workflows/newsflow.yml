@@ -85,7 +85,7 @@ jobs:
         id: cairo_schedule
         env:
           EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
-        run: python -m newsflow.schedule "$EVENT_SCHEDULE" >> "$GITHUB_OUTPUT"
+        run: python -m newsflow.schedule "$EVENT_SCHEDULE" | tee -a "$GITHUB_OUTPUT"
       - name: Render actual Pexels B-roll previews (landscape and portrait)
         if: github.event_name == 'pull_request'
         timeout-minutes: 8
