@@ -23,6 +23,7 @@ from PIL import Image, ImageDraw, ImageFont
 from newsflow.editorial import relevance, review_stories, upload_review_blockers
 from newsflow.history import filter_recent_repeats, load_story_history, record_story_history
 from newsflow.broll import render_broll_video
+from newsflow.source_evidence import collect_source_evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -768,6 +769,33 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     stories, filtered_stories = collect(args.max_stories)
     editorial_report = review_stories(stories)
+    # Fetch the complete original publisher pages before producing any script.
+    # Page accessibility/text extraction is evidence collection, not fact-check approval.
+    evidence_records = collect_source_evidence(editorial_report["accepted"])
+    editorial_report["source_evidence"] = evidence_records
+    evidence_counts = {
+        status: sum(1 for item in evidence_records if item.get("status") == status)
+        for status in ("readable", "partial", "thin", "unavailable")
+    }
+    evidence_dir = out / "source-evidence"
+    if evidence_records:
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        for index, evidence in enumerate(evidence_records, start=1):
+            safe_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(evidence.get("story_id") or index))
+            (evidence_dir / f"{safe_id}.json").write_text(
+                json.dumps(evidence, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+    editorial_report["source_evidence_summary"] = {
+        "total": len(evidence_records),
+        **evidence_counts,
+        "meaning": "إتاحة النص الأصلي لا تعني اكتمال التحقق من الوقائع.",
+    }
+    print(
+        "[SOURCE_EVIDENCE] "
+        f"total={len(evidence_records)} readable={evidence_counts['readable']} "
+        f"partial={evidence_counts['partial']} thin={evidence_counts['thin']} "
+        f"unavailable={evidence_counts['unavailable']} fact_checking=not_performed"
+    )
     # Fish Audio uses the channel owner's configured voice reference; no presenter footage
     # is required for a narrated news video. Licensed B-roll is confirmed after rendering.
     voice_source = (
