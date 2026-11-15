@@ -1,9 +1,12 @@
 import unittest
 import tempfile
+from unittest.mock import patch
+from io import BytesIO
+import urllib.error
 from pathlib import Path
 from PIL import Image, features
 
-from newsflow.broll import MAX_SCENE_SECONDS, PEXELS_API, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text, _overlay, _select_distinct_candidates
+from newsflow.broll import MAX_SCENE_SECONDS, PEXELS_API, clean_visual_text, require_api_key, split_scene_durations, _english_query, _font_for_text, _overlay, _select_distinct_candidates, _download
 
 
 class BrollPlanningTests(unittest.TestCase):
@@ -95,6 +98,37 @@ class BrollPlanningTests(unittest.TestCase):
     def test_missing_pexels_key_fails_closed(self):
         with self.assertRaisesRegex(RuntimeError, "PEXELS_API_KEY"):
             require_api_key("")
+
+    def test_download_retries_transient_network_failure_and_caches_clip(self):
+        class Response(BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+        payload = b'x' * 25000
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / 'clip.mp4'
+            cache = root / 'cache'
+            with patch.dict('os.environ', {'NEWSFLOW_BROLL_CACHE_DIR': str(cache)}):
+                with patch('newsflow.broll.urllib.request.urlopen', side_effect=[urllib.error.URLError('temporary'), Response(payload)]) as opened, patch('newsflow.broll.time.sleep'):
+                    _download('https://cdn.example/clip.mp4', target)
+                self.assertEqual(opened.call_count, 2)
+                self.assertEqual(target.read_bytes(), payload)
+                target.unlink()
+                with patch('newsflow.broll.urllib.request.urlopen') as opened:
+                    _download('https://cdn.example/clip.mp4', target)
+                    opened.assert_not_called()
+                self.assertEqual(target.read_bytes(), payload)
+
+    def test_download_rejects_tiny_or_empty_clip(self):
+        class Response(BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.dict('os.environ', {'NEWSFLOW_BROLL_CACHE_DIR': str(root / 'cache')}):
+                with patch('newsflow.broll.urllib.request.urlopen', side_effect=[Response(b'bad'), Response(b'bad'), Response(b'bad')]), patch('newsflow.broll.time.sleep'):
+                    with self.assertRaisesRegex(RuntimeError, 'ثلاث محاولات'):
+                        _download('https://cdn.example/bad.mp4', root / 'bad.mp4')
 
 
 if __name__ == "__main__":

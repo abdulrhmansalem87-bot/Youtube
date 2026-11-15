@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import math
+import hashlib
+import time
 import os
 import re
 import unicodedata
@@ -55,22 +57,27 @@ def split_scene_durations(durations: list[float], maximum: float = MAX_SCENE_SEC
 
 
 def _request_json(url: str, api_key: str) -> dict:
+    """Retry transient Pexels/network failures without retrying permanent client errors."""
     request = urllib.request.Request(
         url,
         headers={"Authorization": api_key, "Accept": "application/json",
                  "User-Agent": "WealthRadar-NewsFlow/1.0"},
     )
-    try:
-        with urllib.request.urlopen(request, timeout=35) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError(
-            f"تعذر جلب لقطات Pexels (HTTP {exc.code})؛ أوقفنا الرندر دون استخدام صور ثابتة."
-        ) from None
-    except Exception as exc:
-        raise RuntimeError(
-            f"تعذر الاتصال بمصدر B-roll المرخّص ({type(exc).__name__})؛ أوقفنا الرندر."
-        ) from None
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=35) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code not in {408, 425, 429, 500, 502, 503, 504} or attempt == 2:
+                raise RuntimeError(
+                    f"تعذر جلب لقطات Pexels (HTTP {exc.code})؛ أوقفنا الرندر دون استخدام صور ثابتة."
+                ) from None
+        except (urllib.error.URLError, TimeoutError, OSError):
+            if attempt == 2:
+                raise RuntimeError(
+                    "تعذر الاتصال بمصدر B-roll المرخّص بعد ثلاث محاولات؛ أوقفنا الرندر."
+                ) from None
+        time.sleep(1.5 * (attempt + 1))
 
 
 def _english_query(card: dict) -> str:
@@ -136,11 +143,44 @@ def _search_videos(query: str, api_key: str, portrait: bool) -> list[dict]:
 
 
 def _download(url: str, destination: Path) -> None:
+    """Download atomically, retry transient failures, and reuse a 30-day local asset cache."""
+    cache_root = Path(os.getenv("NEWSFLOW_BROLL_CACHE_DIR", "output/broll-cache"))
+    cache_root.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_root / (hashlib.sha256(url.encode("utf-8")).hexdigest() + ".mp4")
+
+    def valid(path: Path) -> bool:
+        if not path.is_file() or path.stat().st_size < 20_000:
+            return False
+        return (time.time() - path.stat().st_mtime) < 30 * 24 * 60 * 60
+
+    if valid(cache_path):
+        shutil.copy2(cache_path, destination)
+        print("[BROLL_CACHE_HIT] reused licensed clip")
+        return
+
     request = urllib.request.Request(url, headers={"User-Agent": "WealthRadar-NewsFlow/1.0"})
-    with urllib.request.urlopen(request, timeout=90) as response, destination.open("wb") as target:
-        shutil.copyfileobj(response, target)
-    if not destination.is_file() or destination.stat().st_size < 20_000:
-        raise RuntimeError("ملف B-roll الذي تم تنزيله غير صالح أو فارغ.")
+    last_error = None
+    for attempt in range(3):
+        temporary = destination.with_suffix(destination.suffix + ".part")
+        try:
+            with urllib.request.urlopen(request, timeout=90) as response, temporary.open("wb") as target:
+                shutil.copyfileobj(response, target)
+            if not valid(temporary):
+                raise RuntimeError("ملف B-roll الذي تم تنزيله غير صالح أو فارغ.")
+            temporary.replace(destination)
+            shutil.copy2(destination, cache_path)
+            print("[BROLL_DOWNLOAD_OK] licensed clip downloaded and cached")
+            return
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError, RuntimeError) as exc:
+            last_error = exc
+            temporary.unlink(missing_ok=True)
+            if isinstance(exc, urllib.error.HTTPError) and exc.code not in {408, 425, 429, 500, 502, 503, 504}:
+                break
+            if attempt < 2:
+                time.sleep(2 * (attempt + 1))
+    raise RuntimeError(
+        f"تعذر تنزيل لقطة B-roll بعد ثلاث محاولات ({type(last_error).__name__ if last_error else 'unknown'})."
+    ) from None
 
 
 def _font(bold: bool = False) -> str:
