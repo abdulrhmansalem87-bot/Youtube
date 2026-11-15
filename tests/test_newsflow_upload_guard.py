@@ -68,6 +68,7 @@ class UploadReviewGateTests(unittest.TestCase):
                 "YOUTUBE_UPLOAD_ENABLED": "false",
                 "NEWSFLOW_EDITORIAL_APPROVED": "false",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "false",
+                "OPENAI_API_KEY": "",
             }, clear=False):
                 with patch.object(sys, "argv", ["newsflow", "--dry-run"]):
                     with patch("newsflow.pipeline.collect", return_value=([story], [])), \
