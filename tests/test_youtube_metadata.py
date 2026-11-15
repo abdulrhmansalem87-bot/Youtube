@@ -100,7 +100,7 @@ class YouTubeMetadataTests(unittest.TestCase):
 
     def test_attribution_refuses_to_truncate_required_metadata(self):
         hashtags = "#WealthRadar #أخبار_اقتصادية #الذهب #الأسواق"
-        body = "ملخص وروابط المصدر. " + ("تفاصيل إضافية. " * 280)
+        body = "ملخص وروابط المصدر. " + ("تفاصيل إضافية. " * 500)
         description = body + "\n\n" + hashtags
         with tempfile.TemporaryDirectory() as directory:
             video = Path(directory) / "long.mp4"
