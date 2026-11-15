@@ -495,6 +495,16 @@ def append_broll_attribution(description, video_path):
     return (base[:3900] + "\n\n" + attribution)[:5000]
 
 
+def add_private_review_notice(description):
+    """Mark a private staging upload as an owner-review copy, not public-ready."""
+    notice = (
+        "نسخة مراجعة خاصة لقناة WealthRadar — ليست معتمدة للنشر العام بعد. "
+        "التحقق المستقل من الوقائع ومراجعة المصادر مطلوبان قبل إتاحتها للعامة."
+    )
+    base = str(description or "").strip()
+    return (notice + "\\n\\n" + base)[:5000]
+
+
 def make_video(title, audio, output, short=False, stories=None, portrait=None):
     # A vertical long-form video is still a regular video; only Shorts have a 180s cap.
     portrait = short if portrait is None else portrait
@@ -705,7 +715,9 @@ def youtube_upload(
         raise RuntimeError("استجابة YouTube لم تؤكد الخصوصية المطلوبة؛ لن نعلن نجاح التحقق.")
     if returned_channel_id != target_channel_id:
         raise RuntimeError("استجابة YouTube لا تطابق القناة التي تم التحقق منها؛ لن نعلن نجاح الرفع.")
-    print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status} channel={target_channel_id}")
+    video_url = f"https://youtu.be/{video_id}"
+    print(f"[UPLOAD_VERIFIED] {video_url} privacy={status} channel={target_channel_id}")
+    return video_url
 
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
@@ -763,12 +775,18 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     stories, filtered_stories = collect(args.max_stories)
     editorial_report = review_stories(stories)
-    # Narration is still a generated voice track and no owner presenter footage is embedded.
-    # B-roll provenance remains pending until a successful Pexels render writes its manifest.
+    # Fish Audio uses the channel owner's configured voice reference; no presenter footage
+    # is required for a narrated news video. Licensed B-roll is confirmed after rendering.
+    voice_source = (
+        "owner_voice_clone"
+        if os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
+        else "tts"
+    )
     editorial_report.update({
-        "voice_source": "tts",
+        "voice_source": voice_source,
         "presenter_source": "none",
         "broll_source": "none",
+        "publication_review": "private_owner_review_pending" if args.private_staging else "not_approved",
     })
     editorial_report["rejected"].extend(filtered_stories)
     editorial_report["rejected_count"] += len(filtered_stories)
@@ -781,7 +799,12 @@ def main():
         count = record_story_history(story_history_path(), stories)
         print(f"[DRAFT_HISTORY_RECORDED] stories={count} cooldown_hours=8")
     print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking=not_performed")
-    upload_blockers = upload_review_blockers(editorial_report, editorial_approved, private_staging=args.private_staging)
+    upload_blockers = upload_review_blockers(
+        editorial_report,
+        editorial_approved,
+        private_staging=args.private_staging,
+        require_broll=False,
+    )
     if args.private_test and upload_blockers:
         print("[SAFE] PRIVATE test blocked before rendering: " + " | ".join(upload_blockers))
         return
@@ -830,9 +853,17 @@ def main():
         validate_video(short_video, short_audio, expected_short=True)
         short_description = append_broll_attribution(short_description, short_video)
         editorial_report["broll_source"] = "pexels"
+        if args.private_staging:
+            short_description = add_private_review_notice(short_description)
         (out / "editorial_review.json").write_text(
             json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
         )
+        final_blockers = upload_review_blockers(
+            editorial_report, editorial_approved,
+            private_staging=args.private_staging, require_broll=True,
+        )
+        if upload_enabled and final_blockers:
+            raise RuntimeError("تم منع الرفع الخاص بعد فحص الوسائط النهائي: " + " | ".join(final_blockers))
         ffprobe = shutil.which("ffprobe")
         if not ffprobe:
             raise RuntimeError("FFprobe غير متاح للتحقق من مدة Short")
@@ -879,12 +910,20 @@ def main():
     validate_video(long_video, audio, expected_portrait=main_portrait)
     description = append_broll_attribution(description, long_video)
     editorial_report["broll_source"] = "pexels"
+    if args.private_staging:
+        description = add_private_review_notice(description)
+        editorial_report["publication_review"] = "private_owner_review_pending"
     (out / "editorial_review.json").write_text(
         json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     if args.render_only:
         print("[RENDER_ONLY_READY] long video complete; YouTube upload is disabled.")
     if args.private_test:
+        final_blockers = upload_review_blockers(
+            editorial_report, editorial_approved, private_staging=False, require_broll=True,
+        )
+        if final_blockers:
+            raise RuntimeError("تم منع الرفع بعد فحص الوسائط النهائي: " + " | ".join(final_blockers))
         if upload_enabled:
             youtube_upload(
                 long_video, video_title, description, tags,
@@ -893,12 +932,10 @@ def main():
         else:
             print("[SAFE] PRIVATE upload skipped; generated video remains an Artifact.")
         return
-    if args.private_staging:
-        print("[PRIVATE_STAGING] Uploading validated long video and story Shorts as PRIVATE only.")
-    if upload_enabled:
-        youtube_upload(long_video, video_title, description, tags, privacy_override="private", credentials=auth_credentials)
 
-    # Shorts are separate story-specific narrations, not a vertical copy of the full bulletin.
+    # Render and validate every companion Short before uploading anything. This avoids
+    # a partial private set if one of the Short renders or source manifests fails.
+    staged_shorts = []
     if not single_long_upload:
         shorts_dir = bulletin / "shorts"
         shorts_dir.mkdir(exist_ok=True)
@@ -911,6 +948,8 @@ def main():
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
             short_description = append_broll_attribution(short_description, short_video)
+            if args.private_staging:
+                short_description = add_private_review_notice(short_description)
             short_probe = subprocess.run(
                 [ffprobe, "-v", "error", "-show_entries", "format=duration",
                  "-of", "default=noprint_wrappers=1:nokey=1", str(short_audio)],
@@ -921,12 +960,30 @@ def main():
                 raise RuntimeError(
                     f"مدة Short يجب أن تكون بين 35 و45 ثانية؛ المدة الحالية {short_duration:.1f} ثانية."
                 )
+            staged_shorts.append((short_video, short_title, short_description, short_tags))
             print(f"[SHORT_READY] {short_video} duration={short_duration:.1f}s story={story['id']}")
-            if upload_enabled:
-                youtube_upload(
-                    short_video, short_title, short_description, short_tags,
-                    privacy_override="private" if args.private_staging else os.getenv("YOUTUBE_PRIVACY_STATUS", "private"), credentials=auth_credentials
-                )
+
+    final_blockers = upload_review_blockers(
+        editorial_report, editorial_approved,
+        private_staging=args.private_staging, require_broll=True,
+    )
+    if upload_enabled and final_blockers:
+        raise RuntimeError("تم منع الرفع بعد فحص الوسائط النهائي: " + " | ".join(final_blockers))
+
+    if args.private_staging:
+        print("[PRIVATE_STAGING] All media passed; uploads remain PRIVATE for owner review only.")
+    if upload_enabled:
+        youtube_upload(
+            long_video, video_title, description, tags,
+            privacy_override="private", credentials=auth_credentials,
+        )
+        for short_video, short_title, short_description, short_tags in staged_shorts:
+            youtube_upload(
+                short_video, short_title, short_description, short_tags,
+                privacy_override="private", credentials=auth_credentials,
+            )
+    else:
+        print("[SAFE] Rendered videos remain workflow Artifacts; YouTube upload is disabled.")
 
 
 if __name__ == "__main__":
