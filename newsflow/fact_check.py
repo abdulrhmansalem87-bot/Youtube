@@ -243,7 +243,7 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
         "model": model,
         "reasoning": {"effort": "medium"},
         "tools": [{"type": "web_search", "search_context_size": "high"}],
-        "tool_choice": "auto",
+        "tool_choice": "required",
         "max_output_tokens": 3500,
         "text": {
             "format": {
