@@ -326,6 +326,7 @@ def build_youtube_metadata(stories, script):
         hashtags.append("#البورصة")
     else:
         hashtags.append("#الاقتصاد")
+    hashtags.append("#الأسواق")
     source_lines = "\n".join(
         f"{i}. {item['source']}: {item['link']}"
         for i, item in enumerate(stories, start=1)
@@ -495,7 +496,7 @@ def append_broll_attribution(description, video_path):
 def add_private_review_notice(description):
     """Mark a private staging upload as an owner-review copy, not public-ready."""
     notice = (
-        "نسخة مراجعة خاصة لقناة WealthRadar — ليست معتمدة للنشر العام بعد. "
+        "نسخة مراجعة خاصة — ليست معتمدة للنشر العام بعد. "
         "التحقق المستقل من الوقائع ومراجعة المصادر مطلوبان قبل إتاحتها للعامة."
     )
     base = str(description or "").strip()
