@@ -1,4 +1,5 @@
 name: NewsFlow pipeline
+# One-time private staging trigger: independent fact-check, then owner-review upload only.
 
 on:
   push:
