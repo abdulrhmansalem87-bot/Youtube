@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import sys
@@ -26,7 +27,7 @@ def main() -> None:
     )
     cards = [{
         "heading": "اختبار B-roll",
-        "title": "حركة الأسواق والاقتصاد",
+        "title": "حركة الأسهم والاقتصاد",
         "body": "لقطات فيديو حقيقية متغيرة مع نص عربي واضح وصوت تجريبي",
         "captions": [
             "حركة الأسواق اليوم",
@@ -37,7 +38,12 @@ def main() -> None:
     for portrait, name in ((False, "landscape"), (True, "portrait")):
         target = OUT / f"{name}-broll-preview.mp4"
         render_broll_video(cards, [7.0], audio, target, portrait=portrait)
-        print(f"[BROLL_PREVIEW_READY] {target}")
+        manifest_path = target.with_suffix(".broll-manifest.json")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        source_ids = [str(item.get("video_id")) for item in manifest.get("sources", [])]
+        if manifest.get("scene_count") != 3 or len(source_ids) != 3 or len(set(source_ids)) != 3:
+            raise RuntimeError("B-roll preview must prove three distinct Pexels scenes within seven seconds.")
+        print(f"[BROLL_PREVIEW_READY] {target} unique_scenes={len(set(source_ids))}")
 
 
 if __name__ == "__main__":
