@@ -85,7 +85,7 @@ class UploadReviewGateTests(unittest.TestCase):
         report = valid_report()
         report["fact_checking"] = "not_performed"
         self.assertIn(
-            "التحقق المستقل من الوقائع لم يكتمل",
+            "التحقق المستقل من الوقائع لم يكتمل؛ أوقفنا إنتاج الصوت والفيديو",
             upload_review_blockers(report, True),
         )
 
@@ -239,7 +239,7 @@ class UploadReviewGateTests(unittest.TestCase):
                          patch("newsflow.pipeline.validate_youtube_auth") as auth, \
                          patch("newsflow.pipeline.make_audio") as audio, \
                          patch("newsflow.pipeline.make_video") as video:
-                        with self.assertRaisesRegex(RuntimeError, "قبل OAuth/audio/render"):
+                        with self.assertRaisesRegex(RuntimeError, "before OAuth/audio/render"):
                             main()
             auth.assert_not_called()
             audio.assert_not_called()
