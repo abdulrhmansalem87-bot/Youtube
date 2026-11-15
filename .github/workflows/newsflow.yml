@@ -169,7 +169,7 @@ jobs:
           NEWSFLOW_BROLL_CACHE_DIR: output/broll-cache
           NEWSFLOW_FACT_CHECK_ENABLED: "true"
           NEWSFLOW_FACT_CHECK_MODEL: gpt-6-astra
-          OPENAI_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.OPENAI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.OPENAI_API_KEY || '' }}
           NEWSFLOW_LOOKBACK_HOURS: ${{ steps.cairo_schedule.outputs.lookback_hours || '72' }}
           NEWSFLOW_DEDUPE_HISTORY_ENABLED: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
           NEWSFLOW_RECORD_DRAFT_HISTORY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
