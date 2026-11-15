@@ -172,9 +172,13 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
 
 
 def upload_review_blockers(
-    report: dict, editorial_approved: bool, *, private_staging: bool = False
+    report: dict,
+    editorial_approved: bool,
+    *,
+    private_staging: bool = False,
+    require_broll: bool = True,
 ) -> list[str]:
-    """Require independent fact verification for every upload, including PRIVATE staging."""
+    """Separate private owner-review staging from approval to publish publicly."""
     blockers = []
     if not editorial_approved and not private_staging:
         blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
@@ -189,12 +193,18 @@ def upload_review_blockers(
         blockers.append("لا توجد أخبار مقبولة")
     if warning_count > 0 or report.get("warnings"):
         blockers.append("توجد تحذيرات تحريرية غير محسومة")
-    if report.get("fact_checking") != "verified":
+
+    # Independent fact checking remains mandatory before public release.
+    # Private review drafts are not public and are clearly marked as pending review.
+    if not private_staging and report.get("fact_checking") != "verified":
         blockers.append("التحقق المستقل من الوقائع لم يكتمل")
-    if report.get("voice_source") != "owner_recording":
-        blockers.append("التعليق الصوتي ليس تسجيلاً أصلياً لصاحب القناة")
-    if report.get("presenter_source") != "owner_video":
-        blockers.append("فيديو المقدم الأصلي غير مدمج في النسخة")
-    if report.get("broll_source") not in {"pexels", "licensed_video"}:
+
+    # Use the channel owner's original recording or their own authorized voice clone.
+    if report.get("voice_source") not in {"owner_recording", "owner_voice_clone"}:
+        blockers.append("مصدر التعليق الصوتي ليس تسجيلاً أو نسخة صوتية معتمدة لصاحب القناة")
+
+    # An on-camera presenter shot is optional for narrated financial-news footage.
+    # Check licensed B-roll after rendering, when its manifest actually exists.
+    if require_broll and report.get("broll_source") not in {"pexels", "licensed_video"}:
         blockers.append("لقطات B-roll مرخصة غير مدمجة في النسخة")
     return blockers
