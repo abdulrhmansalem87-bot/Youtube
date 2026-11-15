@@ -84,7 +84,15 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertIn("python -m newsflow --private-test", workflow)
         self.assertIn("python -m newsflow --private-staging", workflow)
         self.assertIn('NEWSFLOW_UPLOAD_SINGLE_LONG: "false"', workflow)
-        self.assertIn('- cron: "0 13,17,20 * * *"', workflow)
+        for cron in (
+            '- cron: "0 13 * * *"', '- cron: "0 17 * * *"', '- cron: "0 20 * * *"',
+            '- cron: "0 12 * * *"', '- cron: "0 16 * * *"', '- cron: "0 19 * * *"',
+        ):
+            self.assertIn(cron, workflow)
+        self.assertIn("id: cairo_schedule", workflow)
+        self.assertIn('python -m newsflow.schedule "$EVENT_SCHEDULE"', workflow)
+        self.assertIn("steps.cairo_schedule.outputs.run == 'true'", workflow)
+        self.assertIn("steps.cairo_schedule.outputs.lookback_hours", workflow)
         self.assertIn("NEWSFLOW_STRICT_FRESHNESS:", workflow)
         self.assertIn("FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}", workflow)
         self.assertIn("FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}", workflow)
