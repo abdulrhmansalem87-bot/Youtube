@@ -130,6 +130,36 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
         self.assertFalse(verified)
         self.assertTrue(any("مصدرين مستقلين" in item for item in blockers))
 
+    def test_redirected_original_publisher_is_still_excluded(self):
+        story = {
+            "id": "story-redirect",
+            "link": "https://amp.original.example/article",
+        }
+        decision = {
+            "decision": "verified",
+            "summary": "ادعاء.",
+            "claims": [{
+                "claim": "القرار صدر.",
+                "verdict": "supported",
+                "explanation": "رابط من الناشر الأصلي ورابط من ناشر مستقل.",
+                "evidence_urls": [
+                    "https://original-publisher.example/canonical",
+                    "https://publisher-one.example/story",
+                ],
+            }],
+            "material_disagreements": [],
+        }
+        annotations = [
+            {"url": "https://original-publisher.example/canonical", "title": "Resolved original"},
+            {"url": "https://publisher-one.example/story", "title": "Independent"},
+        ]
+        verified, blockers, _ = validate_fact_check_decision(
+            story, decision, annotations,
+            original_url="https://original-publisher.example/canonical",
+        )
+        self.assertFalse(verified)
+        self.assertTrue(any("مصدرين مستقلين" in item for item in blockers))
+
     def test_rejects_model_verified_label_when_claim_is_partially_supported(self):
         decision = {
             "decision": "verified",
@@ -193,6 +223,7 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
         evidence = {
             "story_id": "story-1", "status": "readable",
             "article_text": "نص المقال الأصلي وتفاصيله. " * 100,
+            "final_url": "https://original-publisher.example/canonical",
         }
         body = json.dumps(successful_api_response()).encode("utf-8")
 
@@ -208,6 +239,7 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
             self.assertEqual(sent["tool_choice"], "required")
             self.assertEqual(sent["text"]["format"]["type"], "json_schema")
             self.assertEqual(sent["model"], "gpt-6-astra")
+            self.assertIn("https://original-publisher.example/canonical", sent["input"])
             return Response(body)
 
         with patch("newsflow.fact_check.urlopen", side_effect=fake_urlopen):
