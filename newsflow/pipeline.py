@@ -808,6 +808,10 @@ def main():
     if args.private_test and upload_blockers:
         print("[SAFE] PRIVATE test blocked before rendering: " + " | ".join(upload_blockers))
         return
+    if args.private_staging and upload_blockers:
+        raise RuntimeError(
+            "PRIVATE review staging blocked before rendering: " + " | ".join(upload_blockers)
+        )
     if upload_enabled and not visual_qa_approved and not args.private_staging:
         print("[SAFE] PRIVATE upload blocked: phone visual QA has not been explicitly approved.")
         upload_enabled = False
