@@ -40,7 +40,7 @@ class UploadReviewGateTests(unittest.TestCase):
                 self.assertIn(expected, upload_review_blockers(report, True))
                 self.assertIn(expected, upload_review_blockers(report, False, private_staging=True))
 
-    def test_newsflow_marks_current_tts_and_text_card_provenance(self):
+    def test_newsflow_marks_tts_and_pending_broll_provenance_before_render(self):
         story = {
             "id": "test-story",
             "title": "البنك المركزي يعلن قراراً جديداً بشأن أسعار الفائدة",
@@ -105,6 +105,32 @@ class UploadReviewGateTests(unittest.TestCase):
                         main()
         self.assertEqual(raised.exception.code, 2)
         auth.assert_not_called()
+
+    def test_render_only_refuses_to_run_with_youtube_upload_enabled_before_oauth(self):
+        with patch.dict(os.environ, {
+            "PEXELS_API_KEY": "test-key",
+            "YOUTUBE_UPLOAD_ENABLED": "true",
+            "NEWSFLOW_PRIVATE_STAGING": "false",
+        }, clear=False):
+            with patch.object(sys, "argv", ["newsflow", "--render-only"]):
+                with patch("newsflow.pipeline.validate_youtube_auth") as auth:
+                    with self.assertRaises(SystemExit) as raised:
+                        main()
+        self.assertEqual(raised.exception.code, 2)
+        auth.assert_not_called()
+
+    def test_render_only_requires_pexels_before_collecting_stories(self):
+        with patch.dict(os.environ, {
+            "PEXELS_API_KEY": "",
+            "YOUTUBE_UPLOAD_ENABLED": "false",
+            "NEWSFLOW_PRIVATE_STAGING": "false",
+        }, clear=False):
+            with patch.object(sys, "argv", ["newsflow", "--render-only"]):
+                with patch("newsflow.pipeline.collect") as collect:
+                    with self.assertRaises(SystemExit) as raised:
+                        main()
+        self.assertEqual(raised.exception.code, 2)
+        collect.assert_not_called()
 
     def test_cli_refuses_full_render_without_private_test(self):
         with patch.object(sys, "argv", ["newsflow"]):
