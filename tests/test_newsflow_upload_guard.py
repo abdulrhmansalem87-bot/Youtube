@@ -30,7 +30,9 @@ class UploadReviewGateTests(unittest.TestCase):
     def test_non_owner_voice_blocks_but_an_on_camera_presenter_is_optional(self):
         report = valid_report()
         report["voice_source"] = "generic_tts"
-        self.assertIn("مصدر التعليق الصوتي", upload_review_blockers(report, True))
+        self.assertTrue(
+            any("مصدر التعليق الصوتي" in item for item in upload_review_blockers(report, True))
+        )
         report["voice_source"] = "owner_voice_clone"
         report["presenter_source"] = "none"
         self.assertEqual(upload_review_blockers(report, True), [])
