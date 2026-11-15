@@ -65,9 +65,9 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7.1.0
         with:
           python-version: "3.11"
           cache: pip
@@ -108,7 +108,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Restore recent scheduled story history
         if: (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6.1.0
         with:
           path: output/history
           key: wealthradar-story-history-${{ runner.os }}-v1-${{ github.run_id }}-${{ github.run_attempt }}
@@ -136,7 +136,7 @@ jobs:
           fi
       - name: Restore resumable scene cache
         if: github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6.1.0
         with:
           path: |
             output/bulletin/.render_cache
@@ -151,7 +151,7 @@ jobs:
           echo "[RENDER_CACHE_RESTORE] manifests=$count"
       - name: Restore reusable licensed B-roll downloads
         if: (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true)
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6.1.0
         with:
           path: output/broll-cache
           key: wealthradar-broll-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -202,19 +202,19 @@ jobs:
           fi
       - name: Save reusable licensed B-roll downloads
         if: always() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true))
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6.1.0
         with:
           path: output/broll-cache
           key: wealthradar-broll-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Save recent scheduled story history
         if: success() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && hashFiles('output/history/used_stories.json') != ''
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6.1.0
         with:
           path: output/history
           key: wealthradar-story-history-${{ runner.os }}-v1-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Save resumable scene cache
         if: always() && github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6.1.0
         with:
           path: |
             output/bulletin/.render_cache
@@ -239,7 +239,7 @@ jobs:
           echo "[PHONE_QA_COMPLETE] videos=$qa_count (main + available Shorts)"
       - name: Upload generated files
         if: always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: newsflow-output-${{ github.run_number }}
           path: output/
