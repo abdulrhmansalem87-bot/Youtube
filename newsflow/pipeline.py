@@ -952,6 +952,7 @@ def main():
         editorial_report["broll_source"] = "pexels"
         if args.private_staging:
             short_description = add_private_review_notice(short_description)
+        validate_youtube_metadata(short_title, short_description, short=True)
         (out / "editorial_review.json").write_text(
             json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -1010,6 +1011,7 @@ def main():
     if args.private_staging:
         description = add_private_review_notice(description)
         editorial_report["publication_review"] = "private_owner_review_pending"
+    validate_youtube_metadata(video_title, description, short=False)
     (out / "editorial_review.json").write_text(
         json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
@@ -1047,6 +1049,7 @@ def main():
             short_description = append_broll_attribution(short_description, short_video)
             if args.private_staging:
                 short_description = add_private_review_notice(short_description)
+            validate_youtube_metadata(short_title, short_description, short=True)
             short_probe = subprocess.run(
                 [ffprobe, "-v", "error", "-show_entries", "format=duration",
                  "-of", "default=noprint_wrappers=1:nokey=1", str(short_audio)],
