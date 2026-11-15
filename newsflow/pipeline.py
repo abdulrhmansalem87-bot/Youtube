@@ -22,7 +22,7 @@ from dotenv import load_dotenv
 from PIL import Image, ImageDraw, ImageFont
 from newsflow.editorial import relevance, review_stories, upload_review_blockers
 from newsflow.history import filter_recent_repeats, load_story_history, record_story_history
-from newsflow.rendering import render_cards_video
+from newsflow.broll import render_broll_video
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -458,6 +458,43 @@ def source_display_name(value: str) -> str:
     return SOURCE_DISPLAY_NAMES.get(str(value or "").strip(), "مصدر الخبر")
 
 
+def caption_phrases(value, words_per_caption=4):
+    """Create short Arabic captions that refresh with every moving B-roll cut."""
+    words = clean_narration(value).split()
+    return [
+        " ".join(words[index:index + words_per_caption])
+        for index in range(0, len(words), words_per_caption)
+    ] or ["WealthRadar"]
+
+
+def append_broll_attribution(description, video_path):
+    """Require a valid Pexels manifest and keep contributor credits in the YouTube description."""
+    manifest_path = video_path.with_suffix(".broll-manifest.json")
+    if not manifest_path.is_file():
+        raise RuntimeError("ملف توثيق لقطات Pexels غير موجود؛ أوقفنا تجهيز وصف النشر.")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        raise RuntimeError("ملف توثيق لقطات Pexels غير صالح؛ أوقفنا تجهيز وصف النشر.") from None
+    if manifest.get("provider") != "Pexels" or manifest.get("license") != "Pexels License":
+        raise RuntimeError("بيانات ترخيص B-roll غير مطابقة؛ أوقفنا تجهيز وصف النشر.")
+    credits, seen = [], set()
+    for source in manifest.get("sources", []):
+        page = str(source.get("source_page") or "").strip()
+        photographer = str(source.get("photographer") or "مصور Pexels").strip()
+        if not page.startswith("https://www.pexels.com/") or page in seen:
+            continue
+        seen.add(page)
+        credits.append(f"- {photographer} / Pexels: {page}")
+        if len(credits) >= 12:
+            break
+    if not credits:
+        raise RuntimeError("لا توجد روابط إسناد صالحة لمقاطع Pexels؛ أوقفنا تجهيز وصف النشر.")
+    attribution = "لقطات الفيديو المتحركة المرخّصة من Pexels (Pexels License):\n" + "\n".join(credits)
+    base = str(description or "").strip()
+    return (base[:3900] + "\n\n" + attribution)[:5000]
+
+
 def make_video(title, audio, output, short=False, stories=None, portrait=None):
     # A vertical long-form video is still a regular video; only Shorts have a 180s cap.
     portrait = short if portrait is None else portrait
@@ -471,22 +508,28 @@ def make_video(title, audio, output, short=False, stories=None, portrait=None):
     )
     total_duration = float(probe.stdout.strip())
     story_list = stories or []
+    opening = make_opening_hook(story_list)
     cards = [{
         "heading": "المقدمة",
-        "title": make_opening_hook(story_list),
+        "title": opening,
         "body": "أهم تطورات المال والأسواق، من غير تهويل وبالمصادر",
+        "captions": caption_phrases(opening),
     }]
     for index, story in enumerate(story_list, start=1):
+        story_title = clean_narration(story.get("title", ""))
+        story_summary = clean_narration(story.get("summary", ""))
         cards.append({
             "heading": f"الخبر {index:02d}، {source_display_name(story.get('source', 'المصدر'))}",
-            "title": clean_narration(story.get("title", "")),
-            "body": clean_narration(story.get("summary", "")[:520])
-                    or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
+            "title": story_title,
+            "body": story_summary[:180] or "راجع رابط المصدر لمعرفة التفاصيل الكاملة.",
+            "captions": caption_phrases(f"{story_title}. {story_summary[:1800]}"),
         })
+    closing = "تابع المصدر الأصلي وقارن المعلومات قبل أي قرار مالي واشترك في WealthRadar"
     cards.append({
         "heading": "الخلاصة",
         "title": "قبل أي قرار مالي",
         "body": "تابع المصدر الأصلي وقارن المعلومات. اشترك في WealthRadar وفعّل زر الجرس لمتابعة الموجز القادم.",
+        "captions": caption_phrases(closing),
     })
 
     weights = [max(90, len(card["title"]) + len(card["body"])) for card in cards]
@@ -494,12 +537,9 @@ def make_video(title, audio, output, short=False, stories=None, portrait=None):
     durations = [total_duration * weight / weight_total for weight in weights]
     durations[-1] += total_duration - sum(durations)
 
-    cache_dir = output.parent / ".render_cache" / output.stem
-    render_cards_video(
-        cards, durations, audio, output, short=short, portrait=portrait,
-        commit_sha=os.getenv("GITHUB_SHA", "local"), cache_dir=cache_dir,
-    )
-    print(f"[RENDER_RESUME] scenes={len(cards)} cache={cache_dir}")
+    # Moving licensed footage is mandatory. Never fall back to static cards.
+    render_broll_video(cards, durations, audio, output, portrait=portrait)
+    print(f"[BROLL_RENDER_COMPLETE] cards={len(cards)} orientation={'portrait' if portrait else 'landscape'}")
 
 def validate_video(
     video_path: Path,
@@ -670,12 +710,15 @@ def youtube_upload(
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
+    parser.add_argument("--render-only", action="store_true", help="Render long video and companion Shorts as review artifacts; never upload")
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy after manual approvals")
     parser.add_argument("--private-staging", action="store_true", help="Scheduled production: render bulletin and Shorts and upload as PRIVATE for owner review")
     parser.add_argument("--shorts-only", action="store_true", help="Render and stage one story-specific Short only; never render the long bulletin")
     args = parser.parse_args()
     args.max_stories = clamp_max_stories(args.max_stories)
+    if (args.render_only and (args.dry_run or args.private_test or args.private_staging)):
+        parser.error("--render-only cannot be combined with dry-run or private upload modes")
     if (args.private_test or args.private_staging) and args.dry_run:
         parser.error("Private production modes cannot be combined with --dry-run")
     if args.private_test and args.private_staging:
@@ -684,14 +727,18 @@ def main():
         parser.error("--shorts-only is restricted to PRIVATE staging")
     if args.shorts_only and args.private_test:
         parser.error("--shorts-only cannot be combined with --private-test")
-    if not args.dry_run and not args.private_test and not args.private_staging:
-        parser.error("الرندر الكامل محظور؛ استخدم --dry-run أو وضع PRIVATE المعتمد.")
+    if not args.dry_run and not args.private_test and not args.private_staging and not args.render_only:
+        parser.error("الرندر الكامل محظور؛ استخدم --dry-run أو --render-only أو وضع PRIVATE المعتمد.")
     staging_env = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
     if args.private_staging and not staging_env:
         parser.error("--private-staging is allowed only for the scheduled staging workflow")
     if not args.private_staging and staging_env:
         parser.error("NEWSFLOW_PRIVATE_STAGING requires --private-staging")
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
+    if args.render_only and upload_enabled:
+        parser.error("--render-only refuses to run while YouTube uploads are enabled.")
+    if args.render_only and not os.getenv("PEXELS_API_KEY", "").strip():
+        parser.error("--render-only requires PEXELS_API_KEY; no static-card fallback is allowed.")
     editorial_approved = os.getenv("NEWSFLOW_EDITORIAL_APPROVED", "false").lower() == "true"
     private_staging = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
     visual_qa_approved = os.getenv("NEWSFLOW_VISUAL_QA_APPROVED", "false").lower() == "true"
@@ -716,8 +763,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     stories, filtered_stories = collect(args.max_stories)
     editorial_report = review_stories(stories)
-    # Current NewsFlow produces Edge TTS narration and text-card visuals only.
-    # Keep provenance explicit so these review drafts can never pass a final-upload gate.
+    # Narration is still a generated voice track and no owner presenter footage is embedded.
+    # B-roll provenance remains pending until a successful Pexels render writes its manifest.
     editorial_report.update({
         "voice_source": "tts",
         "presenter_source": "none",
@@ -746,7 +793,10 @@ def main():
               + ". Generated video will remain an Artifact.")
         upload_enabled = False
     if not stories:
-        print("[INFO] لم يتم العثور على أخبار في المصادر.")
+        message = "لا توجد أخبار اجتازت المراجعة التحريرية؛ لم يتم إنتاج فيديو."
+        print("[BLOCKED] " + message)
+        if args.render_only:
+            raise RuntimeError(message)
         return
     for story in stories:
         folder = out / story["id"]
@@ -778,6 +828,11 @@ def main():
         short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
         make_video(short_title, short_audio, short_video, short=True, stories=[story])
         validate_video(short_video, short_audio, expected_short=True)
+        short_description = append_broll_attribution(short_description, short_video)
+        editorial_report["broll_source"] = "pexels"
+        (out / "editorial_review.json").write_text(
+            json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
         ffprobe = shutil.which("ffprobe")
         if not ffprobe:
             raise RuntimeError("FFprobe غير متاح للتحقق من مدة Short")
@@ -822,6 +877,13 @@ def main():
     long_video = bulletin / "long.mp4"
     make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=stories)
     validate_video(long_video, audio, expected_portrait=main_portrait)
+    description = append_broll_attribution(description, long_video)
+    editorial_report["broll_source"] = "pexels"
+    (out / "editorial_review.json").write_text(
+        json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    if args.render_only:
+        print("[RENDER_ONLY_READY] long video complete; YouTube upload is disabled.")
     if args.private_test:
         if upload_enabled:
             youtube_upload(
@@ -848,6 +910,7 @@ def main():
             short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
+            short_description = append_broll_attribution(short_description, short_video)
             short_probe = subprocess.run(
                 [ffprobe, "-v", "error", "-show_entries", "format=duration",
                  "-of", "default=noprint_wrappers=1:nokey=1", str(short_audio)],
