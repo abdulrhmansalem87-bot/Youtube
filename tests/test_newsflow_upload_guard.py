@@ -70,12 +70,24 @@ class UploadReviewGateTests(unittest.TestCase):
                 "NEWSFLOW_VISUAL_QA_APPROVED": "false",
             }, clear=False):
                 with patch.object(sys, "argv", ["newsflow", "--dry-run"]):
-                    with patch("newsflow.pipeline.collect", return_value=([story], [])):
+                    with patch("newsflow.pipeline.collect", return_value=([story], [])), \
+                         patch("newsflow.pipeline.collect_source_evidence", return_value=[{
+                             "story_id": "test-story", "source_url": story["link"],
+                             "status": "readable", "evidence_level": "article_text",
+                             "article_text": "نص أصلي تجريبي" * 80, "extracted_chars": 1200,
+                             "warnings": [],
+                         }]):
                         main()
             report = json.loads((Path(directory) / "editorial_review.json").read_text(encoding="utf-8"))
             self.assertEqual(report["voice_source"], "tts")
             self.assertEqual(report["presenter_source"], "none")
             self.assertEqual(report["broll_source"], "none")
+            self.assertEqual(report["source_evidence_summary"]["readable"], 1)
+            self.assertEqual(report["source_evidence"][0]["status"], "readable")
+            evidence_file = Path(directory) / "source-evidence" / "test-story.json"
+            self.assertTrue(evidence_file.is_file())
+            saved_evidence = json.loads(evidence_file.read_text(encoding="utf-8"))
+            self.assertEqual(saved_evidence["evidence_level"], "article_text")
             blockers = upload_review_blockers(report, True, private_staging=True)
             self.assertTrue(any("مصدر التعليق الصوتي" in item for item in blockers))
             self.assertFalse(any("المقدم الأصلي" in item for item in blockers))
@@ -236,6 +248,12 @@ class UploadReviewGateTests(unittest.TestCase):
             with patch.dict(os.environ, values, clear=False):
                 with patch.object(sys, "argv", ["newsflow", "--private-staging"]):
                     with patch("newsflow.pipeline.collect", return_value=([story], [])), \
+                         patch("newsflow.pipeline.collect_source_evidence", return_value=[{
+                             "story_id": "unverified-story", "source_url": story["link"],
+                             "status": "readable", "evidence_level": "article_text",
+                             "article_text": "نص أصلي تجريبي" * 80, "extracted_chars": 1200,
+                             "warnings": [],
+                         }]), \
                          patch("newsflow.pipeline.validate_youtube_auth") as auth, \
                          patch("newsflow.pipeline.make_audio") as audio, \
                          patch("newsflow.pipeline.make_video") as video:
