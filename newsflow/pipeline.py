@@ -502,7 +502,7 @@ def caption_phrases(value, words_per_caption=4):
     ] or ["تابع التفاصيل"]
 
 
-def split_required_hashtags(description):
+def split_required_hashtags(description, *, short=False):
     """Separate the mandatory four-tag footer so later edits cannot truncate it."""
     base = str(description or "").strip()
     if not base:
@@ -512,12 +512,13 @@ def split_required_hashtags(description):
     hashtags = tag_line.split()
     if len(hashtags) != 4 or any(not tag.startswith("#") for tag in hashtags):
         raise RuntimeError("الوصف يجب أن ينتهي بأربعة هاشتاجات قبل إضافة بيانات الترخيص.")
-    if len(set(hashtags)) != 4 or "#WealthRadar" not in hashtags or "#أخبار_اقتصادية" not in hashtags:
+    required = {"#WealthRadar", "#shorts"} if short else {"#WealthRadar", "#أخبار_اقتصادية"}
+    if len(set(hashtags)) != 4 or not required.issubset(set(hashtags)):
         raise RuntimeError("الهاشتاجات المطلوبة ناقصة أو مكررة.")
-    return "\\n".join(lines[:-1]).rstrip(), tag_line
+    return "\n".join(lines[:-1]).rstrip(), tag_line
 
 
-def append_broll_attribution(description, video_path):
+def append_broll_attribution(description, video_path, *, short=False):
     """Require a valid Pexels manifest and preserve sources and hashtags in full."""
     manifest_path = video_path.with_suffix(".broll-manifest.json")
     if not manifest_path.is_file():
@@ -540,22 +541,22 @@ def append_broll_attribution(description, video_path):
             break
     if not credits:
         raise RuntimeError("لا توجد روابط إسناد صالحة لمقاطع Pexels؛ أوقفنا تجهيز وصف النشر.")
-    body, hashtag_line = split_required_hashtags(description)
-    attribution = "لقطات الفيديو المتحركة المرخّصة من Pexels (Pexels License):\\n" + "\\n".join(credits)
-    result = body + "\\n\\n" + attribution + "\\n\\n" + hashtag_line
+    body, hashtag_line = split_required_hashtags(description, short=short)
+    attribution = "لقطات الفيديو المتحركة المرخّصة من Pexels (Pexels License):\n" + "\n".join(credits)
+    result = body + "\n\n" + attribution + "\n\n" + hashtag_line
     if len(result) > 5000:
         raise RuntimeError("إضافة إسناد لقطات Pexels تتجاوز حد يوتيوب؛ تم إيقاف الرفع بدلاً من حذف الروابط أو الهاشتاجات.")
     return result
 
 
-def add_private_review_notice(description):
+def add_private_review_notice(description, *, short=False):
     """Mark a private review copy without dropping any source links or required hashtags."""
     notice = (
         "نسخة مراجعة خاصة — ليست معتمدة للنشر العام بعد. "
         "التحقق المستقل من الوقائع ومراجعة المصادر مطلوبان قبل إتاحتها للعامة."
     )
-    body, hashtag_line = split_required_hashtags(description)
-    result = notice + "\\n\\n" + body + "\\n\\n" + hashtag_line
+    body, hashtag_line = split_required_hashtags(description, short=short)
+    result = notice + "\n\n" + body + "\n\n" + hashtag_line
     if len(result) > 5000:
         raise RuntimeError("إضافة تنبيه المراجعة الخاصة تتجاوز حد يوتيوب؛ تم إيقاف الرفع.")
     return result
@@ -947,10 +948,10 @@ def main():
         short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
         make_video(short_title, short_audio, short_video, short=True, stories=[story])
         validate_video(short_video, short_audio, expected_short=True)
-        short_description = append_broll_attribution(short_description, short_video)
+        short_description = append_broll_attribution(short_description, short_video, short=True)
         editorial_report["broll_source"] = "pexels"
         if args.private_staging:
-            short_description = add_private_review_notice(short_description)
+            short_description = add_private_review_notice(short_description, short=True)
         validate_youtube_metadata(short_title, short_description, short=True)
         (out / "editorial_review.json").write_text(
             json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
