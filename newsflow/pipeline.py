@@ -290,9 +290,9 @@ def build_short_youtube_metadata(story, script):
 
 
 def build_youtube_metadata(stories, script):
-    # Specific, curiosity-driven title based on the actual lead story; no fake urgency.
+    """Build a concise long-form description that preserves sources and all four hashtags."""
     lead_title = clean_narration((stories or [{}])[0].get("title", ""))
-    lead_title = re.sub(r"^(عاجل|آخر الأخبار|أخبار اليوم)\s*[:：-]?\s*", "", lead_title, flags=re.I)
+    lead_title = re.sub(r"^(عاجل|آخر الأخبار|أخبار اليوم)\\s*[:：-]?\\s*", "", lead_title, flags=re.I)
     if lead_title:
         lead_title = lead_title.rstrip(" .،؛:؟!")
         if len(lead_title) > 65:
@@ -300,6 +300,7 @@ def build_youtube_metadata(stories, script):
         title = f"{lead_title} | التفاصيل التي تهمك"
     else:
         title = "أهم تطورات المال والأسواق اليوم"
+
     text_blob = " ".join(
         f"{item.get('title', '')} {item.get('summary', '')} {item.get('category', '')}"
         for item in stories
@@ -318,6 +319,7 @@ def build_youtube_metadata(stories, script):
         if any(term in text_blob for term in terms):
             tags.append(tag)
     tags = list(dict.fromkeys(tags))[:15]
+
     hashtags = ["#WealthRadar", "#أخبار_اقتصادية"]
     if any(term in text_blob for term in ("ذهب", "gold")):
         hashtags.append("#الذهب")
@@ -328,19 +330,54 @@ def build_youtube_metadata(stories, script):
     else:
         hashtags.append("#الاقتصاد")
     hashtags.append("#الأسواق")
-    source_lines = "\n".join(
-        f"{i}. {item['source']}: {item['link']}"
-        for i, item in enumerate(stories, start=1)
-    )
+
+    story_lines = []
+    source_lines = []
+    for index, item in enumerate(stories, start=1):
+        item_title = clean_narration(item.get("title", ""))[:160]
+        item_summary = clean_narration(item.get("summary", ""))
+        if len(item_summary) > 280:
+            item_summary = item_summary[:277].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+        story_lines.append(f"{index}. {item_title}\\n{item_summary}")
+        source_lines.append(f"{index}. {item.get('source', 'المصدر الأصلي')}: {item.get('link', '')}")
+
+    # Do not paste the entire narration into the description. That can push source
+    # links and required hashtags beyond YouTube's 5,000-character limit.
     description = (
-        "أهم تطورات المال والاقتصاد والأسواق. عناوين واضحة ومصادر مباشرة لمتابعة ما يحدث.\n\n"
-        + script + "\n\nمصادر الأخبار وروابطها:\n" + source_lines
-        + "\n\nنحرص على تقديم المعلومة بوضوح، مع ذكر المصادر حتى تراجع التفاصيل بنفسك. شكرًا لمتابعتك.\n\n"
-        + "هذا المحتوى إخباري وتثقيفي، ولا يُعد توصية أو نصيحة استثمارية. "
-        + "تحقق من المصدر الأصلي قبل اتخاذ أي قرار مالي.\n\n"
-        + " ".join(hashtags)
+        "أهم تطورات المال والاقتصاد والأسواق، مع ملخص واضح وروابط المصادر الأصلية.\\n\\n"
+        + "أبرز الأخبار:\\n" + "\\n\\n".join(story_lines)
+        + "\\n\\nمصادر الأخبار وروابطها:\\n" + "\\n".join(source_lines)
+        + "\\n\\nنحرص على تقديم المعلومة بوضوح، مع ذكر المصادر حتى تراجع التفاصيل بنفسك. شكرًا لمتابعتك."
+        + "\\n\\nهذا المحتوى إخباري وتثقيفي، ولا يُعد توصية أو نصيحة استثمارية. "
+        + "تحقق من المصدر الأصلي قبل اتخاذ أي قرار مالي."
+        + "\\n\\n" + " ".join(hashtags)
     )
-    return title, description[:5000], tags
+    if len(description) > 5000:
+        raise RuntimeError("وصف الفيديو الطويل يتجاوز حد يوتيوب؛ تم إيقافه بدلاً من قص المصادر أو الهاشتاجات.")
+    return title, description, tags
+
+
+def validate_youtube_metadata(title, description, *, short=False):
+    """Fail closed if upload metadata is missing, overlong, branded in the title, or tag-incomplete."""
+    title = str(title or "").strip()
+    description = str(description or "").strip()
+    if not title or len(title) > 100:
+        raise RuntimeError("عنوان يوتيوب فارغ أو يتجاوز 100 حرف؛ تم إيقاف الرفع.")
+    if "wealthradar" in title.casefold():
+        raise RuntimeError("اسم القناة لا يجب أن يظهر في العنوان؛ تم إيقاف الرفع.")
+    if not description or len(description) > 5000:
+        raise RuntimeError("وصف يوتيوب فارغ أو يتجاوز 5000 حرف؛ تم إيقاف الرفع.")
+    tag_line = description.splitlines()[-1].strip()
+    hashtags = tag_line.split()
+    if len(hashtags) != 4 or any(not tag.startswith("#") for tag in hashtags):
+        raise RuntimeError("يجب أن ينتهي وصف الفيديو بأربعة هاشتاجات بالضبط؛ تم إيقاف الرفع.")
+    if len(set(hashtags)) != 4 or "#WealthRadar" not in hashtags or "#أخبار_اقتصادية" not in hashtags:
+        raise RuntimeError("هاشتاجات النشر غير مكتملة أو مكررة؛ تم إيقاف الرفع.")
+    if short and "#shorts" not in hashtags:
+        raise RuntimeError("وصف الفيديو القصير يجب أن يحتوي على #shorts؛ تم إيقاف الرفع.")
+    if not re.search(r"https://", description):
+        raise RuntimeError("روابط المصادر غير موجودة في وصف الفيديو؛ تم إيقاف الرفع.")
+    return True
 
 def clean_narration(value):
     """Normalize feed text before TTS to reduce awkward pauses and symbol readings."""
