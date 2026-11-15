@@ -53,9 +53,10 @@ def validate_audio_duration(duration: float, *, private_test: bool = False) -> f
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.") from None
     if not math.isfinite(value) or value <= 0:
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.")
-    minimum = 1 if private_test else 181
-    if value < minimum or value > 300:
-        target = "أكثر من 3 وحتى 5 دقائق" if not private_test else "حتى 5 دقائق"
+    minimum = 1 if private_test else 240
+    maximum = 300 if private_test else 480
+    if value < minimum or value > maximum:
+        target = "من 4 إلى 8 دقائق" if not private_test else "حتى 5 دقائق"
         raise RuntimeError(f"مدة الفيديو الرئيسي يجب أن تكون {target}؛ تم إيقاف الإنتاج.")
     return value
 
@@ -246,7 +247,7 @@ def make_short_script(story):
     )
 
 
-def build_short_youtube_metadata(story, script):
+def build_short_youtube_metadata(story, script, long_video_url=None):
     """Short-specific title, two-line benefit summary, numbered source and four hashtags."""
     title_seed = clean_narration(story.get("title", "")).rstrip(" .،؛:؟!")
     if len(title_seed) > 62:
@@ -269,7 +270,9 @@ def build_short_youtube_metadata(story, script):
     description = (
         f"في هذا الفيديو نفهم ببساطة: {title_seed}.\n"
         f"ملخص الخبر: {summary}.\n\n"
-        f"المصادر:\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\n\n"
+        f"المصادر:\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\n"
+        + (f"الحلقة الكاملة التي تشرح تفاصيل هذا الخبر: {long_video_url}\n" if long_video_url else "")
+        + "\n"
         "بنحاول نقدّم لك المعلومة بأفضل صورة نقدر عليها، ولو حصلت هفوة بسيطة في الصوت فملاحظتك بتساعدنا نتحسن. "
         "بدعمك بنتطور سوا خطوة بخطوة. شكرًا إنك مع WealthRadar.\n\n"
         f"#shorts #WealthRadar #{topic.replace(' ', '_')} #{second_topic}"
@@ -654,7 +657,9 @@ def youtube_upload(
         raise RuntimeError("استجابة YouTube لم تؤكد الخصوصية المطلوبة؛ لن نعلن نجاح التحقق.")
     if returned_channel_id != target_channel_id:
         raise RuntimeError("استجابة YouTube لا تطابق القناة التي تم التحقق منها؛ لن نعلن نجاح الرفع.")
-    print(f"[UPLOAD_VERIFIED] https://youtu.be/{video_id} privacy={status} channel={target_channel_id}")
+    video_url = f"https://youtu.be/{video_id}"
+    print(f"[UPLOAD_VERIFIED] {video_url} privacy={status} channel={target_channel_id}")
+    return video_url
 
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
@@ -734,7 +739,14 @@ def main():
         (folder / "metadata.json").write_text(json.dumps(story, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[DRAFT] {story['title']} — {story['link']}")
 
-    bulletin_script = make_script(stories)
+    # The long episode and its Shorts must cover the same lead story, not unrelated headlines.
+    companion_story = stories[0]
+    companion_stories = [companion_story]
+    bulletin_script = make_script(companion_stories)
+    (out / "companion_story.json").write_text(
+        json.dumps(companion_story, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    print(f"[COMPANION_TOPIC] long episode + Shorts story={companion_story['id']}")
     bulletin = out / "bulletin"
     bulletin.mkdir(exist_ok=True)
     (bulletin / "script.txt").write_text(bulletin_script, encoding="utf-8")
@@ -799,7 +811,7 @@ def main():
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
-    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=stories)
+    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=companion_stories)
     validate_video(long_video, audio, expected_portrait=main_portrait)
     if args.private_test:
         if upload_enabled:
@@ -812,19 +824,27 @@ def main():
         return
     if args.private_staging:
         print("[PRIVATE_STAGING] Uploading validated long video and story Shorts as PRIVATE only.")
+    long_video_url = None
     if upload_enabled:
-        youtube_upload(long_video, video_title, description, tags, privacy_override="private", credentials=auth_credentials)
+        long_video_url = youtube_upload(
+            long_video, video_title, description, tags,
+            privacy_override="private", credentials=auth_credentials
+        )
+    else:
+        print("[SAFE] Long episode rendered; no YouTube upload is enabled.")
 
-    # Shorts are separate story-specific narrations, not a vertical copy of the full bulletin.
+    # Companion Shorts are derived only from the same lead story as the long episode.
     if not single_long_upload:
         shorts_dir = bulletin / "shorts"
         shorts_dir.mkdir(exist_ok=True)
-        for index, story in enumerate(stories[:2], start=1):
+        for index, story in enumerate(companion_stories, start=1):
             short_script = make_short_script(story)
             short_audio = shorts_dir / f"short-{index}.mp3"
             short_video = shorts_dir / f"short-{index}.mp4"
             asyncio.run(make_audio(short_script, short_audio))
-            short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
+            short_title, short_description, short_tags = build_short_youtube_metadata(
+                story, short_script, long_video_url=long_video_url
+            )
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
             short_probe = subprocess.run(
