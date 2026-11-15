@@ -55,9 +55,9 @@ permissions:
   contents: read
 
 concurrency:
-  # PR preview renders must not queue behind or delay the daily production run.
-  group: ${{ github.event_name == 'pull_request' && format('newsflow-pr-{0}', github.event.pull_request.number) || 'newsflow-production' }}
-  cancel-in-progress: false
+  # Keep production schedule/manual runs independent from push validation and PR previews.
+  group: ${{ github.event_name == 'pull_request' && format('newsflow-pr-{0}', github.event.pull_request.number) || (github.event_name == 'schedule' && 'newsflow-schedule') || (github.event_name == 'workflow_dispatch' && 'newsflow-manual') || format('newsflow-validation-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 jobs:
   build:
@@ -86,11 +86,30 @@ jobs:
         env:
           EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
         run: python -m newsflow.schedule "$EVENT_SCHEDULE" >> "$GITHUB_OUTPUT"
+      - name: Report Cairo schedule decision
+        if: always() && github.event_name == 'schedule'
+        env:
+          EVENT_SCHEDULE: ${{ github.event.schedule || '' }}
+          RUN_ENABLED: ${{ steps.cairo_schedule.outputs.run || 'false' }}
+          TARGET_LOCAL_TIME: ${{ steps.cairo_schedule.outputs.target_local_time || 'n/a' }}
+          CAIRO_LOCAL_TIME: ${{ steps.cairo_schedule.outputs.cairo_local_time || 'n/a' }}
+          CAIRO_UTC_OFFSET: ${{ steps.cairo_schedule.outputs.cairo_utc_offset || 'n/a' }}
+          SCHEDULE_REASON: ${{ steps.cairo_schedule.outputs.reason || 'schedule resolver did not return a reason' }}
+        run: |
+          {
+            echo "## WealthRadar Cairo schedule gate"
+            echo "- UTC cron: $EVENT_SCHEDULE"
+            echo "- Cairo time at gate: $CAIRO_LOCAL_TIME ($CAIRO_UTC_OFFSET)"
+            echo "- Target Cairo slot: $TARGET_LOCAL_TIME"
+            echo "- Run enabled: $RUN_ENABLED"
+            echo "- Decision: $SCHEDULE_REASON"
+            echo "- Scheduled mode: validation-only; no video render or YouTube upload"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Render real-story landscape and portrait phone previews
         if: github.event_name == 'pull_request'
         run: python scripts/render_mobile_preview.py
       - name: Restore resumable scene cache
-        if: github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
+        if: github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true
         uses: actions/cache/restore@v4
         with:
           path: |
@@ -100,35 +119,35 @@ jobs:
           restore-keys: |
             wealthradar-scenes-${{ runner.os }}-
       - name: Report restored scene cache
-        if: github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
+        if: github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true
         run: |
           count=$(find output/bulletin/.render_cache output/bulletin/shorts/.render_cache -type f -name manifest.json 2>/dev/null | wc -l)
           echo "[RENDER_CACHE_RESTORE] manifests=$count"
       - name: Run NewsFlow
-        if: github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
+        if: success() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || github.event_name == 'workflow_dispatch')
         env:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_LOOKBACK_HOURS: ${{ steps.cairo_schedule.outputs.lookback_hours }}
           NEWSFLOW_STRICT_FRESHNESS: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
-          FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
-          FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
+          FISH_AUDIO_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.FISH_AUDIO_API_KEY || '' }}
+          FISH_AUDIO_REFERENCE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.FISH_AUDIO_REFERENCE_ID || '' }}
           FISH_AUDIO_MODEL: s2.1-pro-free
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
-          # Keep story-specific Shorts enabled on every scheduled run.
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
-          NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.visual_qa_approved && 'true' || 'false' }}
-          # Scheduled runs render and stage validated videos as PRIVATE for owner review.
-          NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
+          NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && 'true' || 'false' }}
+          # Scheduled runs never receive approval and only collect/validate story drafts.
+          NEWSFLOW_PRIVATE_STAGING: "false"
           NEWSFLOW_EDITORIAL_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && 'true' || 'false' }}
-          # Scheduled uploads are PRIVATE staging only; manual test uploads retain explicit approvals.
-          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'schedule' && 'true' || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && 'true') || 'false' }}
+          # YouTube upload is available only for an explicitly approved manual PRIVATE test.
+          YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && 'true' || 'false' }}
           YOUTUBE_PRIVACY_STATUS: "private"
-          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          YOUTUBE_CLIENT_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.YOUTUBE_CLIENT_ID || '' }}
+          YOUTUBE_CLIENT_SECRET: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.YOUTUBE_CLIENT_SECRET || '' }}
+          YOUTUBE_REFRESH_TOKEN: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true && secrets.YOUTUBE_REFRESH_TOKEN || '' }}
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            python -m newsflow --private-staging
+            echo "[SCHEDULED_VALIDATION_ONLY] Collecting and validating stories; rendering and upload are disabled."
+            python -m newsflow --dry-run
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ] \
              && [ "${{ inputs.private_test }}" = "true" ] \
              && [ "${{ inputs.editorial_approved }}" = "true" ] \
@@ -139,7 +158,7 @@ jobs:
             python -m newsflow --dry-run
           fi
       - name: Save resumable scene cache
-        if: always() && github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true
         uses: actions/cache/save@v4
         with:
           path: |
@@ -147,7 +166,7 @@ jobs:
             output/bulletin/shorts/.render_cache
           key: wealthradar-scenes-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Capture actual rendered video frames for phone QA
-        if: always() && github.event_name != 'pull_request' && steps.cairo_schedule.outputs.run == 'true'
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.editorial_approved && inputs.visual_qa_approved && inputs.dry_run != true
         run: |
           qa_count=0
           if [ -s output/bulletin/long.mp4 ]; then
@@ -164,7 +183,7 @@ jobs:
           done
           echo "[PHONE_QA_COMPLETE] videos=$qa_count (main + available Shorts)"
       - name: Upload generated files
-        if: always() && steps.cairo_schedule.outputs.run == 'true'
+        if: always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true'))
         uses: actions/upload-artifact@v4
         with:
           name: newsflow-output-${{ github.run_number }}
