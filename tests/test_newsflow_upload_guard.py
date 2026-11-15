@@ -29,9 +29,14 @@ class UploadReviewGateTests(unittest.TestCase):
             upload_review_blockers(report, True),
         )
 
-    def test_private_staging_is_review_queue_and_still_blocks_editorial_warnings(self):
+    def test_private_staging_does_not_bypass_independent_fact_checking(self):
         report = valid_report()
         report["fact_checking"] = "not_performed"
+        self.assertIn(
+            "التحقق المستقل من الوقائع لم يكتمل",
+            upload_review_blockers(report, False, private_staging=True),
+        )
+        report["fact_checking"] = "verified"
         self.assertEqual(upload_review_blockers(report, False, private_staging=True), [])
         report["warning_count"] = 1
         report["warnings"] = [{"title": "خبر", "warnings": ["ملخص غير مكتمل"]}]
