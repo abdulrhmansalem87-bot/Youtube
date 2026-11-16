@@ -209,9 +209,9 @@ class UploadReviewGateTests(unittest.TestCase):
             }
             with patch.dict(os.environ, values, clear=False):
                 with patch.object(sys, "argv", ["newsflow", "--private-test"]):
-                    with patch("newsflow.pipeline.collect", return_value=([], [])), \\
-                         patch("newsflow.pipeline.validate_youtube_auth") as auth:
-                        main()
+                    with patch("newsflow.pipeline.collect", return_value=([], [])):
+                        with patch("newsflow.pipeline.validate_youtube_auth") as auth:
+                            main()
             auth.assert_not_called()
 
     def test_blocks_any_unresolved_editorial_warning(self):
