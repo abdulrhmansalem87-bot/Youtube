@@ -123,7 +123,7 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
             {"url": "https://original-publisher.example/article", "title": "Original"},
             {"url": "https://publisher-one.example/story", "title": "Other"},
         ]
-        verified, blockers, _ = validate_fact_check_decision(self.story, decision, annotations)
+        verified, blockers, claims = validate_fact_check_decision(self.story, decision, annotations)
         self.assertTrue(verified)
         self.assertEqual(blockers, [])
         self.assertEqual(claims[0]["independent_domains"], ["publisher-one.example"])
