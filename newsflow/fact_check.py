@@ -341,6 +341,176 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
     }
 
 
+
+TAVILY_SEARCH_URL = "https://api.tavily.com/search"
+GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
+
+
+def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
+    request = Request(
+        url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "NewsFlowFactCheck/1.0",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=90) as response:
+            raw = response.read(MAX_RESPONSE_BYTES + 1)
+    except HTTPError as exc:
+        raise RuntimeError(f"{service} HTTP {exc.code}") from None
+    except (URLError, TimeoutError, OSError) as exc:
+        raise RuntimeError(f"{service} connection failed ({type(exc).__name__})") from None
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise RuntimeError(f"{service} response exceeded the safe size limit")
+    try:
+        result = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise RuntimeError(f"{service} returned invalid JSON") from None
+    if not isinstance(result, dict):
+        raise RuntimeError(f"{service} returned an invalid response")
+    return result
+
+
+def _request_groq_tavily_fact_check(
+    story: dict,
+    evidence: dict,
+    groq_api_key: str,
+    tavily_api_key: str,
+    model: str,
+) -> dict:
+    """Search public headline/summary only; never transmit the extracted article body."""
+    article_text = str(evidence.get("article_text") or "")
+    if evidence.get("status") != "readable" or len(article_text) < 700:
+        return {
+            "story_id": str(story.get("id") or ""),
+            "status": "needs_review",
+            "verified": False,
+            "blockers": ["النص الأصلي الكامل غير متاح؛ لا يمكن التحقق من الخبر بأمان."],
+            "sources": [],
+            "claims": [],
+        }
+
+    title = str(story.get("title") or "").strip()[:240]
+    summary = str(story.get("summary") or "").strip()[:500]
+    # Deliberately limited to public metadata. The original article body remains local.
+    query = re.sub(r"\s+", " ", f"{title} {summary}").strip()[:400]
+    if len(query) < 20:
+        raise RuntimeError("لا توجد معلومات عامة كافية للبحث المستقل.")
+
+    search_payload = {
+        "query": query,
+        "search_depth": "basic",
+        "topic": "news",
+        "max_results": 8,
+        "include_answer": False,
+        "include_raw_content": False,
+    }
+    search_response = _post_json(
+        TAVILY_SEARCH_URL, search_payload, tavily_api_key, "Tavily Search"
+    )
+    raw_results = search_response.get("results")
+    if not isinstance(raw_results, list):
+        raise RuntimeError("Tavily لم يرجع قائمة مصادر صالحة.")
+
+    sources = []
+    for item in raw_results:
+        if not isinstance(item, dict):
+            continue
+        url = _clean_url(item.get("url", ""))
+        domain = _registrable_domain(url)
+        if (
+            not url or not domain
+            or domain in BLOCKED_SOURCE_ROOTS
+            or domain.split(".")[0] in BLOCKED_SOURCE_LABELS
+        ):
+            continue
+        if any(source["url"] == url for source in sources):
+            continue
+        sources.append({
+            "url": url,
+            "title": str(item.get("title") or "")[:500],
+            "domain": domain,
+            "snippet": str(item.get("content") or "")[:1800],
+        })
+    if not sources:
+        raise RuntimeError("لم يعثر البحث على صفحات مصادر قابلة للتحقق.")
+
+    groq_payload = {
+        "model": model,
+        "temperature": 0.1,
+        "max_tokens": 3500,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "economic_fact_check",
+                "strict": True,
+                "schema": FACT_CHECK_SCHEMA,
+            },
+        },
+        "messages": [
+            {"role": "system", "content": SYSTEM_INSTRUCTIONS + (
+                "\nأنت لا تملك نص المقال الأصلي؛ استخدم العنوان والملخص والنتائج أدناه فقط. "
+                "لا تستنتج تفاصيل غير موجودة. لا تستخدم إلا روابط المصادر الموجودة حرفياً "
+                "في قائمة search_results، ولا تخترع أي رابط. إذا كانت الأدلة غير كافية "
+                "فاستخدم insufficient_evidence أو needs_review."
+            )},
+            {
+                "role": "user",
+                "content": json.dumps({
+                    "story": {
+                        "title": title,
+                        "summary": summary,
+                        "publisher": str(story.get("source") or "")[:160],
+                        "original_url": str(evidence.get("final_url") or story.get("link") or ""),
+                        "published_at": str(story.get("published") or ""),
+                    },
+                    "search_results": [
+                        {key: source[key] for key in ("title", "url", "domain", "snippet")}
+                        for source in sources
+                    ],
+                }, ensure_ascii=False),
+            },
+        ],
+    }
+    groq_response = _post_json(
+        GROQ_CHAT_URL, groq_payload, groq_api_key, "Groq Chat"
+    )
+    try:
+        content = groq_response["choices"][0]["message"]["content"]
+        parsed = json.loads(content)
+    except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+        raise RuntimeError("Groq لم يرجع تقرير تحقق منظم صالحاً.") from None
+    if not isinstance(parsed, dict):
+        raise RuntimeError("Groq لم يرجع كائن تحقق صالحاً.")
+
+    verified, blockers, claims = validate_fact_check_decision(
+        story, parsed, sources,
+        original_url=evidence.get("final_url") or story.get("link"),
+    )
+    return {
+        "story_id": str(story.get("id") or ""),
+        "status": "verified" if verified else "needs_review",
+        "verified": verified,
+        "summary": str(parsed.get("summary") or ""),
+        "decision": str(parsed.get("decision") or "insufficient_evidence"),
+        "blockers": blockers,
+        "claims": claims,
+        "sources": [
+            {key: source[key] for key in ("url", "title", "domain")}
+            for source in sources
+        ],
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "model": model,
+        "method": "groq_tavily_search",
+    }
+
+
 def fact_check_stories(
     stories: list[dict],
     evidence_records: list[dict],
@@ -350,8 +520,17 @@ def fact_check_stories(
     max_workers: int = 2,
 ) -> dict:
     """Verify each story independently; callers may proceed with the supported subset."""
+    provider = str(os.getenv("NEWSFLOW_FACT_CHECK_PROVIDER", "openai")).strip().lower()
+    if provider not in {"openai", "groq_tavily"}:
+        provider = "unsupported"
     key = str(api_key or os.getenv("OPENAI_API_KEY", "")).strip()
-    selected_model = str(model or os.getenv("NEWSFLOW_FACT_CHECK_MODEL", DEFAULT_MODEL)).strip()
+    groq_key = str(os.getenv("GROQ_API_KEY", "")).strip()
+    tavily_key = str(os.getenv("TAVILY_API_KEY", "")).strip()
+    selected_model = str(model or (
+        os.getenv("NEWSFLOW_GROQ_MODEL", DEFAULT_GROQ_MODEL)
+        if provider == "groq_tavily"
+        else os.getenv("NEWSFLOW_FACT_CHECK_MODEL", DEFAULT_MODEL)
+    )).strip()
     if not stories:
         return {
             "status": "not_performed",
@@ -360,7 +539,18 @@ def fact_check_stories(
             "results": [],
             "reason": "لا توجد أخبار لإجراء التحقق عليها.",
         }
-    if not key:
+    credentials_ready = (
+        bool(groq_key and tavily_key) if provider == "groq_tavily"
+        else bool(key) if provider == "openai"
+        else False
+    )
+    if not credentials_ready:
+        if provider == "groq_tavily":
+            reason = "يتطلب مزود groq_tavily وجود GROQ_API_KEY وTAVILY_API_KEY."
+        elif provider == "openai":
+            reason = "OPENAI_API_KEY غير مضبوط؛ لم ندّعِ إتمام التحقق."
+        else:
+            reason = "NEWSFLOW_FACT_CHECK_PROVIDER غير مدعوم."
         return {
             "status": "not_performed",
             "verified_count": 0,
@@ -370,13 +560,14 @@ def fact_check_stories(
                     "story_id": str(story.get("id") or ""),
                     "status": "not_performed",
                     "verified": False,
-                    "blockers": ["مفتاح OpenAI API غير متاح في بيئة التشغيل."],
+                    "blockers": [reason],
                     "claims": [],
                     "sources": [],
                 }
                 for story in stories
             ],
-            "reason": "OPENAI_API_KEY غير مضبوط؛ لم ندّعِ إتمام التحقق.",
+            "reason": reason,
+            "provider": provider,
         }
 
     evidence_by_id = {
@@ -385,14 +576,20 @@ def fact_check_stories(
     }
     results: dict[int, dict] = {}
     workers = max(1, min(int(max_workers), 2, len(stories)))
+    checker = (
+        (lambda story, evidence: _request_groq_tavily_fact_check(
+            story, evidence, groq_key, tavily_key, selected_model
+        )) if provider == "groq_tavily"
+        else (lambda story, evidence: _request_openai_fact_check(
+            story, evidence, key, selected_model
+        ))
+    )
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
             executor.submit(
-                _request_openai_fact_check,
+                checker,
                 story,
                 evidence_by_id.get(str(story.get("id") or ""), {}),
-                key,
-                selected_model,
             ): index
             for index, story in enumerate(stories)
         }
@@ -423,6 +620,7 @@ def fact_check_stories(
         "rejected_count": len(stories) - verified_count,
         "results": ordered,
         "model": selected_model,
-        "method": "openai_responses_web_search",
+        "method": "groq_tavily_search" if provider == "groq_tavily" else "openai_responses_web_search",
+        "provider": provider,
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
