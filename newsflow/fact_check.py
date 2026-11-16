@@ -286,7 +286,16 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
             break
         except HTTPError as exc:
             if exc.code not in TRANSIENT_HTTP_CODES or attempt == 2:
-                raise RuntimeError(f"OpenAI Fact Check HTTP {exc.code}.") from None
+                # Preserve the API's safe error code/message for diagnosis; never log request headers.
+                try:
+                    error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
+                    error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+                    error_type = str(error_info.get("type") or error_info.get("code") or "api_error")[:80]
+                    error_message = re.sub(r"\\s+", " ", str(error_info.get("message") or ""))[:500]
+                except Exception:
+                    error_type, error_message = "api_error", ""
+                detail = f" type={error_type}; message={error_message}" if error_message else ""
+                raise RuntimeError(f"OpenAI Fact Check HTTP {exc.code}.{detail}") from None
         except (URLError, TimeoutError, OSError) as exc:
             if attempt == 2:
                 raise RuntimeError(
@@ -382,7 +391,7 @@ def fact_check_stories(
                     "story_id": str(story.get("id") or ""),
                     "status": "needs_review",
                     "verified": False,
-                    "blockers": [f"تعذر إتمام التحقق ({type(exc).__name__})."],
+                    "blockers": [f"تعذر إتمام التحقق ({type(exc).__name__}): {str(exc)[:650]}"],
                     "claims": [],
                     "sources": [],
                     "checked_at": datetime.now(timezone.utc).isoformat(),
