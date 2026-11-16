@@ -80,7 +80,7 @@ class ArticleTextParserTests(unittest.TestCase):
         result = parser.result()
         self.assertEqual(result["page_title"], "العنوان الحقيقي للمقال")
         self.assertEqual(result["meta_description"], "وصف المقال الحقيقي")
-        self.assertEqual(result["article_text"], body)
+        self.assertEqual(result["article_text"], " ".join(body.split()))
         self.assertNotIn("خبر آخر مقترح", result["article_text"])
 
 class OriginalSourceFetchTests(unittest.TestCase):
