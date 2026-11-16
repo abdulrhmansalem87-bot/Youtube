@@ -125,6 +125,8 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertEqual(render["env"]["FISH_AUDIO_MODEL"], "s2.1-pro-free")
         self.assertEqual(render["env"]["YOUTUBE_PRIVACY_STATUS"], "private")
         self.assertEqual(render["env"]["NEWSFLOW_PRIVATE_STAGING"], "true")
+        self.assertEqual(render["env"]["NEWSFLOW_FACT_CHECK_ENABLED"], "true")
+        self.assertIn("secrets.OPENAI_API_KEY", render["env"]["OPENAI_API_KEY"])
         self.assertEqual(render["env"]["YOUTUBE_UPLOAD_ENABLED"], "true")
         self.assertIn("secrets.FISH_AUDIO_API_KEY", render["env"]["FISH_AUDIO_API_KEY"])
         self.assertIn("secrets.FISH_AUDIO_REFERENCE_ID", render["env"]["FISH_AUDIO_REFERENCE_ID"])

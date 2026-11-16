@@ -16,6 +16,8 @@ class PipelineSelectionTests(unittest.TestCase):
         for index in range(8):
             stories.append({
                 "id": str(index),
+                "link": "https://publisher.example/story-str(index)",
+                "published": "2026-11-16",
                 "title": f"التضخم والأسواق المالية الخبر رقم {index}",
                 "summary": "تطور اقتصادي ومالي يؤثر على الأسواق والمستثمرين.",
                 "source": sources[index % len(sources)],
@@ -26,10 +28,37 @@ class PipelineSelectionTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3"])
         self.assertEqual(rejected, [])
 
+    def test_incomplete_top_candidate_is_skipped_and_next_complete_story_is_selected(self):
+        stories = [
+            {
+                "id": "incomplete",
+                "title": "ارتفاع أسعار الفائدة في الأسواق",
+                "link": "https://publisher.example/incomplete",
+                "published": "2026-11-16",
+                "summary": "ملخص قصير",
+                "source": "CNBC",
+                "category": "أسواق المال",
+            },
+            {
+                "id": "complete",
+                "title": "تطورات أسعار الفائدة في الأسواق المالية",
+                "link": "https://publisher.example/complete",
+                "published": "2026-11-16",
+                "summary": "أعلنت الجهة تفاصيل جديدة بشأن أسعار الفائدة وتأثير القرار على التمويل والأسواق.",
+                "source": "BBC",
+                "category": "أسواق المال",
+            },
+        ]
+        selected, rejected = select_stories(stories, 1)
+        self.assertEqual([item["id"] for item in selected], ["complete"])
+        self.assertEqual([item["id"] for item in rejected], ["incomplete"])
+
     def test_actual_egypt_gold_headline_deduplicates_other_local_gold_prices(self):
         stories = [
             {
                 "id": "gold-egypt",
+                "link": "https://publisher.example/gold-egypt",
+                "published": "2026-11-16",
                 "title": "ارتفاع سعر الذهب في مصر.. جنيه الذهب يسجل 49200 جنيهاً",
                 "summary": "ارتفع سعر الذهب في مصر خلال التعاملات الصباحية.",
                 "source": "CNBC عربية - أسواق المال",
@@ -37,6 +66,8 @@ class PipelineSelectionTests(unittest.TestCase):
             },
             {
                 "id": "gold-uae",
+                "link": "https://publisher.example/gold-uae",
+                "published": "2026-11-16",
                 "title": "سعر الذهب اليوم في الإمارات الأربعاء 11 نوفمبر 2026",
                 "summary": "تحديث أسعار الذهب في الإمارات خلال تعاملات اليوم.",
                 "source": "CNBC عربية - أسواق المال",
@@ -44,8 +75,10 @@ class PipelineSelectionTests(unittest.TestCase):
             },
             {
                 "id": "ports",
+                "link": "https://publisher.example/ports",
+                "published": "2026-11-16",
                 "title": "أرباح موانئ أبوظبي ترتفع 64% في الربع الثالث",
-                "summary": "أعلنت المجموعة نتائج مالية فصلية جديدة.",
+                "summary": "أعلنت المجموعة نتائج مالية فصلية جديدة مع تفاصيل عن الإيرادات والأرباح واتجاهات النشاط خلال الربع الثالث.",
                 "source": "CNBC عربية - أخبار الشركات",
                 "category": "شركات",
             },
@@ -75,29 +108,37 @@ class PipelineSelectionTests(unittest.TestCase):
         stories = [
             {
                 "id": "gold-egypt",
+                "link": "https://publisher.example/gold-egypt",
+                "published": "2026-11-16",
                 "title": "سعر الذهب اليوم في مصر يسجل ارتفاعاً",
-                "summary": "تحديث يومي لأسعار الذهب في السوق المصرية.",
+                "summary": "تحديث يومي لأسعار الذهب في السوق المصرية خلال التعاملات مع توضيح حركة الأسعار.",
                 "source": "CNBC عربية",
                 "category": "أسواق المال",
             },
             {
                 "id": "gold-uae",
+                "link": "https://publisher.example/gold-uae",
+                "published": "2026-11-16",
                 "title": "أسعار الذهب اليوم في الإمارات",
-                "summary": "تحديث يومي لأسعار الذهب في السوق الإماراتية.",
+                "summary": "تحديث يومي لأسعار الذهب في السوق الإماراتية خلال التعاملات مع توضيح حركة الأسعار.",
                 "source": "CNBC عربية",
                 "category": "أسواق المال",
             },
             {
                 "id": "gold-jordan",
+                "link": "https://publisher.example/gold-jordan",
+                "published": "2026-11-16",
                 "title": "أسعار الذهب اليوم في الأردن",
-                "summary": "تحديث يومي لأسعار الذهب في السوق الأردنية.",
+                "summary": "تحديث يومي لأسعار الذهب في السوق الأردنية خلال التعاملات مع توضيح حركة الأسعار.",
                 "source": "CNBC عربية",
                 "category": "أسواق المال",
             },
             {
                 "id": "oil-earnings",
+                "link": "https://publisher.example/oil-earnings",
+                "published": "2026-11-16",
                 "title": "أرباح شركات النفط ترتفع خلال الربع الثالث",
-                "summary": "نتائج مالية جديدة لشركات الطاقة.",
+                "summary": "نتائج مالية جديدة لشركات الطاقة مع تفاصيل الإيرادات والأرباح والتغيرات في النشاط.",
                 "source": "Al Jazeera",
                 "category": "اقتصاد",
             },

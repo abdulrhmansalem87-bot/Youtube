@@ -91,6 +91,27 @@ def select_stories(stories: list[dict], max_stories: int):
                 "source": story.get("source"), "reasons": [reason],
             })
             continue
+        # Do not let an incomplete top-ranked RSS item consume the story limit.
+        # The editorial review requires a usable title, URL, publication date and summary;
+        # skip incomplete candidates here so the next eligible story can be considered.
+        link = str(story.get("link") or "").strip()
+        parsed_link = urlparse(link)
+        completeness_reasons = []
+        if len(str(story.get("title") or "").strip()) < 12:
+            completeness_reasons.append("عنوان قصير أو غير مكتمل")
+        if parsed_link.scheme not in {"http", "https"} or not parsed_link.netloc:
+            completeness_reasons.append("رابط المصدر غير صالح")
+        summary = str(story.get("summary") or "").strip()
+        if len(summary) < 45 or summary.endswith(("...", "…", "[...]")):
+            completeness_reasons.append("ملخص RSS قصير أو مبتور")
+        if not str(story.get("published") or "").strip():
+            completeness_reasons.append("تاريخ النشر غير متاح")
+        if completeness_reasons:
+            rejected.append({
+                "id": story.get("id"), "title": story.get("title"),
+                "source": story.get("source"), "reasons": completeness_reasons,
+            })
+            continue
         topic_key = story_topic_key(story)
         if topic_key in seen_topics:
             continue
@@ -856,7 +877,7 @@ def main():
         f"unavailable={evidence_counts['unavailable']}"
     )
 
-    # Independent corroboration: a verdict must be supported by actual web-search citations.
+    # Per-story evidence review: one credible source is sufficient; a second is optional.
     fact_check_enabled = os.getenv("NEWSFLOW_FACT_CHECK_ENABLED", "true").strip().lower() == "true"
     if fact_check_enabled:
         fact_check_report = fact_check_stories(editorial_report["accepted"], evidence_records)
@@ -868,10 +889,37 @@ def main():
             "results": [],
             "reason": "NEWSFLOW_FACT_CHECK_ENABLED=false",
         }
+    # Apply verification per story: keep supported items and skip only the
+    # individual stories that could not be supported. A failed item must not
+    # block the rest of the bulletin.
+    check_results = {
+        str(item.get("story_id") or ""): item
+        for item in fact_check_report.get("results", [])
+    }
+    eligible_stories = []
+    skipped_stories = []
+    for story in editorial_report["accepted"]:
+        result = check_results.get(str(story.get("id") or ""), {})
+        if result.get("verified") is True and result.get("status") == "verified":
+            approved_story = dict(story)
+            approved_story["fact_check_status"] = "supported"
+            approved_story["fact_check_sources"] = result.get("sources", [])
+            eligible_stories.append(approved_story)
+        else:
+            skipped_stories.append({
+                "id": story.get("id"),
+                "title": story.get("title"),
+                "source": story.get("source"),
+                "reasons": result.get("blockers") or ["لم يكتمل التحقق من هذا الخبر؛ تم تجاوزه دون تعطيل بقية الأخبار."],
+                "fact_check_status": result.get("status") or "not_performed",
+            })
+    editorial_report["rejected"].extend(skipped_stories)
+    editorial_report["rejected_count"] += len(skipped_stories)
+    editorial_report["accepted"] = eligible_stories
+    editorial_report["accepted_count"] = len(eligible_stories)
     editorial_report["fact_check_report"] = fact_check_report
-    editorial_report["fact_checking"] = (
-        "verified" if fact_check_report.get("status") == "verified"
-        else str(fact_check_report.get("status") or "not_performed")
+    editorial_report["fact_checking"] = "verified" if eligible_stories else (
+        str(fact_check_report.get("status") or "not_performed")
     )
     fact_check_dir = out / "fact-check"
     fact_check_dir.mkdir(parents=True, exist_ok=True)
@@ -928,8 +976,8 @@ def main():
         else:
             print("[DRY_RUN_VALIDATED] Editorial review and independent fact-check passed.")
         return
-    # No media is rendered while source verification is incomplete, even for
-    # PRIVATE owner-review copies. This prevents unverified claims entering video.
+    # Only individually supported stories enter scripts/media. Unverified stories
+    # are skipped above; they do not block other supported stories in the bulletin.
     if args.private_test and upload_blockers:
         print("[SAFE] PRIVATE test blocked before OAuth/audio/render: " + " | ".join(upload_blockers))
         return

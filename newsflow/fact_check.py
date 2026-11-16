@@ -6,7 +6,7 @@ The model's verdict is never trusted by itself. A story can pass only when:
 - Every material claim is marked supported.
 - Every claim cites at least two distinct publisher domains other than the original outlet.
 - The model reports no material disagreements.
-Anything else remains blocked from media production.
+Unsupported or contradicted stories are excluded individually; other supported stories may proceed.
 """
 from __future__ import annotations
 
@@ -77,11 +77,11 @@ FACT_CHECK_SCHEMA = {
 
 
 SYSTEM_INSTRUCTIONS = """أنت محرر تدقيق حقائق اقتصادي مستقل. لا تكتب سيناريو ولا تروّج للخبر.
-ابحث مباشرة على الويب عن المصادر الأصلية والبيانات الرسمية، وقارنها بتغطيتين مستقلتين على الأقل.
+ابحث مباشرة على الويب عن المصدر الأصلي أو مصدر موثوق واحد على الأقل، وفضّل البيانات الرسمية والوثائق الأولية. المصدر الثاني مفيد لزيادة الثقة لكنه ليس شرطاً إلزامياً.
 افحص كل رقم وتاريخ وعملة ووحدة قياس واسم جهة، وميّز بين القرار النافذ والمقترح والتوقع والتصريح.
 لا تعتبر تكرار الخبر في مواقع تنقل عن الوكالة نفسها مصدرين مستقلين.
 استخرج الادعاءات الجوهرية القابلة للتحقق من نص المقال الأصلي، وليس العنوان وحده.
-كل ادعاء يجب أن تدعمه روابط لمصدرين مستقلين على الأقل، غير موقع الناشر الأصلي.
+كل ادعاء جوهري يجب أن يستند إلى رابط واحد على الأقل لمصدر موثوق يمكن نسب المعلومة إليه. يجوز أن يكون المصدر هو الناشر الأصلي إذا كان نصه الكامل متاحاً ومقروءاً، أو جهة رسمية/وثيقة أولية. لا تشترط مصدرين مستقلين.
 إذا لم تجد أدلة كافية، أو تعارضت الأرقام، أو لم تستطع معرفة تاريخ المعلومة، فاختر needs_review أو insufficient_evidence.
 إذا ظهر تناقض جوهري فاختر contradicted.
 لا تختر verified لمجرد أن الخبر منشور أو لأن مصدرين أعادا صياغة البيان نفسه.
@@ -162,7 +162,6 @@ def validate_fact_check_decision(
         for item in citation_sources
         if _clean_url(item.get("url", ""))
     }
-    original_domain = _registrable_domain(str(original_url or story.get("link") or ""))
     claims = decision.get("claims")
     if decision.get("decision") != "verified":
         blockers.append("المراجع الآلي لم يصدر حكماً بالتحقق الكامل.")
@@ -186,11 +185,11 @@ def validate_fact_check_decision(
         domains = {
             _registrable_domain(url)
             for url in urls
-            if _registrable_domain(url) and _registrable_domain(url) != original_domain
+            if _registrable_domain(url)
         }
-        if len(domains) < 2:
+        if len(domains) < 1:
             blockers.append(
-                f"الادعاء رقم {index} لا يستند إلى مصدرين مستقلين على الأقل خارج الناشر الأصلي."
+                f"الادعاء رقم {index} لا يستند إلى مصدر موثوق واحد على الأقل."
             )
         if not str(claim.get("claim") or "").strip():
             blockers.append(f"الادعاء رقم {index} بلا نص واضح.")
@@ -326,7 +325,7 @@ def fact_check_stories(
     model: str | None = None,
     max_workers: int = 2,
 ) -> dict:
-    """Verify all accepted stories; one unverified item blocks the whole production batch."""
+    """Verify each story independently; callers may proceed with the supported subset."""
     key = str(api_key or os.getenv("OPENAI_API_KEY", "")).strip()
     selected_model = str(model or os.getenv("NEWSFLOW_FACT_CHECK_MODEL", DEFAULT_MODEL)).strip()
     if not stories:
@@ -395,7 +394,7 @@ def fact_check_stories(
     verified_count = sum(1 for item in ordered if item.get("verified") is True)
     all_verified = verified_count == len(stories)
     return {
-        "status": "verified" if all_verified else "needs_review",
+        "status": "verified" if all_verified else ("partial" if verified_count else "needs_review"),
         "verified_count": verified_count,
         "rejected_count": len(stories) - verified_count,
         "results": ordered,

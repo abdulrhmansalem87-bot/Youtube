@@ -35,6 +35,8 @@ jobs:
         env:
           NEWSFLOW_MAX_STORIES: "1"
           NEWSFLOW_LOOKBACK_HOURS: "12"
+          NEWSFLOW_FACT_CHECK_ENABLED: "true"
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           NEWSFLOW_STRICT_FRESHNESS: "false"
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
