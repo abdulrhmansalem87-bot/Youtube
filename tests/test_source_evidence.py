@@ -57,6 +57,32 @@ class ArticleTextParserTests(unittest.TestCase):
         self.assertNotIn("\\n\\n", article_text)
         self.assertNotIn("  ", article_text)
 
+
+    def test_prefers_json_ld_article_body_over_related_story_teasers(self):
+        body = ARTICLE_TEXT + " " + ARTICLE_TEXT
+        payload = {
+            "@context": "https://schema.org",
+            "@type": "NewsArticle",
+            "headline": "العنوان الحقيقي للمقال",
+            "description": "وصف المقال الحقيقي",
+            "articleBody": body,
+        }
+        import json
+        html = (
+            "<html><head></head><body>"
+            "<ul><li>خبر آخر مقترح من الموقع يحتوي تفاصيل لا تخص المقال الحالي</li></ul>"
+            "<script type='application/ld+json'>"
+            + json.dumps(payload, ensure_ascii=False)
+            + "</script></body></html>"
+        )
+        parser = ArticleTextParser()
+        parser.feed(html)
+        result = parser.result()
+        self.assertEqual(result["page_title"], "العنوان الحقيقي للمقال")
+        self.assertEqual(result["meta_description"], "وصف المقال الحقيقي")
+        self.assertEqual(result["article_text"], body)
+        self.assertNotIn("خبر آخر مقترح", result["article_text"])
+
 class OriginalSourceFetchTests(unittest.TestCase):
     def _response(self, body=HTML.encode("utf-8"), content_type="text/html"):
         headers = Message()
