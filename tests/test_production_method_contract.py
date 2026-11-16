@@ -33,7 +33,7 @@ class ApprovedProductionMethodContractTests(unittest.TestCase):
 
     def test_cli_blocks_accidental_shorts_only_mode(self):
         with patch.dict(os.environ, {}, clear=True):
-            with patch("newsflow.pipeline.sys.argv", [
+            with patch("sys.argv", [
                 "newsflow", "--private-staging", "--shorts-only"
             ]):
                 with patch("newsflow.pipeline.collect") as collect:
