@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import ipaddress
+import json
 import re
 import time
 from urllib.error import HTTPError, URLError
@@ -36,9 +37,19 @@ class ArticleTextParser(HTMLParser):
         self.in_title = False
         self.meta_description = ""
         self.meta_og_title = ""
+        self.json_ld_parts: list[str] = []
+        self.json_ld_documents: list[object] = []
+        self.in_json_ld = False
 
     def handle_starttag(self, tag: str, attrs) -> None:
         attrs_map = {str(k).lower(): str(v or "") for k, v in attrs}
+        if tag == "script" and not self.skip_depth:
+            if attrs_map.get("type", "").split(";")[0].strip().lower() == "application/ld+json":
+                self.in_json_ld = True
+                self.json_ld_parts = []
+            else:
+                self.skip_depth += 1
+            return
         if tag in SKIP_TAGS:
             self.skip_depth += 1
             return
@@ -59,6 +70,16 @@ class ArticleTextParser(HTMLParser):
             self.capture_parts = []
 
     def handle_endtag(self, tag: str) -> None:
+        if tag == "script" and self.in_json_ld:
+            raw = "".join(self.json_ld_parts).strip()
+            if raw:
+                try:
+                    self.json_ld_documents.append(json.loads(raw))
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            self.json_ld_parts = []
+            self.in_json_ld = False
+            return
         if tag in SKIP_TAGS:
             self.skip_depth = max(0, self.skip_depth - 1)
             return
@@ -74,6 +95,9 @@ class ArticleTextParser(HTMLParser):
             self.capture_parts = []
 
     def handle_data(self, data: str) -> None:
+        if self.in_json_ld:
+            self.json_ld_parts.append(data)
+            return
         if self.skip_depth:
             return
         text = re.sub(r"\s+", " ", data).strip()
@@ -85,6 +109,43 @@ class ArticleTextParser(HTMLParser):
             self.capture_parts.append(text)
 
     def result(self) -> dict:
+        # Structured Article/NewsArticle metadata often contains the full article
+        # even when the publisher renders its visible body with client-side JavaScript.
+        jsonld_bodies: list[str] = []
+        jsonld_headlines: list[str] = []
+        jsonld_descriptions: list[str] = []
+
+        def visit(node) -> None:
+            if isinstance(node, list):
+                for item in node:
+                    visit(item)
+                return
+            if not isinstance(node, dict):
+                return
+            raw_types = node.get("@type", [])
+            types = raw_types if isinstance(raw_types, list) else [raw_types]
+            article_node = any(
+                str(item).rsplit("/", 1)[-1].casefold()
+                in {"article", "newsarticle", "reportagenewsarticle", "blogposting"}
+                for item in types
+            )
+            if article_node:
+                body = node.get("articleBody")
+                headline = node.get("headline")
+                description = node.get("description")
+                if isinstance(body, str) and len(body.strip()) >= 250:
+                    jsonld_bodies.append(re.sub(r"\s+", " ", body).strip())
+                if isinstance(headline, str) and headline.strip():
+                    jsonld_headlines.append(headline.strip())
+                if isinstance(description, str) and description.strip():
+                    jsonld_descriptions.append(description.strip())
+            for value in node.values():
+                if isinstance(value, (dict, list)):
+                    visit(value)
+
+        for document in self.json_ld_documents:
+            visit(document)
+
         # Remove repeated boilerplate without changing the publisher's wording.
         seen = set()
         paragraphs = []
@@ -93,11 +154,16 @@ class ArticleTextParser(HTMLParser):
             if key not in seen:
                 seen.add(key)
                 paragraphs.append(paragraph)
-        title = self.meta_og_title or " ".join(self.page_title_parts)
+
+        visible_text = "\n\n".join(paragraphs)
+        structured_text = max(jsonld_bodies, key=len, default="")
+        article_text = structured_text if len(structured_text) >= 250 else visible_text
+        title = self.meta_og_title or max(jsonld_headlines, key=len, default="") or " ".join(self.page_title_parts)
+        description = self.meta_description or max(jsonld_descriptions, key=len, default="")
         return {
             "page_title": re.sub(r"\s+", " ", title).strip()[:500],
-            "meta_description": self.meta_description[:1200],
-            "article_text": "\n\n".join(paragraphs)[:MAX_ARTICLE_CHARS],
+            "meta_description": re.sub(r"\s+", " ", description).strip()[:1200],
+            "article_text": article_text[:MAX_ARTICLE_CHARS],
         }
 
 
