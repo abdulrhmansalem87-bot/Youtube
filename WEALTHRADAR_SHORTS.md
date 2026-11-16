@@ -37,7 +37,7 @@
 
 ## GitHub Actions
 
-من Actions، مسار `WealthRadar Shorts (isolated experiment only)` تجريبي لشورت واحد، ويظل معطلاً افتراضياً. لا يبدأ إلا عند اختيار `isolated_short_experiment=true) صراحةً. لا تستخدمه للإنتاج المعتاد.
+من Actions، مسار `WealthRadar Shorts (isolated experiment only)` تجريبي لشورت واحد، ويظل معطلاً افتراضياً. لا يبدأ إلا عند اختيار `isolated_short_experiment=true` صراحةً. لا تستخدمه للإنتاج المعتاد.
 
 لإنتاج الفيديو الرئيسي والـShorts المصاحبة، استخدم `NewsFlow pipeline` وفق طريقة الإنتاج المعتمدة. إعدادات النشر المعتاد تظل PRIVATE للمراجعة، ولا يوجد نشر عام تلقائي.
 
