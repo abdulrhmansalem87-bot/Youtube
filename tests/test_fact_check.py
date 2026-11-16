@@ -10,6 +10,7 @@ from newsflow.fact_check import (
     fact_check_stories,
     validate_fact_check_decision,
     _request_openai_fact_check,
+    _request_groq_tavily_fact_check,
     SYSTEM_INSTRUCTIONS,
 )
 
@@ -366,6 +367,117 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
             }],
         }
         self.assertEqual(_annotation_sources(response), [])
+
+
+class GroqTavilyFactCheckTests(unittest.TestCase):
+    def setUp(self):
+        self.story = {
+            "id": "story-groq",
+            "title": "البنك المركزي يعلن قراراً جديداً بشأن أسعار الفائدة",
+            "summary": "أعلن البنك المركزي قراراً جديداً بشأن أسعار الفائدة اليوم.",
+            "source": "Original Publisher",
+            "link": "https://original-publisher.example/article",
+            "published": "2026-11-16",
+        }
+        self.evidence = {
+            "story_id": "story-groq",
+            "status": "readable",
+            "article_text": "PRIVATE_ARTICLE_BODY_MARKER " + ("نص المقال الأصلي الكامل. " * 80),
+            "final_url": "https://original-publisher.example/canonical",
+        }
+
+    def _response(self, payload):
+        class Response(BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+        return Response(json.dumps(payload, ensure_ascii=False).encode("utf-8"))
+
+    def test_searches_public_metadata_only_and_requires_real_independent_urls(self):
+        decision = {
+            "decision": "verified",
+            "summary": "تؤيد الأدلة المستقلة الادعاء.",
+            "claims": [{
+                "claim": "أعلن البنك المركزي القرار.",
+                "verdict": "supported",
+                "explanation": "تؤيده نتيجة البحث الرسمية.",
+                "evidence_urls": ["https://cbe.org.eg/en/news/decision"],
+            }],
+            "material_disagreements": [],
+        }
+        tavily = {"results": [{
+            "title": "Central Bank announcement",
+            "url": "https://cbe.org.eg/en/news/decision",
+            "content": "The central bank announced the decision.",
+        }]}
+        groq = {"choices": [{"message": {"content": json.dumps(decision)}}]}
+        sent = []
+
+        def fake_urlopen(request, timeout):
+            sent.append((request.full_url, request.data.decode("utf-8")))
+            return self._response(tavily if request.full_url.endswith("/search") else groq)
+
+        with patch("newsflow.fact_check.urlopen", side_effect=fake_urlopen):
+            result = _request_groq_tavily_fact_check(
+                self.story, self.evidence, "groq-test-key", "tavily-test-key",
+                "openai/gpt-oss-20b",
+            )
+
+        self.assertTrue(result["verified"])
+        self.assertEqual(result["method"], "groq_tavily_search")
+        self.assertEqual(len(sent), 2)
+        self.assertIn("https://api.tavily.com/search", sent[0][0])
+        self.assertIn("https://api.groq.com/openai/v1/chat/completions", sent[1][0])
+        self.assertNotIn("PRIVATE_ARTICLE_BODY_MARKER", sent[0][1])
+        self.assertNotIn("PRIVATE_ARTICLE_BODY_MARKER", sent[1][1])
+        self.assertNotIn("groq-test-key", sent[0][1] + sent[1][1])
+        self.assertEqual(result["claims"][0]["independent_domains"], ["cbe.org.eg"])
+
+    def test_rejects_a_model_url_that_was_not_returned_by_tavily(self):
+        decision = {
+            "decision": "verified",
+            "summary": "ادعاء.",
+            "claims": [{
+                "claim": "أعلن البنك المركزي القرار.",
+                "verdict": "supported",
+                "explanation": "رابط غير موجود في نتائج البحث.",
+                "evidence_urls": ["https://fabricated.example/not-real"],
+            }],
+            "material_disagreements": [],
+        }
+        tavily = {"results": [{
+            "title": "Central Bank announcement",
+            "url": "https://cbe.org.eg/en/news/decision",
+            "content": "The central bank announced the decision.",
+        }]}
+        groq = {"choices": [{"message": {"content": json.dumps(decision)}}]}
+
+        def fake_urlopen(request, timeout):
+            return self._response(tavily if request.full_url.endswith("/search") else groq)
+
+        with patch("newsflow.fact_check.urlopen", side_effect=fake_urlopen):
+            result = _request_groq_tavily_fact_check(
+                self.story, self.evidence, "groq-test-key", "tavily-test-key",
+                "openai/gpt-oss-20b",
+            )
+        self.assertFalse(result["verified"])
+        self.assertEqual(result["claims"][0]["evidence_urls"], [])
+        self.assertTrue(any("مصدر مستقل عن الناشر الأصلي" in item for item in result["blockers"]))
+
+    def test_groq_tavily_provider_requires_both_secrets_and_never_falls_back(self):
+        with patch.dict("os.environ", {
+            "NEWSFLOW_FACT_CHECK_PROVIDER": "groq_tavily",
+            "OPENAI_API_KEY": "must-not-be-used",
+            "GROQ_API_KEY": "",
+            "TAVILY_API_KEY": "",
+        }, clear=False):
+            report = fact_check_stories(
+                [self.story], [self.evidence], api_key="",
+            )
+        self.assertEqual(report["status"], "not_performed")
+        self.assertEqual(report["provider"], "groq_tavily")
+        self.assertFalse(report["results"][0]["verified"])
+        self.assertIn("GROQ_API_KEY", report["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()
