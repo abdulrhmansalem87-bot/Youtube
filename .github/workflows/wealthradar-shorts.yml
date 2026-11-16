@@ -1,8 +1,14 @@
-name: WealthRadar Shorts
+name: WealthRadar Shorts (isolated experiment only)
 
 on:
-  # Manual one-Short staging only. Daily scheduled production remains in NewsFlow.
+  # This is not the approved production route. One-Short experiments require explicit opt-in.
   workflow_dispatch:
+    inputs:
+      isolated_short_experiment:
+        description: "Run one isolated Short only (not the standard main-video + companion-Shorts production)"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -13,6 +19,7 @@ concurrency:
 
 jobs:
   produce:
+    if: ${{ inputs.isolated_short_experiment == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -36,6 +43,7 @@ jobs:
           NEWSFLOW_MAX_STORIES: "1"
           NEWSFLOW_LOOKBACK_HOURS: "12"
           NEWSFLOW_FACT_CHECK_ENABLED: "true"
+          NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT: "true"
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           NEWSFLOW_STRICT_FRESHNESS: "false"
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
