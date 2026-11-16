@@ -1,4 +1,4 @@
-"""Persist short-lived story history between scheduled WealthRadar runs."""
+"""Persist 30-day story and angle history between scheduled WealthRadar runs."""
 from __future__ import annotations
 
 import difflib
@@ -10,8 +10,8 @@ from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 HISTORY_VERSION = 1
-DEFAULT_COOLDOWN_HOURS = 8
-RETENTION_DAYS = 7
+DEFAULT_COOLDOWN_HOURS = 24 * 30
+RETENTION_DAYS = 30
 TRACKING_QUERY_KEYS = {"fbclid", "gclid", "ref", "source", "mc_cid", "mc_eid"}
 
 
@@ -92,7 +92,7 @@ def filter_recent_repeats(
     now: datetime | None = None,
     cooldown_hours: float = DEFAULT_COOLDOWN_HOURS,
 ) -> tuple[list[dict], list[dict]]:
-    """Remove exact or near-identical stories already drafted in the recent cooldown window."""
+    """Remove exact, canonical-link, or strongly similar story angles within the 30-day window."""
     if not isinstance(cooldown_hours, (int, float)) or cooldown_hours <= 0:
         raise ValueError("cooldown_hours must be a positive number")
     current = now or datetime.now(timezone.utc)
@@ -115,29 +115,48 @@ def filter_recent_repeats(
         story_id = str(story.get("id") or "").strip()
         link = canonical_story_link(story.get("link", ""))
         title = normalize_story_title(story.get("title", ""))
+        summary = normalize_story_title(story.get("summary", ""))
         duplicate = None
 
         for previous in recent:
             old_id = str(previous.get("id") or "").strip()
             old_link = canonical_story_link(previous.get("link", ""))
             old_title = normalize_story_title(previous.get("title", ""))
+            old_summary = normalize_story_title(previous.get("summary", ""))
             same_id = bool(story_id and old_id and story_id == old_id)
             same_link = bool(link and old_link and link == old_link)
             title_ratio = (
                 difflib.SequenceMatcher(None, title, old_title).ratio()
                 if title and old_title else 0.0
             )
-            if same_id or same_link or (len(title) >= 24 and title_ratio >= 0.90):
+            # A changed headline must not disguise the same angle. Compare the
+            # source summaries as well, but require enough text to avoid matching
+            # generic one-line RSS descriptions.
+            summary_ratio = (
+                difflib.SequenceMatcher(None, summary, old_summary).ratio()
+                if len(summary) >= 80 and len(old_summary) >= 80 else 0.0
+            )
+            if (
+                same_id or same_link
+                or (len(title) >= 24 and title_ratio >= 0.90)
+                or summary_ratio >= 0.88
+            ):
                 duplicate = previous
                 break
 
         if duplicate is not None:
+            cooldown_days = float(cooldown_hours) / 24
+            cooldown_label = (
+                f"{int(cooldown_days)} يوماً"
+                if cooldown_days.is_integer()
+                else f"{float(cooldown_hours):g} ساعة"
+            )
             rejected.append({
                 "id": story.get("id"),
                 "title": story.get("title"),
                 "source": story.get("source", "مصدر غير محدد"),
                 "reasons": [
-                    f"خبر مكرر: سبق إدراجه في موجز خلال آخر {float(cooldown_hours):g} ساعات."
+                    f"خبر مكرر أو زاويته سبق تناولها خلال آخر {cooldown_label}."
                 ],
                 "previously_prepared_at": duplicate.get("prepared_at") or duplicate.get("used_at", ""),
             })
@@ -152,7 +171,7 @@ def record_story_history(
     *,
     now: datetime | None = None,
 ) -> int:
-    """Atomically record stories included in a scheduled draft and retain seven days."""
+    """Atomically record reviewed stories and retain 30 days for repeat prevention."""
     if not stories:
         return 0
     current = now or datetime.now(timezone.utc)
@@ -168,6 +187,7 @@ def record_story_history(
             "id": str(story.get("id") or ""),
             "link": canonical_story_link(story.get("link", "")),
             "title": str(story.get("title") or ""),
+            "summary": str(story.get("summary") or ""),
             "source": str(story.get("source") or ""),
             "prepared_at": stamp,
             "state": "scheduled_draft",

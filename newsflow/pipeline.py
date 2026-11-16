@@ -157,7 +157,7 @@ def collect(max_stories: int):
     recent_repeats = []
     if os.getenv("NEWSFLOW_DEDUPE_HISTORY_ENABLED", "false").lower() == "true":
         history = load_story_history(story_history_path())
-        stories, recent_repeats = filter_recent_repeats(stories, history, cooldown_hours=8)
+        stories, recent_repeats = filter_recent_repeats(stories, history, cooldown_hours=24 * 30)
     selected, rejected = select_stories(stories, max_stories)
     rejected.extend(recent_repeats)
     for story in selected:
@@ -912,7 +912,7 @@ def main():
     (out / "stories.json").write_text(json.dumps(stories, ensure_ascii=False, indent=2), encoding="utf-8")
     if os.getenv("NEWSFLOW_RECORD_DRAFT_HISTORY", "false").lower() == "true" and stories:
         count = record_story_history(story_history_path(), stories)
-        print(f"[DRAFT_HISTORY_RECORDED] stories={count} cooldown_hours=8")
+        print(f"[DRAFT_HISTORY_RECORDED] stories={count} cooldown_days=30")
     print(f"[EDITORIAL_REVIEW] status={editorial_report['status']} accepted={editorial_report['accepted_count']} rejected={editorial_report['rejected_count']} warnings={editorial_report['warning_count']} fact_checking={editorial_report['fact_checking']}")
     upload_blockers = upload_review_blockers(
         editorial_report,

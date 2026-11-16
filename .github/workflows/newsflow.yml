@@ -105,7 +105,7 @@ jobs:
             echo "- Run enabled: $RUN_ENABLED"
             echo "- Decision: $SCHEDULE_REASON"
             echo "- Scheduled mode: render and upload long + Shorts as PRIVATE owner-review drafts; never public automatically"
-            echo "- Story repeat guard: 8-hour history cache"
+            echo "- Story/angle repeat guard: 30-day history cache"
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Restore recent scheduled story history
         if: (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))
@@ -123,7 +123,7 @@ jobs:
           else
             count=0
           fi
-          echo "[STORY_HISTORY_RESTORED] records=$count cooldown_hours=8"
+          echo "[STORY_HISTORY_RESTORED] records=$count cooldown_days=30"
       - name: Render actual Pexels B-roll previews (when the API key is configured)
         if: github.event_name == 'pull_request'
         timeout-minutes: 8
@@ -210,8 +210,19 @@ jobs:
         with:
           path: output/broll-cache
           key: wealthradar-broll-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Validate story history before cache save
+        id: history_cache_validation
+        if: always() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && hashFiles('output/history/used_stories.json') != ''
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from newsflow.history import load_story_history
+
+          records = load_story_history(Path("output/history/used_stories.json"))
+          print(f"[STORY_HISTORY_VALIDATED] records={len(records)} retention_days=30")
+          PY
       - name: Save recent scheduled story history
-        if: success() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && hashFiles('output/history/used_stories.json') != ''
+        if: always() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && steps.history_cache_validation.outcome == 'success' && hashFiles('output/history/used_stories.json') != ''
         uses: actions/cache/save@v6.1.0
         with:
           path: output/history
