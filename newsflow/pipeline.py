@@ -908,7 +908,7 @@ def main():
         f"unavailable={evidence_counts['unavailable']}"
     )
 
-    # Per-story evidence review: one credible source is sufficient; a second is optional.
+    # Every accepted claim needs one credible cited domain independent of the original publisher; a second independent source is optional.
     fact_check_enabled = os.getenv("NEWSFLOW_FACT_CHECK_ENABLED", "true").strip().lower() == "true"
     if fact_check_enabled:
         fact_check_report = fact_check_stories(editorial_report["accepted"], evidence_records)
