@@ -112,6 +112,16 @@ def select_stories(stories: list[dict], max_stories: int):
                 "source": story.get("source"), "reasons": completeness_reasons,
             })
             continue
+        # Do not let an incomplete RSS item consume the requested story limit.
+        # Editorial review requires a complete summary; keep searching for the next candidate.
+        summary = str(story.get("summary") or "").strip()
+        if len(summary) < 45 or summary.endswith(("...", "…", "[...]")):
+            rejected.append({
+                "id": story.get("id"), "title": story.get("title"),
+                "source": story.get("source"),
+                "reasons": ["ملخص RSS قصير أو مبتور؛ تم تجاوز الخبر والبحث عن خبر مكتمل"],
+            })
+            continue
         topic_key = story_topic_key(story)
         if topic_key in seen_topics:
             continue
