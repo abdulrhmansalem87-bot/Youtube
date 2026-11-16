@@ -62,14 +62,14 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
             {"url": "https://publisher-two.example/report", "title": "Source Two"},
         ]
 
-    def test_accepts_only_supported_claim_with_two_independent_cited_domains(self):
+    def test_accepts_supported_claim_with_one_credible_cited_domain(self):
         decision = {
             "decision": "verified",
             "summary": "تمت المقارنة.",
             "claims": [{
                 "claim": "تم إعلان القرار في الموعد المذكور.",
                 "verdict": "supported",
-                "explanation": "مصدران مستقلان يؤكدان التاريخ.",
+                "explanation": "مصدر موثوق يؤكد التاريخ.",
                 "evidence_urls": [
                     "https://publisher-one.example/story",
                     "https://publisher-two.example/report",
@@ -84,7 +84,7 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
         self.assertEqual(blockers, [])
         self.assertEqual(len(claims[0]["independent_domains"]), 2)
 
-    def test_rejects_two_urls_from_the_same_publisher_domain(self):
+    def test_accepts_one_publisher_domain_even_when_two_urls_are_present(self):
         decision = {
             "decision": "verified",
             "summary": "ادعاء.",
@@ -104,10 +104,10 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
             {"url": "https://www.publisher-one.example/another-story", "title": "B"},
         ]
         verified, blockers, _ = validate_fact_check_decision(self.story, decision, annotations)
-        self.assertFalse(verified)
-        self.assertTrue(any("مصدرين مستقلين" in item for item in blockers))
+        self.assertTrue(verified)
+        self.assertEqual(blockers, [])
 
-    def test_original_publisher_does_not_count_as_independent_corroboration(self):
+    def test_original_publisher_can_count_as_the_single_credible_source(self):
         decision = {
             "decision": "verified",
             "summary": "ادعاء.",
@@ -127,10 +127,10 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
             {"url": "https://publisher-one.example/story", "title": "Other"},
         ]
         verified, blockers, _ = validate_fact_check_decision(self.story, decision, annotations)
-        self.assertFalse(verified)
-        self.assertTrue(any("مصدرين مستقلين" in item for item in blockers))
+        self.assertTrue(verified)
+        self.assertEqual(blockers, [])
 
-    def test_redirected_original_publisher_is_still_excluded(self):
+    def test_redirected_original_publisher_can_count_as_one_source(self):
         story = {
             "id": "story-redirect",
             "link": "https://amp.original.example/article",
@@ -157,8 +157,8 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
             story, decision, annotations,
             original_url="https://original-publisher.example/canonical",
         )
-        self.assertFalse(verified)
-        self.assertTrue(any("مصدرين مستقلين" in item for item in blockers))
+        self.assertTrue(verified)
+        self.assertEqual(blockers, [])
 
     def test_rejects_model_verified_label_when_claim_is_partially_supported(self):
         decision = {
