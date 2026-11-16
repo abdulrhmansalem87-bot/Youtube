@@ -1,6 +1,8 @@
-# WealthRadar Shorts
+# WealthRadar Shorts — مسار تجريبي معزول
 
-مسار مستقل لإنتاج YouTube Shorts لقناة WealthRadar. لا يغيّر هذا المسار NewsFlow القديم.
+> **تنبيه:** هذا المسار ليس طريقة الإنتاج المعتمدة للقناة، ولا يحل محل الفيديو الرئيسي والـShorts المصاحبة. طريقة الإنتاج المعتمدة موثقة في [WEALTHRADAR_PRODUCTION_METHOD.md](WEALTHRADAR_PRODUCTION_METHOD.md)، والتشغيل المعتاد يتم عبر **NewsFlow pipeline**.
+
+هذا الدليل يشرح أداة مستقلة لإنشاء Short من خطة يدوية وصوت أصلي. لا تستخدمها بدل خط إنتاج الأخبار المعتاد، ولا تفترض أن مواصفات هذه الأداة هي مرجع الفيديوهات المعتمدة.
 
 ## مواصفات الإنتاج
 
@@ -35,11 +37,9 @@
 
 ## GitHub Actions
 
-من Actions اختر WealthRadar Shorts:
-- validate_only=true: فحص الخطة فقط، ولا يحتاج إلى مفتاح API.
-- validate_only=false: إنتاج الفيديو، ويتطلب GitHub Secret باسم PEXELS_API_KEY.
+من Actions، مسار `WealthRadar Shorts (isolated experiment only)` تجريبي لشورت واحد، ويظل معطلاً افتراضياً. لا يبدأ إلا عند اختيار `isolated_short_experiment=true) صراحةً. لا تستخدمه للإنتاج المعتاد.
 
-النظام الحالي لا يرفع إلى YouTube ولا ينشر تلقائياً. يرفع ملف MP4 كـ Artifact للمراجعة فقط. لم تُفعّل جدولة Unlisted/Public بعد؛ يجب اختبار جودة الفيديو وحقوق المقاطع أولاً، ثم تنفيذ مرحلة النشر المجدول بموافقة مالك القناة.
+لإنتاج الفيديو الرئيسي والـShorts المصاحبة، استخدم `NewsFlow pipeline` وفق طريقة الإنتاج المعتمدة. إعدادات النشر المعتاد تظل PRIVATE للمراجعة، ولا يوجد نشر عام تلقائي.
 
 ## حقوق الوسائط
 
