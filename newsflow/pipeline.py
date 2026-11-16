@@ -806,8 +806,10 @@ def main():
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy after manual approvals")
     parser.add_argument("--private-staging", action="store_true", help="Scheduled production: render bulletin and Shorts and upload as PRIVATE for owner review")
-    parser.add_argument("--shorts-only", action="store_true", help="Render and stage one story-specific Short only; never render the long bulletin")
+    parser.add_argument("--shorts-only", action="store_true", help="Experimental isolated run: render one Short only; never use for standard production")
     args = parser.parse_args()
+    if args.shorts_only and os.getenv("NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT", "false").strip().lower() != "true":
+        parser.error("--shorts-only is an isolated experiment and requires NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT=true; use NewsFlow standard production for the main video and companion Shorts.")
     args.max_stories = clamp_max_stories(args.max_stories)
     if (args.render_only and (args.dry_run or args.private_test or args.private_staging)):
         parser.error("--render-only cannot be combined with dry-run or private upload modes")
