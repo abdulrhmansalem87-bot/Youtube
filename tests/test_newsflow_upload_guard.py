@@ -12,7 +12,7 @@ from newsflow.pipeline import main
 
 def valid_report():
     return {
-        "status": "needs_human_review",
+        "status": "ready_for_production",
         "accepted_count": 2,
         "warning_count": 0,
         "warnings": [],
@@ -24,8 +24,8 @@ def valid_report():
 
 
 class UploadReviewGateTests(unittest.TestCase):
-    def test_allows_upload_only_after_verified_review_and_approval(self):
-        self.assertEqual(upload_review_blockers(valid_report(), True), [])
+    def test_allows_upload_after_automated_verification_without_human_approval(self):
+        self.assertEqual(upload_review_blockers(valid_report(), False), [])
 
     def test_non_owner_voice_blocks_but_an_on_camera_presenter_is_optional(self):
         report = valid_report()
@@ -173,28 +173,22 @@ class UploadReviewGateTests(unittest.TestCase):
                 main()
         self.assertEqual(raised.exception.code, 2)
 
-    def test_private_test_requires_manual_editorial_and_visual_approval_before_oauth(self):
-        cases = [
+    def test_private_test_requires_visual_qa_but_not_editorial_approval(self):
+        invalid_cases = [
             {
                 "YOUTUBE_UPLOAD_ENABLED": "true",
                 "NEWSFLOW_EDITORIAL_APPROVED": "false",
-                "NEWSFLOW_VISUAL_QA_APPROVED": "true",
-                "NEWSFLOW_PRIVATE_STAGING": "false",
-            },
-            {
-                "YOUTUBE_UPLOAD_ENABLED": "true",
-                "NEWSFLOW_EDITORIAL_APPROVED": "true",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "false",
                 "NEWSFLOW_PRIVATE_STAGING": "false",
             },
             {
                 "YOUTUBE_UPLOAD_ENABLED": "true",
-                "NEWSFLOW_EDITORIAL_APPROVED": "true",
+                "NEWSFLOW_EDITORIAL_APPROVED": "false",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "true",
                 "NEWSFLOW_PRIVATE_STAGING": "true",
             },
         ]
-        for values in cases:
+        for values in invalid_cases:
             with self.subTest(values=values):
                 with patch.dict(os.environ, values, clear=False):
                     with patch.object(sys, "argv", ["newsflow", "--private-test"]):
@@ -203,6 +197,22 @@ class UploadReviewGateTests(unittest.TestCase):
                                 main()
                 self.assertEqual(raised.exception.code, 2)
                 auth.assert_not_called()
+
+        with tempfile.TemporaryDirectory() as directory:
+            values = {
+                "NEWSFLOW_OUTPUT_DIR": directory,
+                "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_EDITORIAL_APPROVED": "false",
+                "NEWSFLOW_VISUAL_QA_APPROVED": "true",
+                "NEWSFLOW_PRIVATE_STAGING": "false",
+                "OPENAI_API_KEY": "",
+            }
+            with patch.dict(os.environ, values, clear=False):
+                with patch.object(sys, "argv", ["newsflow", "--private-test"]):
+                    with patch("newsflow.pipeline.collect", return_value=([], [])), \\
+                         patch("newsflow.pipeline.validate_youtube_auth") as auth:
+                        main()
+            auth.assert_not_called()
 
     def test_blocks_any_unresolved_editorial_warning(self):
         report = valid_report()
@@ -213,11 +223,8 @@ class UploadReviewGateTests(unittest.TestCase):
             upload_review_blockers(report, True),
         )
 
-    def test_blocks_missing_explicit_editorial_approval(self):
-        self.assertIn(
-            "المراجعة التحريرية لم تحصل على موافقة صريحة",
-            upload_review_blockers(valid_report(), False),
-        )
+    def test_human_editorial_approval_is_not_a_production_requirement(self):
+        self.assertEqual(upload_review_blockers(valid_report(), False), [])
 
     def test_blocks_empty_or_invalid_review_report(self):
         report = valid_report()
@@ -225,7 +232,7 @@ class UploadReviewGateTests(unittest.TestCase):
         report["status"] = "blocked"
         blockers = upload_review_blockers(report, True)
         self.assertIn("لا توجد أخبار مقبولة", blockers)
-        self.assertIn("تقرير المراجعة ليس في حالة قابلة للمراجعة", blockers)
+        self.assertIn("تقرير التحقق الآلي ليس في حالة جاهزة للإنتاج", blockers)
 
     def test_private_staging_blocks_unverified_story_before_oauth_or_media_generation(self):
         story = {
