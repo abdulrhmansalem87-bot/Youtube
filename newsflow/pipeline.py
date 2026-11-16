@@ -91,6 +91,27 @@ def select_stories(stories: list[dict], max_stories: int):
                 "source": story.get("source"), "reasons": [reason],
             })
             continue
+        # Do not let an incomplete top-ranked RSS item consume the story limit.
+        # The editorial review requires a usable title, URL, publication date and summary;
+        # skip incomplete candidates here so the next eligible story can be considered.
+        link = str(story.get("link") or "").strip()
+        parsed_link = urlparse(link)
+        completeness_reasons = []
+        if len(str(story.get("title") or "").strip()) < 12:
+            completeness_reasons.append("عنوان قصير أو غير مكتمل")
+        if parsed_link.scheme not in {"http", "https"} or not parsed_link.netloc:
+            completeness_reasons.append("رابط المصدر غير صالح")
+        summary = str(story.get("summary") or "").strip()
+        if len(summary) < 45 or summary.endswith(("...", "…", "[...]")):
+            completeness_reasons.append("ملخص RSS قصير أو مبتور")
+        if not str(story.get("published") or "").strip():
+            completeness_reasons.append("تاريخ النشر غير متاح")
+        if completeness_reasons:
+            rejected.append({
+                "id": story.get("id"), "title": story.get("title"),
+                "source": story.get("source"), "reasons": completeness_reasons,
+            })
+            continue
         topic_key = story_topic_key(story)
         if topic_key in seen_topics:
             continue
