@@ -851,12 +851,33 @@ def main():
     evidence_by_story = {
         str(item.get("story_id") or ""): item for item in evidence_records
     }
+    source_validated_stories = []
+    source_rejected_stories = []
     for story in editorial_report["accepted"]:
         evidence = evidence_by_story.get(str(story.get("id") or ""), {})
         article_text = str(evidence.get("article_text") or "").strip()
         if evidence.get("status") == "readable" and len(article_text) >= 700:
+            source_story = dict(story)
+            source_story["summary"] = article_text
+            source_relevant, source_relevance_reason = relevance(source_story)
+            if not source_relevant:
+                source_rejected_stories.append({
+                    "id": story.get("id"),
+                    "title": story.get("title"),
+                    "source": story.get("source"),
+                    "reasons": [
+                        "استُبعد بعد فحص النص الأصلي: " + source_relevance_reason
+                    ],
+                })
+                continue
             story["summary"] = article_text[:1800]
             story["summary_source"] = "original_publisher_article"
+            story["relevance_reason"] = source_relevance_reason
+        source_validated_stories.append(story)
+    editorial_report["accepted"] = source_validated_stories
+    editorial_report["accepted_count"] = len(source_validated_stories)
+    editorial_report["rejected"].extend(source_rejected_stories)
+    editorial_report["rejected_count"] += len(source_rejected_stories)
     editorial_report["source_evidence"] = evidence_records
     evidence_counts = {
         status: sum(1 for item in evidence_records if item.get("status") == status)
