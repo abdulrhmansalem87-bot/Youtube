@@ -186,7 +186,7 @@ def validate_fact_check_decision(
         domains = {
             _registrable_domain(url)
             for url in urls
-            if _registrable_domain(url) and _registrable_domain(url) != original_domain
+            if _registrable_domain(url)
         }
         if len(domains) < 1:
             blockers.append(
