@@ -164,7 +164,12 @@ jobs:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_BROLL_CACHE_DIR: output/broll-cache
           NEWSFLOW_FACT_CHECK_ENABLED: "true"
+          # Keep the proven provider as default; switch only after both alternative secrets exist.
+          NEWSFLOW_FACT_CHECK_PROVIDER: ${{ vars.NEWSFLOW_FACT_CHECK_PROVIDER || 'openai' }}
           NEWSFLOW_FACT_CHECK_MODEL: gpt-6-astra
+          NEWSFLOW_GROQ_MODEL: openai/gpt-oss-20b
+          GROQ_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.GROQ_API_KEY || '' }}
+          TAVILY_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.TAVILY_API_KEY || '' }}
           OPENAI_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.OPENAI_API_KEY || '' }}
           NEWSFLOW_LOOKBACK_HOURS: ${{ steps.cairo_schedule.outputs.lookback_hours || '72' }}
           NEWSFLOW_DEDUPE_HISTORY_ENABLED: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
