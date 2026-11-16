@@ -291,7 +291,12 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
                     error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
                     error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
                     error_type = str(error_info.get("type") or error_info.get("code") or "api_error")[:80]
-                    error_message = re.sub(r"\\s+", " ", str(error_info.get("message") or ""))[:500]
+                    error_message = re.sub(r"\s+", " ", str(error_info.get("message") or ""))[:500]
+                    # API providers may echo a prefix of a rejected credential. Never persist it.
+                    if exc.code == 401 or re.search(r"(?i)(incorrect|invalid|unauthorized).{0,30}api.?key", error_message):
+                        error_message = "API key rejected; verify the OPENAI_API_KEY repository secret and replace it with a valid key."
+                    else:
+                        error_message = re.sub(r"(?i)(sk-[A-Za-z0-9_-]{6,}|sess-[A-Za-z0-9_-]{6,})", "[REDACTED]", error_message)
                 except Exception:
                     error_type, error_message = "api_error", ""
                 detail = f" type={error_type}; message={error_message}" if error_message else ""
