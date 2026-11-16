@@ -92,7 +92,8 @@ class EditorialReviewTests(unittest.TestCase):
         }])
         self.assertEqual(report["accepted_count"], 1)
         self.assertEqual(report["rejected_count"], 0)
-        self.assertEqual(report["status"], "needs_human_review")
+        self.assertEqual(report["status"], "ready_for_fact_check")
+        self.assertFalse(report["human_approval_required"])
 
     def test_rejects_sports_story(self):
         report = review_stories([{
@@ -122,7 +123,7 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["accepted_count"], 0)
         self.assertEqual(report["rejected_count"], 1)
 
-    def test_rejects_short_summary_until_full_source_is_reviewed(self):
+    def test_accepts_short_rss_summary_for_original_source_extraction(self):
         report = review_stories([{
             "id": "3",
             "title": "البنك المركزي يعلن قرار الفائدة",
@@ -132,13 +133,12 @@ class EditorialReviewTests(unittest.TestCase):
             "category": "اقتصاد",
             "published": "2026-11-10",
         }])
-        self.assertEqual(report["accepted_count"], 0)
-        self.assertEqual(report["rejected_count"], 1)
-        self.assertEqual(report["warning_count"], 0)
-        self.assertIn("قصير", report["rejected"][0]["reasons"][0])
-        self.assertTrue(report["human_approval_required"])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["rejected_count"], 0)
+        self.assertEqual(report["status"], "ready_for_fact_check")
+        self.assertFalse(report["human_approval_required"])
 
-    def test_rejects_truncated_rss_summary_instead_of_rendering_it(self):
+    def test_accepts_truncated_rss_summary_pending_original_article_fact_check(self):
         for suffix in ("...", "…"):
             with self.subTest(suffix=suffix):
                 report = review_stories([{
@@ -150,11 +150,10 @@ class EditorialReviewTests(unittest.TestCase):
                     "category": "أسواق المال",
                     "published": "2026-11-11",
                 }])
-                self.assertEqual(report["accepted_count"], 0)
-                self.assertEqual(report["rejected_count"], 1)
-                self.assertEqual(report["warning_count"], 0)
-                self.assertIn("مبتور", report["rejected"][0]["reasons"][0])
-                self.assertTrue(report["human_approval_required"])
+                self.assertEqual(report["accepted_count"], 1)
+                self.assertEqual(report["rejected_count"], 0)
+                self.assertEqual(report["status"], "ready_for_fact_check")
+                self.assertFalse(report["human_approval_required"])
 
     def test_rejects_story_without_publication_date(self):
         report = review_stories([{
