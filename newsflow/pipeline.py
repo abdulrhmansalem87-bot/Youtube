@@ -177,7 +177,10 @@ def collect(max_stories: int):
     if os.getenv("NEWSFLOW_DEDUPE_HISTORY_ENABLED", "false").lower() == "true":
         history = load_story_history(story_history_path())
         stories, recent_repeats = filter_recent_repeats(stories, history, cooldown_hours=24 * 30)
-    selected, rejected = select_stories(stories, max_stories)
+    # Keep a small candidate buffer so an inaccessible or unsupported lead does
+    # not consume the whole bulletin limit; final output is capped after fact-checking.
+    candidate_limit = min(clamp_max_stories(max_stories) + 2, MAX_BULLETIN_STORIES + 2)
+    selected, rejected = select_stories(stories, candidate_limit)
     rejected.extend(recent_repeats)
     for story in selected:
         story.pop("published_ts", None)
@@ -941,6 +944,15 @@ def main():
             })
     editorial_report["rejected"].extend(skipped_stories)
     editorial_report["rejected_count"] += len(skipped_stories)
+    # Fact-check a few candidates beyond the requested output count, then retain
+    # only the first supported stories. This lets a bad lead be skipped safely.
+    deferred_stories = eligible_stories[args.max_stories:]
+    eligible_stories = eligible_stories[:args.max_stories]
+    editorial_report["deferred_verified_stories"] = [
+        {"id": item.get("id"), "title": item.get("title")}
+        for item in deferred_stories
+    ]
+    editorial_report["deferred_verified_count"] = len(deferred_stories)
     editorial_report["accepted"] = eligible_stories
     editorial_report["accepted_count"] = len(eligible_stories)
     editorial_report["status"] = "ready_for_production" if eligible_stories else "blocked"
