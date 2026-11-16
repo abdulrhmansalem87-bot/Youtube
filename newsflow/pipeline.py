@@ -157,7 +157,7 @@ def collect(max_stories: int):
     recent_repeats = []
     if os.getenv("NEWSFLOW_DEDUPE_HISTORY_ENABLED", "false").lower() == "true":
         history = load_story_history(story_history_path())
-        stories, recent_repeats = filter_recent_repeats(stories, history, cooldown_hours=8)
+        stories, recent_repeats = filter_recent_repeats(stories, history, cooldown_days=30)
     selected, rejected = select_stories(stories, max_stories)
     rejected.extend(recent_repeats)
     for story in selected:
