@@ -1,5 +1,5 @@
 name: NewsFlow pipeline
-# One-time private staging trigger: independent fact-check, then owner-review upload only.
+# WealthRadar production: independent fact-check, owner-authorized voice, licensed moving footage, and automated PRIVATE staging only. No public upload and no human editorial pre-approval.
 
 on:
   push:
