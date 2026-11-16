@@ -108,6 +108,11 @@ def relevance(story: dict) -> tuple[bool, str]:
         return True, "عنوان الخبر يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
     if category in EXPLICIT_FINANCE_CATEGORIES and summary_finance_hit:
         return True, "تصنيف المصدر مالي والملخص يدعم الصلة الاقتصادية"
+    summary_incomplete = (
+        len(summary) < 45 or summary.endswith(("...", "…", "[...]"))
+    )
+    if category in EXPLICIT_FINANCE_CATEGORIES and summary_incomplete:
+        return True, "تصنيف المصدر مالي؛ تُحسم الصلة الاقتصادية من نص المقال الأصلي قبل الإنتاج"
     return False, "لا توجد صلة مالية أو اقتصادية مباشرة وواضحة في العنوان"
 
 
