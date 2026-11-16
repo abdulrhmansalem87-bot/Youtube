@@ -2,7 +2,7 @@
 
 The title must have a direct financial/economic angle, or the item must come
 from an explicitly financial category and its summary must support that angle.
-These checks do not independently verify facts; human approval remains required.
+These checks do not independently verify facts; original-source extraction and fact-checking are required, not human pre-approval.
 """
 from __future__ import annotations
 
