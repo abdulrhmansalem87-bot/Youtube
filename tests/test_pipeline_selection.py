@@ -28,7 +28,7 @@ class PipelineSelectionTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3"])
         self.assertEqual(rejected, [])
 
-    def test_incomplete_top_candidate_is_skipped_and_next_complete_story_is_selected(self):
+    def test_incomplete_rss_summary_is_kept_for_original_source_recovery(self):
         stories = [
             {
                 "id": "incomplete",
@@ -50,8 +50,8 @@ class PipelineSelectionTests(unittest.TestCase):
             },
         ]
         selected, rejected = select_stories(stories, 1)
-        self.assertEqual([item["id"] for item in selected], ["complete"])
-        self.assertEqual([item["id"] for item in rejected], ["incomplete"])
+        self.assertEqual([item["id"] for item in selected], ["incomplete"])
+        self.assertEqual(rejected, [])
 
     def test_actual_egypt_gold_headline_deduplicates_other_local_gold_prices(self):
         stories = [

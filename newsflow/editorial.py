@@ -2,7 +2,7 @@
 
 The title must have a direct financial/economic angle, or the item must come
 from an explicitly financial category and its summary must support that angle.
-These checks do not independently verify facts; human approval remains required.
+These checks do not independently verify facts; original-source extraction and fact-checking are required, not human pre-approval.
 """
 from __future__ import annotations
 
@@ -108,6 +108,11 @@ def relevance(story: dict) -> tuple[bool, str]:
         return True, "عنوان الخبر يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
     if category in EXPLICIT_FINANCE_CATEGORIES and summary_finance_hit:
         return True, "تصنيف المصدر مالي والملخص يدعم الصلة الاقتصادية"
+    summary_incomplete = (
+        len(summary) < 45 or summary.endswith(("...", "…", "[...]"))
+    )
+    if category in EXPLICIT_FINANCE_CATEGORIES and summary_incomplete:
+        return True, "تصنيف المصدر مالي؛ تُحسم الصلة الاقتصادية من نص المقال الأصلي قبل الإنتاج"
     return False, "لا توجد صلة مالية أو اقتصادية مباشرة وواضحة في العنوان"
 
 
@@ -132,16 +137,9 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
                 "source": story.get("source"), "reasons": reasons,
             })
             continue
-        summary_text = str(story.get("summary", "")).strip()
+        # RSS summaries are not authoritative and may be truncated. The pipeline
+        # fetches the original publisher page and requires readable text + fact-checking.
         completeness_reasons = []
-        if not summary_text or len(summary_text) < 45:
-            completeness_reasons.append(
-                "ملخص المصدر قصير أو غير مكتمل؛ يجب مراجعة النص الكامل قبل إدراج الخبر"
-            )
-        elif summary_text.endswith(("...", "…", "[...]")):
-            completeness_reasons.append(
-                "ملخص RSS مبتور؛ استُبعد الخبر حتى مراجعة المصدر الكامل"
-            )
         if not story.get("published"):
             completeness_reasons.append(
                 "تاريخ النشر غير متاح؛ استُبعد الخبر حتى التحقق من حداثته"
@@ -156,13 +154,13 @@ def review_stories(stories: list[dict], now: datetime | None = None) -> dict:
         item["relevance_reason"] = relevance_reason
         accepted.append(item)
 
-    status = "needs_human_review" if accepted else "blocked"
+    status = "ready_for_fact_check" if accepted else "blocked"
     return {
         "status": status,
         "accepted_count": len(accepted),
         "rejected_count": len(rejected),
         "warning_count": len(warnings),
-        "human_approval_required": True,
+        "human_approval_required": False,
         "fact_checking": "not_performed",
         "accepted": accepted,
         "rejected": rejected,
@@ -180,10 +178,10 @@ def upload_review_blockers(
 ) -> list[str]:
     """Require independent fact-checking before rendering or uploading any media."""
     blockers = []
-    if not editorial_approved and not private_staging:
-        blockers.append("المراجعة التحريرية لم تحصل على موافقة صريحة")
-    if report.get("status") != "needs_human_review":
-        blockers.append("تقرير المراجعة ليس في حالة قابلة للمراجعة")
+    # Human editorial pre-approval was explicitly removed. Production readiness
+    # is determined by the automated source/evidence/fact-check gates below.
+    if report.get("status") != "ready_for_production":
+        blockers.append("تقرير التحقق الآلي ليس في حالة جاهزة للإنتاج")
     try:
         accepted_count = int(report.get("accepted_count", 0) or 0)
         warning_count = int(report.get("warning_count", 0) or 0)
