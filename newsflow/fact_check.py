@@ -4,7 +4,7 @@ The model's verdict is never trusted by itself. A story can pass only when:
 - The original publisher article was successfully extracted.
 - Web-search citations were actually returned by the Responses API.
 - Every material claim is marked supported.
-- Every claim cites at least two distinct publisher domains other than the original outlet.
+- Every material claim cites at least one domain independent of the original publisher.
 - The model reports no material disagreements.
 Unsupported or contradicted stories are excluded individually; other supported stories may proceed.
 """
@@ -115,8 +115,8 @@ def _registrable_domain(url: str) -> str:
         return host
     two_level_suffixes = {
         "co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "net.au",
-        "org.au", "co.nz", "com.br", "com.eg", "co.jp", "co.in",
-        "com.sg", "com.tr", "com.mx", "com.ar",
+        "org.au", "co.nz", "com.br", "com.eg", "org.eg", "gov.eg",
+        "edu.eg", "co.jp", "co.in", "com.sg", "com.tr", "com.mx", "com.ar",
     }
     suffix = ".".join(labels[-2:])
     return ".".join(labels[-3:]) if suffix in two_level_suffixes else ".".join(labels[-2:])
@@ -162,6 +162,8 @@ def validate_fact_check_decision(
         for item in citation_sources
         if _clean_url(item.get("url", ""))
     }
+    source_url = original_url or story.get("link", "")
+    original_domain = _registrable_domain(source_url)
     claims = decision.get("claims")
     if decision.get("decision") != "verified":
         blockers.append("المراجع الآلي لم يصدر حكماً بالتحقق الكامل.")
@@ -182,14 +184,22 @@ def validate_fact_check_decision(
             url = _clean_url(raw_url)
             if url and url in evidence and url not in urls:
                 urls.append(url)
-        domains = {
+        cited_domains = {
             _registrable_domain(url)
             for url in urls
             if _registrable_domain(url)
         }
-        if len(domains) < 1:
+        independent_domains = {
+            domain for domain in cited_domains
+            if original_domain and domain != original_domain
+        }
+        if not original_domain:
             blockers.append(
-                f"الادعاء رقم {index} لا يستند إلى مصدر موثوق واحد على الأقل."
+                f"الادعاء رقم {index} تعذر تحديد نطاق الناشر الأصلي؛ لا يمكن إثبات استقلال الدليل."
+            )
+        elif not independent_domains:
+            blockers.append(
+                f"الادعاء رقم {index} لا يستند إلى مصدر مستقل عن الناشر الأصلي."
             )
         if not str(claim.get("claim") or "").strip():
             blockers.append(f"الادعاء رقم {index} بلا نص واضح.")
@@ -198,7 +208,7 @@ def validate_fact_check_decision(
             "verdict": str(claim.get("verdict") or "uncertain"),
             "explanation": str(claim.get("explanation") or "").strip(),
             "evidence_urls": urls,
-            "independent_domains": sorted(domains),
+            "independent_domains": sorted(independent_domains),
         })
     if not citation_sources:
         blockers.append("لم تُرجع أداة البحث أي روابط موثقة.")
