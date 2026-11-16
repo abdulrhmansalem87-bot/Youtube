@@ -81,7 +81,7 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
         self.assertEqual(blockers, [])
         self.assertEqual(len(claims[0]["independent_domains"]), 1)
 
-    def test_accepts_one_publisher_domain_even_when_two_urls_are_present(self):
+    def test_accepts_one_independent_publisher_domain_even_when_two_urls_are_present(self):
         decision = {
             "decision": "verified",
             "summary": "ادعاء.",
@@ -104,7 +104,7 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
         self.assertTrue(verified)
         self.assertEqual(blockers, [])
 
-    def test_original_publisher_can_count_as_the_single_credible_source(self):
+    def test_original_publisher_is_not_counted_but_independent_source_is(self):
         decision = {
             "decision": "verified",
             "summary": "ادعاء.",
@@ -126,6 +126,41 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
         verified, blockers, _ = validate_fact_check_decision(self.story, decision, annotations)
         self.assertTrue(verified)
         self.assertEqual(blockers, [])
+        self.assertEqual(claims[0]["independent_domains"], ["publisher-one.example"])
+
+    def test_rejects_original_publisher_as_the_only_cited_source(self):
+        decision = {
+            "decision": "verified",
+            "summary": "ادعاء.",
+            "claims": [{
+                "claim": "القرار صدر.",
+                "verdict": "supported",
+                "explanation": "الرابط الوحيد من الناشر الأصلي.",
+                "evidence_urls": ["https://original-publisher.example/article"],
+            }],
+            "material_disagreements": [],
+        }
+        annotations = [{
+            "url": "https://original-publisher.example/article",
+            "title": "Original publisher",
+        }]
+        verified, blockers, _ = validate_fact_check_decision(
+            self.story, decision, annotations
+        )
+        self.assertFalse(verified)
+        self.assertTrue(any("مصدر مستقل عن الناشر الأصلي" in item for item in blockers))
+
+    def test_egyptian_registrable_domains_are_not_collapsed_together(self):
+        from newsflow.fact_check import _registrable_domain
+
+        self.assertEqual(
+            _registrable_domain("https://www.example.gov.eg/data"),
+            "example.gov.eg",
+        )
+        self.assertEqual(
+            _registrable_domain("https://www.cbe.org.eg/en/news"),
+            "cbe.org.eg",
+        )
 
     def test_redirected_original_publisher_can_count_as_one_source(self):
         story = {
