@@ -608,7 +608,7 @@ def fact_check_stories(
                     "sources": [],
                     "checked_at": datetime.now(timezone.utc).isoformat(),
                     "model": selected_model,
-                    "method": "openai_responses_web_search",
+                    "method": "groq_tavily_search" if provider == "groq_tavily" else "openai_responses_web_search",
                 }
 
     ordered = [results[index] for index in range(len(stories))]
