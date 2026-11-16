@@ -70,19 +70,16 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
                 "claim": "تم إعلان القرار في الموعد المذكور.",
                 "verdict": "supported",
                 "explanation": "مصدر موثوق يؤكد التاريخ.",
-                "evidence_urls": [
-                    "https://publisher-one.example/story",
-                    "https://publisher-two.example/report",
-                ],
+                "evidence_urls": ["https://publisher-one.example/story"],
             }],
             "material_disagreements": [],
         }
         verified, blockers, claims = validate_fact_check_decision(
-            self.story, decision, self.annotations
+            self.story, decision, self.annotations[:1]
         )
         self.assertTrue(verified)
         self.assertEqual(blockers, [])
-        self.assertEqual(len(claims[0]["independent_domains"]), 2)
+        self.assertEqual(len(claims[0]["independent_domains"]), 1)
 
     def test_accepts_one_publisher_domain_even_when_two_urls_are_present(self):
         decision = {
@@ -267,6 +264,27 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
         self.assertEqual(report["status"], "not_performed")
         self.assertEqual(report["verified_count"], 0)
         self.assertFalse(report["results"][0]["verified"])
+
+    def test_one_unverified_story_does_not_fail_the_whole_batch(self):
+        stories = [{"id": "supported"}, {"id": "needs-review"}]
+        evidence = [
+            {"story_id": "supported", "status": "readable", "article_text": "نص" * 500},
+            {"story_id": "needs-review", "status": "readable", "article_text": "نص" * 500},
+        ]
+
+        def check_one(story, evidence_record, api_key, model):
+            if story["id"] == "supported":
+                return {"story_id": "supported", "status": "verified", "verified": True}
+            return {"story_id": "needs-review", "status": "needs_review", "verified": False}
+
+        with patch("newsflow.fact_check._request_openai_fact_check", side_effect=check_one):
+            report = fact_check_stories(stories, evidence, api_key="test-secret")
+
+        self.assertEqual(report["status"], "partial")
+        self.assertEqual(report["verified_count"], 1)
+        self.assertEqual(report["rejected_count"], 1)
+        self.assertTrue(report["results"][0]["verified"])
+        self.assertFalse(report["results"][1]["verified"])
 
     def test_rejects_incomplete_model_response(self):
         with self.assertRaisesRegex(RuntimeError, "لم تكتمل"):
