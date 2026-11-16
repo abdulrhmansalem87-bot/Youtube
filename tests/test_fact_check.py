@@ -10,6 +10,7 @@ from newsflow.fact_check import (
     fact_check_stories,
     validate_fact_check_decision,
     _request_openai_fact_check,
+    SYSTEM_INSTRUCTIONS,
 )
 
 
@@ -50,6 +51,13 @@ def successful_api_response():
 
 
 class FactCheckEvidenceValidationTests(unittest.TestCase):
+
+    def test_prompt_requires_independent_evidence_not_the_original_publisher(self):
+        self.assertIn("مصدر مستقل واحد على الأقل", SYSTEM_INSTRUCTIONS)
+        self.assertIn("لا تحتسب نطاق الناشر الأصلي دليلاً مستقلاً عن نفسه", SYSTEM_INSTRUCTIONS)
+        self.assertIn("لا تشترط مصدرين مستقلين", SYSTEM_INSTRUCTIONS)
+
+
     def setUp(self):
         self.story = {
             "id": "story-1",
