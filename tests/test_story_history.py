@@ -55,14 +55,73 @@ class StoryHistoryTests(unittest.TestCase):
         self.assertEqual(accepted, [])
         self.assertEqual(len(rejected), 1)
 
-    def test_story_after_cooldown_is_allowed(self):
+    def test_story_within_30_day_window_is_rejected(self):
         history = [{
             **self.story,
-            "prepared_at": (self.now - timedelta(hours=9)).isoformat(),
+            "prepared_at": (self.now - timedelta(days=29, hours=23)).isoformat(),
+        }]
+        accepted, rejected = filter_recent_repeats([self.story], history, now=self.now)
+        self.assertEqual(accepted, [])
+        self.assertEqual(len(rejected), 1)
+        self.assertIn("30 يوماً", rejected[0]["reasons"][0])
+
+    def test_story_after_30_day_cooldown_is_allowed(self):
+        history = [{
+            **self.story,
+            "prepared_at": (self.now - timedelta(days=30, hours=1)).isoformat(),
         }]
         accepted, rejected = filter_recent_repeats([self.story], history, now=self.now)
         self.assertEqual(accepted, [self.story])
         self.assertEqual(rejected, [])
+
+    def test_same_story_angle_is_rejected_even_when_headline_changes(self):
+        previous = {
+            "id": "old-story",
+            "link": "https://example.com/old-story",
+            "title": "المغرب يتوقع تراجع أسعار المحروقات بدءاً من الاثنين",
+            "summary": (
+                "توقع المغرب تراجع أسعار المحروقات بدءاً من 16 نوفمبر مع انخفاض الأسعار "
+                "العالمية، وتدرس الحكومة تسقيف هوامش أرباح الشركات ورفع الضرائب على الشركات الكبرى."
+            ),
+            "prepared_at": (self.now - timedelta(days=4)).isoformat(),
+        }
+        candidate = {
+            "id": "new-story",
+            "link": "https://another.example/morocco-fuel",
+            "title": "الحكومة المغربية تدرس تحديد أرباح شركات الوقود",
+            "summary": (
+                "توقع المغرب تراجع أسعار المحروقات بدءاً من 16 نوفمبر مع انخفاض الأسعار "
+                "العالمية، وتدرس الحكومة تحديد هوامش أرباح الشركات ورفع الضرائب على الشركات الكبرى."
+            ),
+        }
+        accepted, rejected = filter_recent_repeats([candidate], [previous], now=self.now)
+        self.assertEqual(accepted, [])
+        self.assertEqual(len(rejected), 1)
+        self.assertIn("زاويته", rejected[0]["reasons"][0])
+
+    def test_record_history_retains_30_days_and_stores_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "history" / "used_stories.json"
+            old = {
+                **self.story,
+                "id": "old-story",
+                "prepared_at": (self.now - timedelta(days=31)).isoformat(),
+            }
+            recent = {
+                **self.story,
+                "id": "recent-story",
+                "prepared_at": (self.now - timedelta(days=29)).isoformat(),
+            }
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps({"version": 1, "stories": [old, recent]}),
+                encoding="utf-8",
+            )
+            record_story_history(path, [self.story], now=self.now)
+            loaded = load_story_history(path)
+            self.assertEqual({item["id"] for item in loaded}, {"recent-story", "story-1"})
+            current = next(item for item in loaded if item["id"] == "story-1")
+            self.assertEqual(current["summary"], self.story["summary"])
 
     def test_future_history_timestamp_does_not_block_story(self):
         history = [{
@@ -82,6 +141,7 @@ class StoryHistoryTests(unittest.TestCase):
             self.assertEqual(len(loaded), 1)
             self.assertEqual(loaded[0]["id"], "story-1")
             self.assertEqual(loaded[0]["state"], "scheduled_draft")
+            self.assertEqual(loaded[0]["summary"], self.story["summary"])
 
     def test_empty_story_batch_does_not_create_history_file(self):
         with tempfile.TemporaryDirectory() as directory:
