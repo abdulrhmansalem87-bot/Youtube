@@ -19,6 +19,7 @@ class StoryHistoryTests(unittest.TestCase):
             "id": "story-1",
             "link": "https://example.com/news/1?utm_source=feed",
             "title": "البنك المركزي يعلن قراراً جديداً بشأن أسعار الفائدة",
+            "summary": "قرار اقتصادي يغيّر توقعات أسعار الفائدة ويؤثر في تكلفة التمويل والاقتراض.",
             "source": "مصدر اقتصادي",
         }
 
