@@ -138,6 +138,19 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["status"], "ready_for_fact_check")
         self.assertFalse(report["human_approval_required"])
 
+    def test_accepts_incomplete_summary_from_financial_category_for_source_recheck(self):
+        report = review_stories([{
+            "id": "financial-category-short",
+            "title": "شركة تعلن نتائجها الفصلية",
+            "summary": "خبر مختصر...",
+            "link": "https://example.com/results",
+            "source": "مصدر مالي",
+            "category": "أسواق المال",
+            "published": "2026-11-11",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+        self.assertEqual(report["status"], "ready_for_fact_check")
+
     def test_accepts_truncated_rss_summary_pending_original_article_fact_check(self):
         for suffix in ("...", "…"):
             with self.subTest(suffix=suffix):
