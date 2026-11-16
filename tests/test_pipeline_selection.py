@@ -57,6 +57,8 @@ class PipelineSelectionTests(unittest.TestCase):
         stories = [
             {
                 "id": "gold-egypt",
+                "link": "https://publisher.example/gold-egypt",
+                "published": "2026-11-16",
                 "title": "ارتفاع سعر الذهب في مصر.. جنيه الذهب يسجل 49200 جنيهاً",
                 "summary": "ارتفع سعر الذهب في مصر خلال التعاملات الصباحية.",
                 "source": "CNBC عربية - أسواق المال",
@@ -64,6 +66,8 @@ class PipelineSelectionTests(unittest.TestCase):
             },
             {
                 "id": "gold-uae",
+                "link": "https://publisher.example/gold-uae",
+                "published": "2026-11-16",
                 "title": "سعر الذهب اليوم في الإمارات الأربعاء 11 نوفمبر 2026",
                 "summary": "تحديث أسعار الذهب في الإمارات خلال تعاملات اليوم.",
                 "source": "CNBC عربية - أسواق المال",
@@ -71,6 +75,8 @@ class PipelineSelectionTests(unittest.TestCase):
             },
             {
                 "id": "ports",
+                "link": "https://publisher.example/ports",
+                "published": "2026-11-16",
                 "title": "أرباح موانئ أبوظبي ترتفع 64% في الربع الثالث",
                 "summary": "أعلنت المجموعة نتائج مالية فصلية جديدة مع تفاصيل عن الإيرادات والأرباح واتجاهات النشاط خلال الربع الثالث.",
                 "source": "CNBC عربية - أخبار الشركات",
@@ -102,6 +108,8 @@ class PipelineSelectionTests(unittest.TestCase):
         stories = [
             {
                 "id": "gold-egypt",
+                "link": "https://publisher.example/gold-egypt",
+                "published": "2026-11-16",
                 "title": "سعر الذهب اليوم في مصر يسجل ارتفاعاً",
                 "summary": "تحديث يومي لأسعار الذهب في السوق المصرية خلال التعاملات مع توضيح حركة الأسعار.",
                 "source": "CNBC عربية",
@@ -109,6 +117,8 @@ class PipelineSelectionTests(unittest.TestCase):
             },
             {
                 "id": "gold-uae",
+                "link": "https://publisher.example/gold-uae",
+                "published": "2026-11-16",
                 "title": "أسعار الذهب اليوم في الإمارات",
                 "summary": "تحديث يومي لأسعار الذهب في السوق الإماراتية خلال التعاملات مع توضيح حركة الأسعار.",
                 "source": "CNBC عربية",
@@ -116,6 +126,8 @@ class PipelineSelectionTests(unittest.TestCase):
             },
             {
                 "id": "gold-jordan",
+                "link": "https://publisher.example/gold-jordan",
+                "published": "2026-11-16",
                 "title": "أسعار الذهب اليوم في الأردن",
                 "summary": "تحديث يومي لأسعار الذهب في السوق الأردنية خلال التعاملات مع توضيح حركة الأسعار.",
                 "source": "CNBC عربية",
@@ -123,6 +135,8 @@ class PipelineSelectionTests(unittest.TestCase):
             },
             {
                 "id": "oil-earnings",
+                "link": "https://publisher.example/oil-earnings",
+                "published": "2026-11-16",
                 "title": "أرباح شركات النفط ترتفع خلال الربع الثالث",
                 "summary": "نتائج مالية جديدة لشركات الطاقة مع تفاصيل الإيرادات والأرباح والتغيرات في النشاط.",
                 "source": "Al Jazeera",
