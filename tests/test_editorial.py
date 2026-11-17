@@ -263,5 +263,43 @@ class EditorialReviewTests(unittest.TestCase):
         self.assertEqual(report["rejected_count"], 1)
 
 
+    def test_accepts_influencer_technology_story_with_market_impact(self):
+        report = review_stories([{
+            "id": "ai-chips",
+            "title": "Jensen Huang discusses AI chip demand",
+            "summary": "Rising demand is driving investment, orders and data-center capacity.",
+            "link": "https://example.com/ai-chips",
+            "source": "Google News - Jensen Huang",
+            "category": "شخصيات مؤثرة",
+            "published": "2026-11-16",
+        }])
+        self.assertEqual(report["accepted_count"], 1)
+
+    def test_rejects_influencer_personal_story_without_market_impact(self):
+        report = review_stories([{
+            "id": "personal",
+            "title": "Elon Musk shares a personal announcement",
+            "summary": "The post discusses a private celebration and family news.",
+            "link": "https://example.com/personal",
+            "source": "Google News - Elon Musk",
+            "category": "شخصيات مؤثرة",
+            "published": "2026-11-16",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+        self.assertEqual(report["rejected_count"], 1)
+
+    def test_rejects_technology_story_without_business_or_market_context(self):
+        report = review_stories([{
+            "id": "tech-hype",
+            "title": "A new AI model is released",
+            "summary": "The model introduces new features for casual users.",
+            "link": "https://example.com/model",
+            "source": "BBC News - Technology",
+            "category": "تكنولوجيا",
+            "published": "2026-11-16",
+        }])
+        self.assertEqual(report["accepted_count"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
