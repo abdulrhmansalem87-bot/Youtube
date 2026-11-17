@@ -44,7 +44,7 @@ SPORT_TERMS = (
     "football", "soccer", "match", "goal", "player", "coach", "league",
 )
 EXPLICIT_FINANCE_CATEGORIES = {
-    "أسواق المال", "اقتصاد", "اقتصادي", "اقتصاد عالمي",
+    "أسواق المال", "اقتصاد", "اقتصادي", "اقتصاد عالمي", "اقتصاد وأسواق",
     "financial markets", "finance", "financial", "markets", "business",
 }
 
@@ -63,7 +63,9 @@ def _headline_for_relevance(value: str) -> str:
 POLITICAL_TITLE_TERMS = (
     "هزيمة", "صراع سياسي", "صراع انتخابي", "انتخابات", "الانتخابات",
     "الكونغرس", "ترمب", "ترامب", "رئيس", "الرئيس", "سياسي", "سياسية",
+    "مفاوضات", "إيران", "ايران",
     "politics", "political", "election", "congress", "president",
+    "negotiation", "iran",
 )
 GENERIC_ECONOMIC_TERMS = {
     "اقتصاد", "اقتصادي", "اقتصادية", "مالية", "مالي",
