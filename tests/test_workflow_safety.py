@@ -68,18 +68,19 @@ class WorkflowSafetyTests(unittest.TestCase):
         run_step = next(item for item in steps if item.get("name") == "Run NewsFlow")
         env = run_step["env"]
 
+        # Scheduled and tagged runs are validation-only; only an explicit manual
+        # owner dispatch may render and upload PRIVATE review drafts.
         self.assertIn("workflow_dispatch", env["NEWSFLOW_PRIVATE_STAGING"])
         self.assertIn("inputs.private_test", env["NEWSFLOW_PRIVATE_STAGING"])
-        self.assertIn("inputs.visual_qa_approved", env["NEWSFLOW_PRIVATE_STAGING"])
         self.assertIn("inputs.dry_run != true", env["NEWSFLOW_PRIVATE_STAGING"])
+        self.assertNotIn("visual_qa_approved", workflow["on"]["workflow_dispatch"]["inputs"])
         self.assertNotIn("schedule", env["NEWSFLOW_PRIVATE_STAGING"])
         self.assertNotIn("[private-stage]", env["NEWSFLOW_PRIVATE_STAGING"])
         self.assertEqual(env["YOUTUBE_PRIVACY_STATUS"], "private")
         self.assertIn("I am the channel owner", workflow["on"]["workflow_dispatch"]["inputs"]["private_test"]["description"])
         self.assertIn("main video + companion Shorts", workflow["on"]["workflow_dispatch"]["inputs"]["private_test"]["description"])
 
-        # Scheduled collection may use a fact-check provider, but it must never
-        # receive media-generation or YouTube credentials.
+        # Media and YouTube credentials are exposed only to this manual private test.
         for name in (
             "YOUTUBE_UPLOAD_ENABLED", "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET",
             "YOUTUBE_REFRESH_TOKEN", "FISH_AUDIO_API_KEY", "FISH_AUDIO_REFERENCE_ID",
@@ -88,8 +89,8 @@ class WorkflowSafetyTests(unittest.TestCase):
             with self.subTest(environment=name):
                 self.assertIn("workflow_dispatch", env[name])
                 self.assertIn("inputs.private_test", env[name])
-                self.assertIn("inputs.visual_qa_approved", env[name])
                 self.assertIn("inputs.dry_run != true", env[name])
+                self.assertNotIn("visual_qa_approved", env[name])
                 self.assertNotIn("schedule", env[name])
                 self.assertNotIn("[private-stage]", env[name])
 
@@ -98,14 +99,14 @@ class WorkflowSafetyTests(unittest.TestCase):
             self.assertNotIn("[private-stage]", env[name])
 
         run = run_step["run"]
-        self.assertIn('if [ "${{ github.event_name }}" = "schedule" ]', run)
+        self.assertIn("github.event_name", run)
         scheduled_branch = run.split("elif", 1)[0]
         self.assertIn("python -m newsflow --dry-run", scheduled_branch)
         self.assertNotIn("--private-staging", scheduled_branch)
         self.assertIn("python -m newsflow --private-staging", run)
         self.assertNotIn("python -m newsflow --private-test", run)
         self.assertIn('"${{ inputs.private_test }}" = "true"', run)
-        self.assertIn('"${{ inputs.visual_qa_approved }}" = "true"', run)
+        self.assertNotIn("visual_qa_approved", run)
         self.assertIn('"${{ inputs.dry_run }}" != "true"', run)
 
         report = next(item for item in steps if item.get("name") == "Report Cairo schedule decision")
@@ -121,6 +122,8 @@ class WorkflowSafetyTests(unittest.TestCase):
             step = next(item for item in steps if item.get("name") == step_name)
             condition = step["if"]
             self.assertIn("workflow_dispatch", condition)
+            self.assertIn("inputs.private_test", condition)
+            self.assertNotIn("visual_qa_approved", condition)
             self.assertNotIn("schedule", condition)
             self.assertNotIn("[private-stage]", condition)
 
