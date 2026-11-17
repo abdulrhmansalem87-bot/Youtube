@@ -215,6 +215,20 @@ def validate_fact_check_decision(
     return not blockers, blockers, accepted_claims
 
 
+def _reported_decision(parsed: dict, verified: bool, claims: list[dict]) -> str:
+    """Require independent evidence before reporting a story as contradicted."""
+    if verified:
+        return "verified"
+    if parsed.get("decision") == "contradicted" and any(
+        claim.get("verdict") == "contradicted"
+        and claim.get("evidence_urls")
+        and claim.get("independent_domains")
+        for claim in claims
+    ):
+        return "contradicted"
+    return "needs_review"
+
+
 def _extract_output_text(response: dict) -> str:
     if response.get("status") != "completed":
         raise RuntimeError("استجابة التحقق من OpenAI لم تكتمل.")
@@ -362,11 +376,7 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
         "summary": str(parsed.get("summary") or ""),
         # Never preserve a model's optimistic "verified" label when local evidence
         # validation rejected the report; keep contradicted decisions explicit.
-        "decision": (
-            str(parsed.get("decision") or "insufficient_evidence")
-            if verified or parsed.get("decision") == "contradicted"
-            else "needs_review"
-        ),
+        "decision": _reported_decision(parsed, verified, claims),
         "blockers": blockers,
         "claims": claims,
         "sources": sources,
@@ -583,11 +593,7 @@ def _request_groq_tavily_fact_check(
         "verified": verified,
         "summary": str(parsed.get("summary") or ""),
         # Do not expose an optimistic model label when local evidence gates reject it.
-        "decision": (
-            str(parsed.get("decision") or "insufficient_evidence")
-            if verified or parsed.get("decision") == "contradicted"
-            else "needs_review"
-        ),
+        "decision": _reported_decision(parsed, verified, claims),
         "blockers": blockers,
         "claims": claims,
         "sources": [
