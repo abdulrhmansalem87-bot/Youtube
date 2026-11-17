@@ -82,6 +82,18 @@ def _published_day(item: dict) -> str:
     return timestamp.astimezone(timezone.utc).date().isoformat()
 
 
+def _batch_comparison_title(value: str) -> str:
+    """Ignore common headline filler so same-day syndicated variants compare reliably."""
+    stopwords = {
+        "عاجل", "في", "من", "على", "عن", "الى", "إلى", "بعد", "قبل",
+        "بشكل", "للمساعدة", "المساعدة", "هذا", "هذه", "ذلك", "التي", "الذي",
+    }
+    return " ".join(
+        token for token in normalize_story_title(value).split()
+        if token not in stopwords
+    )
+
+
 def _opposite_financial_direction(first: str, second: str) -> bool:
     """Do not collapse otherwise similar headlines that report opposite market moves."""
     positive_terms = ("يرفع", "رفع", "يزيد", "زيادة", "يرتفع", "ارتفاع", "صعود", "يصعد", "قفز", "نمو")
@@ -181,10 +193,18 @@ def filter_recent_repeats(
                 and bool(_published_day(story))
                 and _published_day(story) == _published_day(previous)
             )
+            batch_title_ratio = (
+                difflib.SequenceMatcher(
+                    None,
+                    _batch_comparison_title(title),
+                    _batch_comparison_title(old_title),
+                ).ratio()
+                if title and old_title else 0.0
+            )
             similar_same_batch_headline = (
                 same_publisher_same_day
                 and len(title) >= 24
-                and title_ratio >= 0.76
+                and batch_title_ratio >= 0.76
                 and not _opposite_financial_direction(title, old_title)
             )
             opposite_direction = _opposite_financial_direction(title, old_title)
