@@ -56,60 +56,75 @@ class WorkflowSafetyTests(unittest.TestCase):
             "NEWSFLOW_FACT_CHECK_PROVIDER: ${{ vars.NEWSFLOW_FACT_CHECK_PROVIDER || (secrets.GROQ_API_KEY != '' && secrets.TAVILY_API_KEY != '' && 'groq_tavily') || 'openai' }}",
             workflow,
         )
-    def test_scheduled_runs_upload_only_private_review_drafts(self):
-        workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
-        self.assertIn("YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'schedule'", workflow)
-        self.assertIn("NEWSFLOW_PRIVATE_STAGING: ${{ (github.event_name == 'schedule'", workflow)
-        self.assertIn("NEWSFLOW_EDITORIAL_APPROVED:", workflow)
-        self.assertIn("visual_qa_approved:", workflow)
-        self.assertIn("newsflow-pr-{0}", workflow)
-        self.assertIn("newsflow-schedule", workflow)
-        self.assertIn(
-            "contains(github.event.head_commit.message, '[private-stage]') && 'newsflow-schedule'",
-            workflow,
-        )
-        self.assertIn("newsflow-manual", workflow)
-        self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow)
-        self.assertIn('default: true', workflow)
-        self.assertIn("python -m newsflow --dry-run", workflow)
-        self.assertIn("python -m newsflow --private-test", workflow)
-        self.assertIn("python -m newsflow --private-staging", workflow)
-        self.assertIn("[private-stage]", workflow)
-        self.assertIn("github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true'", workflow)
-        self.assertIn("github.event_name == 'workflow_dispatch'", workflow)
-        self.assertIn('NEWSFLOW_UPLOAD_SINGLE_LONG: "false"', workflow)
-        for cron in (
-            '- cron: "0 13 * * *"', '- cron: "0 17 * * *"', '- cron: "0 20 * * *"',
-            '- cron: "0 12 * * *"', '- cron: "0 16 * * *"', '- cron: "0 19 * * *"',
-        ):
-            self.assertIn(cron, workflow)
-        self.assertIn("id: cairo_schedule", workflow)
-        self.assertIn('python -m newsflow.schedule "$EVENT_SCHEDULE"', workflow)
-        self.assertIn("steps.cairo_schedule.outputs.run == 'true'", workflow)
-        self.assertIn("steps.cairo_schedule.outputs.lookback_hours", workflow)
-        self.assertIn("NEWSFLOW_STRICT_FRESHNESS:", workflow)
-        self.assertIn("EVENT_SCHEDULE:", workflow)
-        self.assertIn("Report Cairo schedule decision", workflow)
-        self.assertIn("Restore recent scheduled story history", workflow)
-        self.assertIn("Save recent scheduled story history", workflow)
-        self.assertIn("Validate story history before cache save", workflow)
-        self.assertIn("id: history_cache_validation", workflow)
-        self.assertIn("steps.history_cache_validation.outcome == 'success'", workflow)
-        self.assertIn("retention_days=30", workflow)
-        self.assertIn("NEWSFLOW_DEDUPE_HISTORY_ENABLED:", workflow)
-        self.assertIn("NEWSFLOW_RECORD_DRAFT_HISTORY:", workflow)
-        self.assertIn("NEWSFLOW_HISTORY_FILE: output/history/used_stories.json", workflow)
-        self.assertIn("wealthradar-story-history-${{ runner.os }}-v1-", workflow)
-        self.assertIn("render and upload long + Shorts as PRIVATE owner-review drafts; never public automatically", workflow)
-        self.assertIn("30-day history cache", workflow)
-        self.assertIn("github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'", workflow)
-        self.assertIn("cancel-in-progress:", workflow)
-        self.assertIn(
-            "if: always() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true')",
-            workflow,
-        )
+    def test_scheduled_and_tagged_push_runs_are_validation_only(self):
+        import yaml
 
-    def test_shorts_workflow_uses_the_proven_fish_audio_pipeline(self):
+        workflow_path = (
+            Path(__file__).resolve().parents[1]
+            / ".github" / "workflows" / "newsflow.yml"
+        )
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        workflow = yaml.load(workflow_text, Loader=yaml.BaseLoader)
+        inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(inputs["owner_approved"]["default"], "false")
+        self.assertEqual(inputs["render_only"]["default"], "false")
+
+        steps = workflow["jobs"]["build"]["steps"]
+        run_step = next(item for item in steps if item.get("name") == "Run NewsFlow")
+        env = run_step["env"]
+        self.assertEqual(env["NEWSFLOW_PRIVATE_STAGING"], "false")
+        self.assertIn("inputs.owner_approved", env["NEWSFLOW_OWNER_APPROVED"])
+        self.assertIn("workflow_dispatch", env["NEWSFLOW_OWNER_APPROVED"])
+        self.assertEqual(env["NEWSFLOW_EDITORIAL_APPROVED"], "false")
+        self.assertNotIn("FISH_AUDIO_API_KEY", env)
+        self.assertNotIn("FISH_AUDIO_REFERENCE_ID", env)
+
+        for name in (
+            "YOUTUBE_UPLOAD_ENABLED", "YOUTUBE_CLIENT_ID",
+            "YOUTUBE_CLIENT_SECRET", "YOUTUBE_REFRESH_TOKEN",
+        ):
+            with self.subTest(environment=name):
+                self.assertIn("workflow_dispatch", env[name])
+                self.assertIn("inputs.owner_approved", env[name])
+                self.assertIn("inputs.visual_qa_approved", env[name])
+                self.assertNotIn("schedule", env[name])
+                self.assertNotIn("[private-stage]", env[name])
+
+        self.assertIn("inputs.owner_approved", env["PEXELS_API_KEY"])
+        self.assertNotIn("schedule", env["PEXELS_API_KEY"])
+        run = run_step["run"]
+        self.assertIn("[SCHEDULED_VALIDATION_ONLY]", run)
+        self.assertIn("python -m newsflow --dry-run", run)
+        self.assertNotIn("python -m newsflow --private-staging", run)
+        self.assertIn("python -m newsflow --render-only", run)
+        self.assertIn("python -m newsflow --private-test", run)
+
+        report = next(item for item in steps if item.get("name") == "Report Cairo schedule decision")
+        self.assertIn("collect sources, run independent fact-check", report["run"])
+        self.assertIn("never render or upload", report["run"])
+
+        for step_name in (
+            "Restore resumable scene cache",
+            "Report restored scene cache",
+            "Restore reusable licensed B-roll downloads",
+            "Report B-roll cache",
+            "Save reusable licensed B-roll downloads",
+            "Save resumable scene cache",
+            "Capture actual rendered video frames for phone QA",
+        ):
+            step = next(item for item in steps if item.get("name") == step_name)
+            condition = step["if"]
+            self.assertIn("workflow_dispatch", condition)
+            self.assertIn("inputs.owner_approved", condition)
+            self.assertNotIn("schedule", condition)
+            self.assertNotIn("[private-stage]", condition)
+
+        self.assertIn('YOUTUBE_PRIVACY_STATUS: "private"', workflow_text)
+        self.assertIn('id: cairo_schedule', workflow_text)
+        self.assertIn('python -m newsflow.schedule "$EVENT_SCHEDULE"', workflow_text)
+        self.assertIn("wealthradar-story-history-", workflow_text)
+
+    def test_shorts_workflow_requires_owner_approval_and_disables_synthetic_voice(self):
         import yaml
 
         workflow_path = (
@@ -122,21 +137,24 @@ class WorkflowSafetyTests(unittest.TestCase):
         )
         self.assertIn("workflow_dispatch", workflow["on"])
         self.assertNotIn("schedule", workflow["on"])
-        steps = workflow["jobs"]["produce"]["steps"]
+        inputs = workflow["on"]["workflow_dispatch"]["inputs"]
+        self.assertEqual(inputs["owner_approved"]["default"], "false")
+        self.assertEqual(inputs["visual_qa_approved"]["default"], "false")
+        produce = workflow["jobs"]["produce"]
+        self.assertIn("inputs.owner_approved", produce["if"])
+        self.assertIn("inputs.visual_qa_approved", produce["if"])
+        steps = produce["steps"]
         render = next(
             step for step in steps
-            if step.get("name") == "Render one Short with the cloned WealthRadar voice and upload privately"
+            if step.get("name") == "Run one owner-approved PRIVATE Short"
         )
         self.assertEqual(render["run"], "python -m newsflow --private-staging --shorts-only --max-stories 1")
-        self.assertEqual(render["env"]["FISH_AUDIO_MODEL"], "s2.1-pro-free")
+        self.assertEqual(render["env"]["NEWSFLOW_OWNER_APPROVED"], "true")
+        self.assertEqual(render["env"]["NEWSFLOW_VISUAL_QA_APPROVED"], "true")
         self.assertEqual(render["env"]["YOUTUBE_PRIVACY_STATUS"], "private")
-        self.assertEqual(render["env"]["NEWSFLOW_PRIVATE_STAGING"], "true")
-        self.assertEqual(render["env"]["NEWSFLOW_FACT_CHECK_ENABLED"], "true")
-        self.assertIn("secrets.OPENAI_API_KEY", render["env"]["OPENAI_API_KEY"])
         self.assertEqual(render["env"]["YOUTUBE_UPLOAD_ENABLED"], "true")
-        self.assertIn("secrets.FISH_AUDIO_API_KEY", render["env"]["FISH_AUDIO_API_KEY"])
-        self.assertIn("secrets.FISH_AUDIO_REFERENCE_ID", render["env"]["FISH_AUDIO_REFERENCE_ID"])
-        self.assertIn("shorts-only", render["run"])
+        self.assertNotIn("FISH_AUDIO_API_KEY", render["env"])
+        self.assertNotIn("FISH_AUDIO_REFERENCE_ID", render["env"])
 
     def test_newsflow_shorts_only_is_private_and_does_not_render_long_video(self):
         pipeline = (
