@@ -11,6 +11,7 @@ from newsflow.fact_check import (
     validate_fact_check_decision,
     _request_openai_fact_check,
     _request_groq_tavily_fact_check,
+    _post_json,
     SYSTEM_INSTRUCTIONS,
 )
 
@@ -250,6 +251,46 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
         verified, blockers, _ = validate_fact_check_decision(self.story, decision, annotations)
         self.assertFalse(verified)
         self.assertTrue(any("اختلافات جوهرية" in item for item in blockers))
+
+
+class ProviderErrorDiagnosticsTests(unittest.TestCase):
+    def test_http_error_details_are_normalized_and_credentials_redacted(self):
+        error_body = json.dumps({
+            "error": {
+                "type": "invalid_request_error",
+                "message": (
+                    "invalid   schema gsk_abcdefghijklmnopqrstuvwxyz "
+                    "Bearer tvly-abcdefghijklmnopqrstuvwxyz "
+                    "and sk-abcdefghijklmnopqrstuvwxyz"
+                ),
+            }
+        }).encode("utf-8")
+
+        def rejected(request, timeout):
+            raise HTTPError(
+                request.full_url, 400, "Bad Request", None, BytesIO(error_body)
+            )
+
+        with patch("newsflow.fact_check.urlopen", side_effect=rejected):
+            with self.assertRaises(RuntimeError) as raised:
+                _post_json(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    {"metadata": "safe test"},
+                    "request-secret",
+                    "Groq Chat",
+                )
+
+        message = str(raised.exception)
+        self.assertIn("Groq Chat HTTP 400", message)
+        self.assertIn("invalid_request_error", message)
+        self.assertIn("invalid schema [REDACTED] [REDACTED] and [REDACTED]", message)
+        for secret in (
+            "gsk_abcdefghijklmnopqrstuvwxyz",
+            "tvly-abcdefghijklmnopqrstuvwxyz",
+            "sk-abcdefghijklmnopqrstuvwxyz",
+            "request-secret",
+        ):
+            self.assertNotIn(secret, message)
 
 
 class OpenAIResponsesFactCheckTests(unittest.TestCase):
