@@ -28,7 +28,7 @@ on:
         type: boolean
         default: true
       private_test:
-        description: "I am the channel owner and explicitly approve one PRIVATE review render/upload (never PUBLIC)."
+        description: "I am the channel owner and explicitly approve one full episode (main video + companion Shorts) for PRIVATE review only; never PUBLIC."
         required: false
         type: boolean
         default: false
@@ -183,8 +183,8 @@ jobs:
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
           NEWSFLOW_VISUAL_QA_APPROVED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && 'true' || 'false' }}
-          # Schedule and the one-time [private-stage] push may upload PRIVATE review drafts only.
-          NEWSFLOW_PRIVATE_STAGING: "false"
+          # Only an explicitly owner-approved manual test may enter PRIVATE staging.
+          NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && inputs.dry_run != true && 'true' || 'false' }}
           NEWSFLOW_EDITORIAL_APPROVED: "false"
           YOUTUBE_UPLOAD_ENABLED: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && inputs.dry_run != true && 'true' || 'false' }}
           YOUTUBE_PRIVACY_STATUS: "private"
@@ -199,11 +199,12 @@ jobs:
              && [ "${{ inputs.private_test }}" = "true" ] \
              && [ "${{ inputs.visual_qa_approved }}" = "true" ] \
              && [ "${{ inputs.dry_run }}" != "true" ]; then
-            echo "[OWNER_APPROVED_PRIVATE_TEST] Explicit manual owner approval; YouTube privacy remains PRIVATE."
-            python -m newsflow --private-test
+            echo "[OWNER_APPROVED_PRIVATE_TEST] Full episode + companion Shorts approved manually; YouTube privacy remains PRIVATE."
+            python -m newsflow --private-staging
           else
             python -m newsflow --dry-run
-          fi      - name: Save reusable licensed B-roll downloads
+          fi
+      - name: Save reusable licensed B-roll downloads
         if: always() && (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && inputs.dry_run != true)
         uses: actions/cache/save@v6.1.0
         with:
