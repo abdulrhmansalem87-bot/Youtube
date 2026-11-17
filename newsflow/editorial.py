@@ -7,6 +7,7 @@ These checks do not independently verify facts; original-source extraction and f
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 from urllib.parse import urlparse
 
 
@@ -43,9 +44,22 @@ SPORT_TERMS = (
     "football", "soccer", "match", "goal", "player", "coach", "league",
 )
 EXPLICIT_FINANCE_CATEGORIES = {
-    "أسواق المال", "اقتصاد", "اقتصادي", "اقتصاد عالمي",
+    "أسواق المال", "اقتصاد", "اقتصادي", "اقتصاد عالمي", "اقتصاد وأسواق",
     "financial markets", "finance", "financial", "markets", "business",
 }
+
+# A publisher label appended by an aggregator is not evidence that the story is financial.
+PUBLISHER_BRANDING_SUFFIX = re.compile(
+    r"\\s*(?:[-–—|]\\s*|\\(\\s*)"
+    r"(?:Yahoo Finance|Fox Business|Reuters|CNBC|Bloomberg|Financial Times|"
+    r"MarketWatch|AP News|Associated Press|BBC News|The Guardian|"
+    r"Wall Street Journal|WSJ|Investing\\.com)\\s*\\)?\\s*$",
+    re.IGNORECASE,
+)
+
+
+def _headline_for_relevance(value: str) -> str:
+    return PUBLISHER_BRANDING_SUFFIX.sub("", str(value or "")).strip()
 POLITICAL_TITLE_TERMS = (
     "هزيمة", "صراع سياسي", "صراع انتخابي", "انتخابات", "الانتخابات",
     "الكونغرس", "ترمب", "ترامب", "رئيس", "الرئيس", "سياسي", "سياسية",
@@ -105,30 +119,31 @@ def _has_term(text: str, terms: tuple[str, ...]) -> bool:
 
 def relevance(story: dict) -> tuple[bool, str]:
     title = str(story.get("title", "")).strip()
+    relevance_title = _headline_for_relevance(title)
     summary = str(story.get("summary", "")).strip()
     category = str(story.get("category", "")).strip().casefold()
-    title_finance_hit = _has_term(title, FINANCE_TITLE_TERMS)
+    title_finance_hit = _has_term(relevance_title, FINANCE_TITLE_TERMS)
     summary_finance_hit = _has_term(summary, FINANCE_SUMMARY_TERMS)
-    sport_hit = _has_term(title, SPORT_TERMS)
-    political_hit = _has_term(title, POLITICAL_TITLE_TERMS)
-    direct_finance_hit = _has_term(title, DIRECT_FINANCE_TITLE_TERMS)
+    sport_hit = _has_term(relevance_title, SPORT_TERMS)
+    political_hit = _has_term(relevance_title, POLITICAL_TITLE_TERMS)
+    direct_finance_hit = _has_term(relevance_title, DIRECT_FINANCE_TITLE_TERMS)
 
-    if _has_term(title, ENERGY_INFRASTRUCTURE_ONLY_TERMS) and not _has_term(f"{title} {summary}", DIRECT_ENERGY_FINANCE_TERMS):
+    if _has_term(relevance_title, ENERGY_INFRASTRUCTURE_ONLY_TERMS) and not _has_term(f"{relevance_title} {summary}", DIRECT_ENERGY_FINANCE_TERMS):
         return False, "تغطية لانقطاع أو بنية تحتية للطاقة دون أثر مالي مباشر؛ لا تكفي وحدها لتصنيف الخبر اقتصادياً"
     if political_hit and not direct_finance_hit:
         return False, "عنوان سياسي عام؛ الإشارة الاقتصادية غير كافية لتصنيفه خبراً مالياً"
     if sport_hit and not title_finance_hit:
         return False, "عنوان رياضي لا يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
-    if title_finance_hit and _has_term(title, SECURITY_OR_CRIME_TERMS) and not summary_finance_hit:
+    if title_finance_hit and _has_term(relevance_title, SECURITY_OR_CRIME_TERMS) and not summary_finance_hit:
         return False, "عنوان أمني أو جنائي يستخدم مصطلحاً مالياً دون أن يدعم الملخص أثراً اقتصادياً مباشراً"
     if title_finance_hit:
         # In influencer feeds, "shares" is often a verb, not an equity-market
         # reference. Require summary corroboration for that ambiguous use.
         ambiguous_share_verb = (
             category in TECH_DISCOVERY_CATEGORIES
-            and _has_term(title, ("shares",))
+            and _has_term(relevance_title, ("shares",))
             and not summary_finance_hit
-            and not _has_term(title, tuple(term for term in FINANCE_TITLE_TERMS if term != "shares"))
+            and not _has_term(relevance_title, tuple(term for term in FINANCE_TITLE_TERMS if term != "shares"))
         )
         if not ambiguous_share_verb:
             return True, "عنوان الخبر يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
