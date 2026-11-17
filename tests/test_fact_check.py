@@ -628,6 +628,7 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         self.assertEqual(groq_request["tool_choice"], "none")
         self.assertNotIn("tools", groq_request)
         self.assertIn("لا تستخدم أدوات أو متصفحاً", groq_request["messages"][0]["content"])
+        self.assertIn("claims[].evidence_urls", groq_request["messages"][0]["content"])
         self.assertNotIn("groq-test-key", sent[0][1] + sent[1][1])
         self.assertEqual(result["claims"][0]["independent_domains"], ["cbe.org.eg"])
 
@@ -659,6 +660,7 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
                 "openai/gpt-oss-20b",
             )
         self.assertFalse(result["verified"])
+        self.assertEqual(result["decision"], "needs_review")
         self.assertEqual(result["claims"][0]["evidence_urls"], [])
         self.assertTrue(any("مصدر مستقل عن الناشر الأصلي" in item for item in result["blockers"]))
 
