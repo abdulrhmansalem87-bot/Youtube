@@ -509,17 +509,16 @@ def _request_groq_tavily_fact_check(
         "model": model,
         "temperature": 0.1,
         "max_tokens": 2200,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "economic_fact_check",
-                "strict": True,
-                "schema": FACT_CHECK_SCHEMA,
-            },
-        },
+        # GPT-OSS on Groq can emit built-in tool calls or reject strict enum
+        # schemas even when the requested verdict vocabulary is explicit. JSON
+        # mode guarantees syntactically valid JSON; our local validator remains
+        # the authority for every field and all evidence acceptance gates.
+        "response_format": {"type": "json_object"},
+        "tool_choice": "none",
         "messages": [
             {"role": "system", "content": (
                 "أنت مدقق حقائق اقتصادي مستقل. لا تكتب سيناريو ولا تروّج للخبر. "
+                "لا تستخدم أدوات أو متصفحاً أو بحثاً إضافياً أو تستدعِ أي أداة؛ حلّل فقط البيانات ونتائج Tavily المرفقة. "
                 "المتاح لك هو العنوان والملخص العام ونتائج البحث فقط؛ لا تدّعِ أنك قرأت المقال الأصلي. "
                 "يجب أن تكون decision إحدى القيم حرفياً: verified أو needs_review أو contradicted أو insufficient_evidence. "
                 "ويجب أن تكون verdict إحدى القيم حرفياً: supported أو partly_supported أو contradicted أو uncertain. "
