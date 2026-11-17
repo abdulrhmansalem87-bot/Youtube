@@ -9,6 +9,16 @@ on:
         required: true
         type: boolean
         default: false
+      owner_approved:
+        description: "I explicitly authorize this one PRIVATE Short after automated checks pass"
+        required: true
+        type: boolean
+        default: false
+      visual_qa_approved:
+        description: "I reviewed the prior phone preview and approve this PRIVATE test"
+        required: true
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -19,7 +29,7 @@ concurrency:
 
 jobs:
   produce:
-    if: ${{ inputs.isolated_short_experiment == true }}
+    if: ${{ inputs.isolated_short_experiment == true && inputs.owner_approved == true && inputs.visual_qa_approved == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -38,7 +48,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Run regression tests
         run: python -m unittest discover -s tests -v
-      - name: Render one Short with the cloned WealthRadar voice and upload privately
+      - name: Run one owner-approved PRIVATE Short
         env:
           NEWSFLOW_MAX_STORIES: "1"
           NEWSFLOW_LOOKBACK_HOURS: "12"
@@ -50,10 +60,8 @@ jobs:
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
           NEWSFLOW_PRIVATE_STAGING: "true"
           NEWSFLOW_EDITORIAL_APPROVED: "false"
-          NEWSFLOW_VISUAL_QA_APPROVED: "false"
-          FISH_AUDIO_API_KEY: ${{ secrets.FISH_AUDIO_API_KEY }}
-          FISH_AUDIO_REFERENCE_ID: ${{ secrets.FISH_AUDIO_REFERENCE_ID }}
-          FISH_AUDIO_MODEL: s2.1-pro-free
+          NEWSFLOW_OWNER_APPROVED: "true"
+          NEWSFLOW_VISUAL_QA_APPROVED: "true"
           YOUTUBE_UPLOAD_ENABLED: "true"
           YOUTUBE_PRIVACY_STATUS: "private"
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
