@@ -238,7 +238,7 @@ def _openai_error_details(exc: HTTPError) -> tuple[str, str]:
         error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
         error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
         error_type = str(error_info.get("type") or error_info.get("code") or "api_error")[:80]
-        error_message = re.sub(r"\\s+", " ", str(error_info.get("message") or ""))[:500]
+        error_message = re.sub(r"\s+", " ", str(error_info.get("message") or ""))[:500]
     except Exception:
         error_type, error_message = "api_error", ""
 
