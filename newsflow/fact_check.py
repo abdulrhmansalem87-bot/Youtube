@@ -388,31 +388,43 @@ def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
         },
         method="POST",
     )
-    try:
-        with urlopen(request, timeout=90) as response:
-            raw = response.read(MAX_RESPONSE_BYTES + 1)
-    except HTTPError as exc:
-        # Preserve actionable provider errors without exposing request credentials
-        # or the submitted story metadata.
+    for attempt in range(3):
         try:
-            error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
-            error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
-            if not isinstance(error_info, dict):
-                error_info = {}
-            error_code = re.sub(r"\s+", " ", str(error_info.get("code") or error_info.get("type") or "")).strip()[:100]
-            error_message = re.sub(r"\s+", " ", str(error_info.get("message") or "")).strip()[:500]
-        except Exception:
-            error_code, error_message = "", ""
-        detail = "; ".join(part for part in (error_code, error_message) if part)
-        detail = re.sub(
-            r"(?i)(?:Bearer\s+)?(?:gsk_[A-Za-z0-9_-]{8,}|tvly-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,})",
-            "[REDACTED]",
-            detail,
-        )[:620]
-        suffix = f": {detail}" if detail else ""
-        raise RuntimeError(f"{service} HTTP {exc.code}{suffix}") from None
-    except (URLError, TimeoutError, OSError) as exc:
-        raise RuntimeError(f"{service} connection failed ({type(exc).__name__})") from None
+            with urlopen(request, timeout=90) as response:
+                raw = response.read(MAX_RESPONSE_BYTES + 1)
+            break
+        except HTTPError as exc:
+            # Preserve actionable provider errors without exposing request credentials
+            # or the submitted story metadata.
+            try:
+                error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
+                error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+                if not isinstance(error_info, dict):
+                    error_info = {}
+                error_code = re.sub(r"\s+", " ", str(error_info.get("code") or error_info.get("type") or "")).strip()[:100]
+                error_message = re.sub(r"\s+", " ", str(error_info.get("message") or "")).strip()[:500]
+            except Exception:
+                error_code, error_message = "", ""
+            if exc.code == 429 and attempt < 2 and error_code not in {"insufficient_quota", "billing_hard_limit_reached", "billing_not_active"}:
+                try:
+                    retry_after = str(exc.headers.get("Retry-After") or "").strip()
+                    delay = min(30, max(1, int(float(retry_after)))) if retry_after else 5 * (attempt + 1)
+                except (AttributeError, TypeError, ValueError):
+                    delay = 5 * (attempt + 1)
+                time.sleep(delay)
+                continue
+            detail = "; ".join(part for part in (error_code, error_message) if part)
+            detail = re.sub(
+                r"(?i)(?:Bearer\s+)?(?:gsk_[A-Za-z0-9_-]{8,}|tvly-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,})",
+                "[REDACTED]",
+                detail,
+            )[:620]
+            suffix = f": {detail}" if detail else ""
+            raise RuntimeError(f"{service} HTTP {exc.code}{suffix}") from None
+        except (URLError, TimeoutError, OSError) as exc:
+            raise RuntimeError(f"{service} connection failed ({type(exc).__name__})") from None
+    else:
+        raise RuntimeError(f"{service} request exhausted retries")
     if len(raw) > MAX_RESPONSE_BYTES:
         raise RuntimeError(f"{service} response exceeded the safe size limit")
     try:
@@ -459,7 +471,7 @@ def _request_groq_tavily_fact_check(
         "query": query,
         "search_depth": "basic",
         "topic": "news",
-        "max_results": 8,
+        "max_results": 6,
         "include_answer": False,
         "include_raw_content": False,
     }
@@ -496,7 +508,7 @@ def _request_groq_tavily_fact_check(
     groq_payload = {
         "model": model,
         "temperature": 0.1,
-        "max_tokens": 3500,
+        "max_tokens": 2200,
         "response_format": {
             "type": "json_schema",
             "json_schema": {
@@ -509,6 +521,8 @@ def _request_groq_tavily_fact_check(
             {"role": "system", "content": (
                 "أنت مدقق حقائق اقتصادي مستقل. لا تكتب سيناريو ولا تروّج للخبر. "
                 "المتاح لك هو العنوان والملخص العام ونتائج البحث فقط؛ لا تدّعِ أنك قرأت المقال الأصلي. "
+                "يجب أن تكون decision إحدى القيم حرفياً: verified أو needs_review أو contradicted أو insufficient_evidence. "
+                "ويجب أن تكون verdict إحدى القيم حرفياً: supported أو partly_supported أو contradicted أو uncertain. "
                 "استخرج الادعاءات الجوهرية التي يمكن دعمها من هذه البيانات، وافحص الأرقام والتواريخ "
                 "والعملات والوحدات والأسماء. لكل ادعاء جوهري، استخدم مصدراً واحداً على الأقل "
                 "مستقلاً عن نطاق الناشر الأصلي. لا تعتبر إعادة نشر البيان دليلاً مستقلاً إضافياً. "
@@ -634,7 +648,7 @@ def fact_check_stories(
         for item in evidence_records
     }
     results: dict[int, dict] = {}
-    workers = max(1, min(int(max_workers), 2, len(stories)))
+    workers = 1 if provider == "groq_tavily" else max(1, min(int(max_workers), 2, len(stories)))
     checker = (
         (lambda story, evidence: _request_groq_tavily_fact_check(
             story, evidence, groq_key, tavily_key, selected_model

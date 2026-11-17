@@ -293,6 +293,39 @@ class ProviderErrorDiagnosticsTests(unittest.TestCase):
             self.assertNotIn(secret, message)
 
 
+    def test_post_json_retries_rate_limit_and_honors_retry_after(self):
+        success = json.dumps({"ok": True}).encode("utf-8")
+        attempts = []
+
+        class Response(BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+
+        def rate_limited_once(request, timeout):
+            attempts.append(request.full_url)
+            if len(attempts) == 1:
+                raise HTTPError(
+                    request.full_url, 429, "Too Many Requests",
+                    {"Retry-After": "7"}, BytesIO(json.dumps({
+                        "error": {"code": "rate_limit_exceeded", "message": "retry shortly"}
+                    }).encode("utf-8")),
+                )
+            return Response(success)
+
+        with (
+            patch("newsflow.fact_check.urlopen", side_effect=rate_limited_once),
+            patch("newsflow.fact_check.time.sleep") as sleep,
+        ):
+            result = _post_json(
+                "https://api.groq.com/openai/v1/chat/completions",
+                {"safe": True}, "test-secret", "Groq Chat",
+            )
+
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(len(attempts), 2)
+        sleep.assert_called_once_with(7)
+
+
 class OpenAIResponsesFactCheckTests(unittest.TestCase):
     def test_uses_responses_web_search_and_structured_json_output(self):
         story = {
