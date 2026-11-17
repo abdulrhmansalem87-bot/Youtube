@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import sys
@@ -7,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from newsflow.editorial import upload_review_blockers
-from newsflow.pipeline import main
+from newsflow.pipeline import main, make_audio, require_owner_approval
 
 
 def valid_report():
@@ -17,7 +18,7 @@ def valid_report():
         "warning_count": 0,
         "warnings": [],
         "fact_checking": "verified",
-        "voice_source": "owner_voice_clone",
+        "voice_source": "owner_recording",
         "presenter_source": "none",
         "broll_source": "licensed_video",
     }
@@ -27,15 +28,34 @@ class UploadReviewGateTests(unittest.TestCase):
     def test_allows_upload_after_automated_verification_without_human_approval(self):
         self.assertEqual(upload_review_blockers(valid_report(), False), [])
 
-    def test_non_owner_voice_blocks_but_an_on_camera_presenter_is_optional(self):
+    def test_tts_and_voice_clones_are_rejected_but_owner_recording_is_accepted(self):
         report = valid_report()
-        report["voice_source"] = "generic_tts"
-        self.assertTrue(
+        for source in ("generic_tts", "owner_voice_clone", "tts"):
+            with self.subTest(source=source):
+                report["voice_source"] = source
+                self.assertTrue(
+                    any("مصدر التعليق الصوتي" in item for item in upload_review_blockers(report, True))
+                )
+        report["voice_source"] = "owner_recording"
+        report["presenter_source"] = "none"
+        self.assertFalse(
             any("مصدر التعليق الصوتي" in item for item in upload_review_blockers(report, True))
         )
-        report["voice_source"] = "owner_voice_clone"
-        report["presenter_source"] = "none"
-        self.assertEqual(upload_review_blockers(report, True), [])
+
+    def test_non_dry_run_requires_explicit_owner_approval(self):
+        require_owner_approval(dry_run=True, environ={})
+        with self.assertRaisesRegex(RuntimeError, "موافقة صريحة من صاحب القناة"):
+            require_owner_approval(dry_run=False, environ={})
+        require_owner_approval(
+            dry_run=False, environ={"NEWSFLOW_OWNER_APPROVED": "true"}
+        )
+
+    def test_make_audio_refuses_tts_and_voice_cloning(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "voice.mp3"
+            with self.assertRaisesRegex(RuntimeError, "توليد الصوت أو استنساخه معطل"):
+                asyncio.run(make_audio("نص تجريبي", output))
+            self.assertFalse(output.exists())
 
     def test_licensed_broll_is_checked_after_rendering(self):
         report = valid_report()
@@ -107,7 +127,7 @@ class UploadReviewGateTests(unittest.TestCase):
     def test_private_staging_is_only_a_private_review_and_not_publication(self):
         report = valid_report()
         report["fact_checking"] = "not_performed"
-        report["voice_source"] = "owner_voice_clone"
+        report["voice_source"] = "owner_recording"
         report["presenter_source"] = "none"
         self.assertIn(
             "التحقق المستقل من الوقائع لم يكتمل؛ أوقفنا إنتاج الصوت والفيديو",
@@ -146,6 +166,7 @@ class UploadReviewGateTests(unittest.TestCase):
             "PEXELS_API_KEY": "test-key",
             "YOUTUBE_UPLOAD_ENABLED": "true",
             "NEWSFLOW_PRIVATE_STAGING": "false",
+            "NEWSFLOW_OWNER_APPROVED": "true",
         }, clear=False):
             with patch.object(sys, "argv", ["newsflow", "--render-only"]):
                 with patch("newsflow.pipeline.validate_youtube_auth") as auth:
@@ -159,6 +180,7 @@ class UploadReviewGateTests(unittest.TestCase):
             "PEXELS_API_KEY": "",
             "YOUTUBE_UPLOAD_ENABLED": "false",
             "NEWSFLOW_PRIVATE_STAGING": "false",
+            "NEWSFLOW_OWNER_APPROVED": "true",
         }, clear=False):
             with patch.object(sys, "argv", ["newsflow", "--render-only"]):
                 with patch("newsflow.pipeline.collect") as collect:
@@ -177,12 +199,14 @@ class UploadReviewGateTests(unittest.TestCase):
         invalid_cases = [
             {
                 "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_OWNER_APPROVED": "true",
                 "NEWSFLOW_EDITORIAL_APPROVED": "false",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "false",
                 "NEWSFLOW_PRIVATE_STAGING": "false",
             },
             {
                 "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_OWNER_APPROVED": "false",
                 "NEWSFLOW_EDITORIAL_APPROVED": "false",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "true",
                 "NEWSFLOW_PRIVATE_STAGING": "true",
@@ -202,6 +226,7 @@ class UploadReviewGateTests(unittest.TestCase):
             values = {
                 "NEWSFLOW_OUTPUT_DIR": directory,
                 "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_OWNER_APPROVED": "true",
                 "NEWSFLOW_EDITORIAL_APPROVED": "false",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "true",
                 "NEWSFLOW_PRIVATE_STAGING": "false",
@@ -251,6 +276,7 @@ class UploadReviewGateTests(unittest.TestCase):
                 "NEWSFLOW_RECORD_DRAFT_HISTORY": "false",
                 "NEWSFLOW_PRIVATE_STAGING": "true",
                 "YOUTUBE_UPLOAD_ENABLED": "true",
+                "NEWSFLOW_OWNER_APPROVED": "true",
                 "NEWSFLOW_EDITORIAL_APPROVED": "false",
                 "NEWSFLOW_VISUAL_QA_APPROVED": "false",
                 "FISH_AUDIO_REFERENCE_ID": "owner-voice-reference",
