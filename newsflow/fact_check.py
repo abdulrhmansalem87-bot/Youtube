@@ -414,25 +414,23 @@ def _request_groq_tavily_fact_check(
     model: str,
 ) -> dict:
     """Search public headline/summary only; never transmit the extracted article body."""
-    article_text = str(evidence.get("article_text") or "")[:MAX_ARTICLE_CHARS]
+    # Groq/Tavily is intentionally restricted to public metadata. Never send
+    # extracted publisher article text to either third-party service.
     title = str(story.get("title") or "").strip()[:240]
-    summary = str(story.get("summary") or "").strip()[:1200]
-    if evidence.get("status") in {"readable", "partial"} and len(article_text) >= 250:
-        source_context = article_text
-        context_basis = "original article excerpt"
-    elif len(summary) >= 80:
-        source_context = summary
+    summary = str(story.get("summary") or "").strip()[:500]
+    if len(summary) >= 80:
         context_basis = "publisher-attributed RSS summary only; limit claims to explicit details"
+    elif len(title) >= 20:
+        context_basis = "headline only; do not infer details beyond the headline"
     else:
         return {
             "story_id": str(story.get("id") or ""),
             "status": "needs_review",
             "verified": False,
-            "blockers": ["لا يتوفر نص أو ملخص كافٍ لتحديد ادعاءات الخبر؛ تم تجاوزه."],
+            "blockers": ["لا يتوفر عنوان أو ملخص كافٍ لتحديد ادعاءات الخبر؛ تم تجاوزه."],
             "sources": [],
             "claims": [],
         }
-    summary = summary[:500]
     # Deliberately limited to public metadata. The original article body remains local.
     query = re.sub(r"\s+", " ", f"{title} {summary}").strip()[:400]
     if len(query) < 20:
@@ -507,7 +505,7 @@ def _request_groq_tavily_fact_check(
                         "title": title,
                         "summary": summary,
                         "source_context_basis": context_basis,
-                        "source_context": source_context,
+                        "source_context": summary,
                         "publisher": str(story.get("source") or "")[:160],
                         "original_url": str(evidence.get("final_url") or story.get("link") or ""),
                         "published_at": str(story.get("published") or ""),
