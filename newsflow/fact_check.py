@@ -417,7 +417,8 @@ def _request_groq_tavily_fact_check(
     # Groq/Tavily is intentionally restricted to public metadata. Never send
     # extracted publisher article text to either third-party service.
     title = str(story.get("title") or "").strip()[:240]
-    summary = str(story.get("summary") or "").strip()[:500]
+    summary_value = story.get("rss_summary") if "rss_summary" in story else story.get("summary")
+    summary = str(summary_value or "").strip()[:500]
     if len(summary) >= 80:
         context_basis = "publisher-attributed RSS summary only; limit claims to explicit details"
     elif len(title) >= 20:
