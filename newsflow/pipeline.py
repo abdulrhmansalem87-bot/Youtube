@@ -25,6 +25,7 @@ from newsflow.history import filter_recent_repeats, load_story_history, record_s
 from newsflow.broll import render_broll_video
 from newsflow.source_evidence import collect_source_evidence
 from newsflow.fact_check import fact_check_stories
+from newsflow.discovery import attach_trend_signals, is_trend_source, parse_trend_signal
 
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
@@ -84,7 +85,12 @@ def story_topic_key(story: dict) -> str:
 
 def select_stories(stories: list[dict], max_stories: int):
     selected, source_counts, rejected, seen_topics = [], {}, [], set()
-    for story in stories:
+    ordered_stories = sorted(
+        stories,
+        key=lambda item: (float(item.get("trend_score") or 0), float(item.get("published_ts") or 0)),
+        reverse=True,
+    )
+    for story in ordered_stories:
         is_relevant, reason = relevance(story)
         if not is_relevant:
             rejected.append({
@@ -128,10 +134,16 @@ def select_stories(stories: list[dict], max_stories: int):
 
 
 def collect(max_stories: int):
-    stories, seen = [], set()
+    stories, seen, trend_signals = [], set(), []
     for source in config().get("sources", []):
         try:
             parsed = feedparser.parse(source["url"])
+            if is_trend_source(source):
+                trend_signals.extend(
+                    signal for entry in parsed.entries[:40]
+                    if (signal := parse_trend_signal(entry, source)) is not None
+                )
+                continue
             for entry in parsed.entries[:40]:
                 link = entry.get("link", "").strip()
                 title = re.sub(r"\s+", " ", entry.get("title", "")).strip()
@@ -151,6 +163,7 @@ def collect(max_stories: int):
                 })
         except Exception as exc:
             print(f"[WARN] تعذر جلب {source.get('name')}: {exc}")
+    stories = attach_trend_signals(stories, trend_signals)
     now_ts = datetime.now(timezone.utc).timestamp()
     try:
         lookback_hours = float(os.getenv("NEWSFLOW_LOOKBACK_HOURS", "72"))
