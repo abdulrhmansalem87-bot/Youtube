@@ -77,7 +77,7 @@ FACT_CHECK_SCHEMA = {
 
 
 SYSTEM_INSTRUCTIONS = """أنت محرر تدقيق حقائق اقتصادي مستقل. لا تكتب سيناريو ولا تروّج للخبر.
-ابحث مباشرة على الويب عن مصدر مستقل واحد على الأقل لكل ادعاء جوهري، وفضّل البيانات الرسمية والوثائق الأولية والتغطية المستقلة. استخدم المقال الأصلي لفهم الخبر وتحديد الادعاءات، لكن لا تحتسب نطاق الناشر الأصلي دليلاً مستقلاً عن نفسه. المصدر المستقل الثاني مفيد لزيادة الثقة لكنه ليس شرطاً إلزامياً.
+ابحث مباشرة على الويب عن مصدر مستقل واحد على الأقل لكل ادعاء جوهري، وفضّل البيانات الرسمية والوثائق الأولية والتغطية المستقلة. استخدم نص المقال الأصلي إن توفر. إذا لم يمكن استخراج المقال، يجوز استخدام ملخص RSS المنسوب للناشر كإشارة أولية فقط، مع قصر الادعاءات على ما يذكره الملخص صراحة وعدم استنتاج تفاصيل غير موجودة فيه. لا تحتسب نطاق الناشر الأصلي دليلاً مستقلاً عن نفسه. المصدر المستقل الثاني مفيد لزيادة الثقة لكنه ليس شرطاً إلزامياً.
 افحص كل رقم وتاريخ وعملة ووحدة قياس واسم جهة، وميّز بين القرار النافذ والمقترح والتوقع والتصريح.
 لا تعتبر تكرار الخبر في مواقع تنقل عن الوكالة نفسها مصدرين مستقلين.
 استخرج الادعاءات الجوهرية القابلة للتحقق من نص المقال الأصلي، وليس العنوان وحده.
@@ -260,12 +260,21 @@ def _openai_error_details(exc: HTTPError) -> tuple[str, str]:
 
 def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model: str) -> dict:
     article_text = str(evidence.get("article_text") or "")[:MAX_ARTICLE_CHARS]
-    if evidence.get("status") != "readable" or len(article_text) < 700:
+    rss_summary = str(story.get("summary") or "").strip()[:1200]
+    if evidence.get("status") in {"readable", "partial"} and len(article_text) >= 250:
+        context_text = article_text
+        context_basis = "مقتطف من نص صفحة الناشر الأصلي"
+    elif len(rss_summary) >= 80:
+        # A publisher may block automated article extraction. In that case, use
+        # the publisher-attributed RSS summary only as a lead, never as proof.
+        context_text = rss_summary
+        context_basis = "ملخص RSS منسوب للناشر؛ يجب قصر الادعاءات على ما يذكره صراحة"
+    else:
         return {
             "story_id": story.get("id"),
             "status": "needs_review",
             "verified": False,
-            "blockers": ["النص الأصلي الكامل غير متاح؛ لا يمكن التحقق من الخبر بأمان."],
+            "blockers": ["لا يتوفر نص أو ملخص كافٍ لتحديد ادعاءات الخبر؛ تم تجاوزه."],
             "sources": [],
             "claims": [],
         }
@@ -273,12 +282,13 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
     prompt_data = {
         "story": {
             "title": str(story.get("title") or ""),
-            "summary": str(story.get("summary") or ""),
+            "summary": rss_summary,
             "publisher": str(story.get("source") or ""),
             "original_url": str(evidence.get("final_url") or story.get("link") or ""),
             "published_at": str(story.get("published") or ""),
         },
-        "original_article_text": article_text,
+        "source_context_basis": context_basis,
+        "source_context": context_text,
     }
     payload = {
         "model": model,
@@ -404,19 +414,24 @@ def _request_groq_tavily_fact_check(
     model: str,
 ) -> dict:
     """Search public headline/summary only; never transmit the extracted article body."""
-    article_text = str(evidence.get("article_text") or "")
-    if evidence.get("status") != "readable" or len(article_text) < 700:
+    # Groq/Tavily is intentionally restricted to public metadata. Never send
+    # extracted publisher article text to either third-party service.
+    title = str(story.get("title") or "").strip()[:240]
+    summary_value = story.get("rss_summary") if "rss_summary" in story else story.get("summary")
+    summary = str(summary_value or "").strip()[:500]
+    if len(summary) >= 80:
+        context_basis = "publisher-attributed RSS summary only; limit claims to explicit details"
+    elif len(title) >= 20:
+        context_basis = "headline only; do not infer details beyond the headline"
+    else:
         return {
             "story_id": str(story.get("id") or ""),
             "status": "needs_review",
             "verified": False,
-            "blockers": ["النص الأصلي الكامل غير متاح؛ لا يمكن التحقق من الخبر بأمان."],
+            "blockers": ["لا يتوفر عنوان أو ملخص كافٍ لتحديد ادعاءات الخبر؛ تم تجاوزه."],
             "sources": [],
             "claims": [],
         }
-
-    title = str(story.get("title") or "").strip()[:240]
-    summary = str(story.get("summary") or "").strip()[:500]
     # Deliberately limited to public metadata. The original article body remains local.
     query = re.sub(r"\s+", " ", f"{title} {summary}").strip()[:400]
     if len(query) < 20:
@@ -490,6 +505,8 @@ def _request_groq_tavily_fact_check(
                     "story": {
                         "title": title,
                         "summary": summary,
+                        "source_context_basis": context_basis,
+                        "source_context": summary,
                         "publisher": str(story.get("source") or "")[:160],
                         "original_url": str(evidence.get("final_url") or story.get("link") or ""),
                         "published_at": str(story.get("published") or ""),

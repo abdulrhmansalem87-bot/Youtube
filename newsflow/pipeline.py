@@ -890,6 +890,7 @@ def main():
                     ],
                 })
                 continue
+            story["rss_summary"] = str(story.get("summary") or "")[:500]
             story["summary"] = article_text[:1800]
             story["summary_source"] = "original_publisher_article"
             story["relevance_reason"] = source_relevance_reason
