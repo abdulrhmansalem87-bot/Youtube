@@ -172,5 +172,29 @@ class AudioDurationTests(unittest.TestCase):
                     validate_audio_duration(duration, private_test=True)
 
 
+class TrendPriorityTests(unittest.TestCase):
+    def test_trend_matched_news_is_prioritized_without_promoting_trend_as_news(self):
+        stories = [
+            {
+                "id": "ordinary", "link": "https://publisher.example/ordinary",
+                "published": "2026-11-16", "published_ts": 200,
+                "title": "تطورات أسعار الفائدة في الأسواق المالية",
+                "summary": "تؤثر أسعار الفائدة على التمويل والاستثمار.",
+                "source": "Publisher A", "category": "أسواق المال",
+            },
+            {
+                "id": "trending", "link": "https://publisher.example/trending",
+                "published": "2026-11-15", "published_ts": 100,
+                "title": "Nvidia AI chips demand rises",
+                "summary": "Chip orders and data-center investment increase.",
+                "source": "Publisher B", "category": "شخصيات مؤثرة",
+                "trend_score": 1.0,
+            },
+        ]
+        selected, rejected = select_stories(stories, 1)
+        self.assertEqual([item["id"] for item in selected], ["trending"])
+        self.assertEqual(rejected, [])
+
+
 if __name__ == "__main__":
     unittest.main()
