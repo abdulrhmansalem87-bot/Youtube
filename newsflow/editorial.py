@@ -75,6 +75,23 @@ DIRECT_FINANCE_TITLE_TERMS = tuple(
     if term.casefold() not in GENERIC_ECONOMIC_TERMS
 ) + ("أسواق", "الأسواق", "السوق", "سوق")
 
+TECH_DISCOVERY_CATEGORIES = {"شخصيات مؤثرة", "تكنولوجيا"}
+TECH_TITLE_TERMS = (
+    "ذكاء اصطناعي", "الذكاء الاصطناعي", "artificial intelligence",
+    "شرائح", "رقائق", "أشباه الموصلات", "semiconductor", "chip", "gpu",
+    "مراكز البيانات", "data center", "cloud", "روبوت", "robot", "تقنية",
+    "تكنولوجيا", "technology", "tech", "chatgpt", "openai", "nvidia",
+    "tesla", "spacex", "xai", "نموذج", "model", "معالج", "processor",
+)
+TECH_MARKET_IMPACT_TERMS = (
+    "استثمار", "استثمارات", "إنفاق", "طلب", "الطلب", "مبيعات", "إيرادات",
+    "أرباح", "تكلفة", "سوق", "أسواق", "منافسة", "توريد", "إمدادات",
+    "قدرات", "وظائف", "تنظيم", "تراخيص", "عقود", "تمويل", "توسع",
+    "investment", "spending", "demand", "sales", "revenue", "profit",
+    "cost", "market", "competition", "supply", "capacity", "jobs",
+    "regulation", "contract", "funding", "expansion", "orders",
+)
+
 SECURITY_OR_CRIME_TERMS = (
     "تهريب", "اتهامات", "اتهام", "نفوذ أمني", "ميليشيا", "مسلح",
     "smuggling", "trafficking", "militia", "armed group",
@@ -105,7 +122,24 @@ def relevance(story: dict) -> tuple[bool, str]:
     if title_finance_hit and _has_term(title, SECURITY_OR_CRIME_TERMS) and not summary_finance_hit:
         return False, "عنوان أمني أو جنائي يستخدم مصطلحاً مالياً دون أن يدعم الملخص أثراً اقتصادياً مباشراً"
     if title_finance_hit:
-        return True, "عنوان الخبر يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
+        # In influencer feeds, "shares" is often a verb, not an equity-market
+        # reference. Require summary corroboration for that ambiguous use.
+        ambiguous_share_verb = (
+            category in TECH_DISCOVERY_CATEGORIES
+            and _has_term(title, ("shares",))
+            and not summary_finance_hit
+            and not _has_term(title, tuple(term for term in FINANCE_TITLE_TERMS if term != "shares"))
+        )
+        if not ambiguous_share_verb:
+            return True, "عنوان الخبر يتناول موضوعاً مالياً أو اقتصادياً مباشرة"
+    # Influencer and technology feeds are discovery channels, not automatic approval.
+    # Require a technical headline and an explicit market/business consequence.
+    if (
+        category in TECH_DISCOVERY_CATEGORIES
+        and _has_term(title, TECH_TITLE_TERMS)
+        and _has_term(summary, TECH_MARKET_IMPACT_TERMS)
+    ):
+        return True, "تطور تقني مرتبط بشخصية أو قطاع مؤثر وله أثر تجاري أو سوقي مذكور في الملخص"
     if category in EXPLICIT_FINANCE_CATEGORIES and summary_finance_hit:
         return True, "تصنيف المصدر مالي والملخص يدعم الصلة الاقتصادية"
     summary_incomplete = (
