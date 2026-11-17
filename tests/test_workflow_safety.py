@@ -72,7 +72,8 @@ class WorkflowSafetyTests(unittest.TestCase):
         # owner dispatch may render and upload PRIVATE review drafts.
         self.assertIn("workflow_dispatch", env["NEWSFLOW_PRIVATE_STAGING"])
         self.assertIn("inputs.private_test", env["NEWSFLOW_PRIVATE_STAGING"])
-        self.assertIn("inputs.dry_run != true", env["NEWSFLOW_PRIVATE_STAGING"])
+        self.assertNotIn("inputs.dry_run", env["NEWSFLOW_PRIVATE_STAGING"])
+        self.assertNotIn("dry_run", workflow["on"]["workflow_dispatch"]["inputs"])
         self.assertNotIn("visual_qa_approved", workflow["on"]["workflow_dispatch"]["inputs"])
         self.assertNotIn("schedule", env["NEWSFLOW_PRIVATE_STAGING"])
         self.assertNotIn("[private-stage]", env["NEWSFLOW_PRIVATE_STAGING"])
@@ -89,7 +90,7 @@ class WorkflowSafetyTests(unittest.TestCase):
             with self.subTest(environment=name):
                 self.assertIn("workflow_dispatch", env[name])
                 self.assertIn("inputs.private_test", env[name])
-                self.assertIn("inputs.dry_run != true", env[name])
+                self.assertNotIn("inputs.dry_run", env[name])
                 self.assertNotIn("visual_qa_approved", env[name])
                 self.assertNotIn("schedule", env[name])
                 self.assertNotIn("[private-stage]", env[name])
@@ -107,7 +108,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertNotIn("python -m newsflow --private-test", run)
         self.assertIn('"${{ inputs.private_test }}" = "true"', run)
         self.assertNotIn("visual_qa_approved", run)
-        self.assertIn('"${{ inputs.dry_run }}" != "true"', run)
+        self.assertNotIn("inputs.dry_run", run)
 
         report = next(item for item in steps if item.get("name") == "Report Cairo schedule decision")
         self.assertIn("collect sources, run independent fact-check", report["run"])
