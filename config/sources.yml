@@ -12,6 +12,39 @@ sources:
   - name: Al Jazeera
     url: https://www.aljazeera.net/aljazeerarss/ar.xml
     category: عام
+  - name: BBC News - Top Stories
+    url: https://feeds.bbci.co.uk/news/rss.xml
+    category: أخبار عالمية
+  - name: BBC News - World
+    url: https://feeds.bbci.co.uk/news/world/rss.xml
+    category: أخبار عالمية
+  - name: BBC News - Business
+    url: https://feeds.bbci.co.uk/news/business/rss.xml
+    category: اقتصاد وأسواق
+  - name: BBC News - Technology
+    url: https://feeds.bbci.co.uk/news/technology/rss.xml
+    category: تكنولوجيا
+  - name: Google Trends - Egypt
+    url: https://trends.google.com/trending/rss?geo=EG
+    category: ترند مصر
+  - name: Google Trends - United States
+    url: https://trends.google.com/trending/rss?geo=US
+    category: ترند عالمي
+  - name: Google News - Elon Musk
+    url: https://news.google.com/rss/search?q=%22Elon+Musk%22+when:2d&hl=en-US&gl=US&ceid=US:en
+    category: شخصيات مؤثرة
+  - name: Google News - Sam Altman
+    url: https://news.google.com/rss/search?q=%22Sam+Altman%22+when:2d&hl=en-US&gl=US&ceid=US:en
+    category: شخصيات مؤثرة
+  - name: Google News - Jensen Huang
+    url: https://news.google.com/rss/search?q=%22Jensen+Huang%22+when:2d&hl=en-US&gl=US&ceid=US:en
+    category: شخصيات مؤثرة
+  - name: Google News - Jerome Powell
+    url: https://news.google.com/rss/search?q=%22Jerome+Powell%22+when:2d&hl=en-US&gl=US&ceid=US:en
+    category: شخصيات مؤثرة
+  - name: Google News - Warren Buffett
+    url: https://news.google.com/rss/search?q=%22Warren+Buffett%22+when:2d&hl=en-US&gl=US&ceid=US:en
+    category: شخصيات مؤثرة
   - name: Reuters - Business (via Google News)
     url: https://news.google.com/rss/search?q=when:24h+site:reuters.com/business&hl=en-US&gl=US&ceid=US:en
     category: أسواق المال
