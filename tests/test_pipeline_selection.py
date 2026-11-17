@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from newsflow.pipeline import clamp_max_stories, make_script, select_stories, source_display_name, validate_audio_duration
+from newsflow.pipeline import clamp_max_stories, collect, make_script, select_stories, source_display_name, validate_audio_duration
 
 
 class PipelineSelectionTests(unittest.TestCase):
