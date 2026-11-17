@@ -12,6 +12,21 @@ sources:
   - name: Al Jazeera
     url: https://www.aljazeera.net/aljazeerarss/ar.xml
     category: عام
+  - name: Reuters - Business (via Google News)
+    url: https://news.google.com/rss/search?q=when:24h+site:reuters.com/business&hl=en-US&gl=US&ceid=US:en
+    category: أسواق المال
+  - name: Associated Press - Top Stories
+    url: https://flipboard.com/@associatedpress/top-stories-u7govdf1z.rss
+    category: اقتصاد عالمي
+  - name: Bloomberg - Markets
+    url: https://www.bloomberg.com/feeds/markets/news.rss
+    category: أسواق المال
+  - name: Financial Times - Markets
+    url: https://www.ft.com/markets?format=rss
+    category: أسواق المال
+  - name: Financial Times - Global Economy
+    url: https://www.ft.com/global-economy?format=rss
+    category: اقتصاد عالمي
   - name: IMF
     url: https://www.imf.org/en/News/RSS
     category: اقتصاد عالمي
