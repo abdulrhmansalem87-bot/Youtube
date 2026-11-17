@@ -197,9 +197,9 @@ def upload_review_blockers(
     if report.get("fact_checking") != "verified":
         blockers.append("التحقق المستقل من الوقائع لم يكتمل؛ أوقفنا إنتاج الصوت والفيديو")
 
-    # Use the channel owner's original recording or their own authorized voice clone.
-    if report.get("voice_source") not in {"owner_recording", "owner_voice_clone"}:
-        blockers.append("مصدر التعليق الصوتي ليس تسجيلاً أو نسخة صوتية معتمدة لصاحب القناة")
+    # Synthetic voice generation or cloning is not a substitute for the owner's actual recording.
+    if report.get("voice_source") != "owner_recording":
+        blockers.append("مصدر التعليق الصوتي يجب أن يكون تسجيلاً أصلياً لصاحب القناة؛ TTS والاستنساخ الصوتي غير مسموحين")
 
     # An on-camera presenter shot is optional for narrated financial-news footage.
     # Check licensed B-roll after rendering, when its manifest actually exists.
