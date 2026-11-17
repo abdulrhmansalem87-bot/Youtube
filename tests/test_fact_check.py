@@ -642,6 +642,10 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         self.assertEqual(groq_request["response_format"], {"type": "json_object"})
         self.assertEqual(groq_request["tool_choice"], "none")
         self.assertNotIn("tools", groq_request)
+        tavily_request = json.loads(sent[0][1])
+        self.assertEqual(tavily_request["search_depth"], "advanced")
+        self.assertEqual(tavily_request["max_results"], 8)
+        self.assertIn("linkedin.com", tavily_request["exclude_domains"])
         self.assertIn("لا تستخدم أدوات أو متصفحاً", groq_request["messages"][0]["content"])
         self.assertIn("claims[].evidence_urls", groq_request["messages"][0]["content"])
         self.assertNotIn("groq-test-key", sent[0][1] + sent[1][1])
@@ -678,6 +682,58 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         self.assertEqual(result["decision"], "needs_review")
         self.assertEqual(result["claims"][0]["evidence_urls"], [])
         self.assertTrue(any("مصدر مستقل عن الناشر الأصلي" in item for item in result["blockers"]))
+
+    def test_retries_groq_json_validation_failure_with_compact_prompt(self):
+        decision = {
+            "decision": "verified",
+            "summary": "تؤيد الأدلة المستقلة الادعاء.",
+            "claims": [{
+                "claim": "أعلن البنك المركزي القرار.",
+                "verdict": "supported",
+                "explanation": "تؤيده نتيجة البحث الرسمية.",
+                "evidence_urls": ["https://cbe.org.eg/en/news/decision"],
+            }],
+            "material_disagreements": [],
+        }
+        tavily = {"results": [{
+            "title": "Central Bank announcement",
+            "url": "https://cbe.org.eg/en/news/decision",
+            "content": "The central bank announced the decision. " * 50,
+        }]}
+        groq = {"choices": [{"message": {"content": json.dumps(decision)}}]}
+        error_body = json.dumps({
+            "error": {
+                "code": "json_validate_failed",
+                "message": "Failed to validate JSON. Please adjust your prompt.",
+            }
+        }).encode("utf-8")
+        sent = []
+
+        def fake_urlopen(request, timeout):
+            sent.append((request.full_url, json.loads(request.data.decode("utf-8"))))
+            if request.full_url.endswith("/search"):
+                return self._response(tavily)
+            if len([item for item in sent if item[0].endswith("/chat/completions")]) == 1:
+                raise HTTPError(
+                    request.full_url, 400, "Bad Request", None, BytesIO(error_body)
+                )
+            return self._response(groq)
+
+        with patch("newsflow.fact_check.urlopen", side_effect=fake_urlopen):
+            result = _request_groq_tavily_fact_check(
+                self.story, self.evidence, "groq-test-key", "tavily-test-key",
+                "openai/gpt-oss-20b",
+            )
+
+        self.assertTrue(result["verified"])
+        self.assertEqual(len(sent), 3)
+        retry = sent[2][1]
+        self.assertEqual(retry["temperature"], 0)
+        self.assertEqual(retry["max_tokens"], 1500)
+        self.assertIn("لا تترك أي claim فارغاً", retry["messages"][0]["content"])
+        retry_data = json.loads(retry["messages"][1]["content"])
+        self.assertLessEqual(len(retry_data["search_results"]), 5)
+        self.assertLessEqual(len(retry_data["search_results"][0]["snippet"]), 900)
 
     def test_groq_tavily_provider_requires_both_secrets_and_never_falls_back(self):
         with patch.dict("os.environ", {
