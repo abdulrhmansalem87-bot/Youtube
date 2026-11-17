@@ -54,16 +54,17 @@ def clamp_max_stories(value: int) -> int:
 
 
 def validate_audio_duration(duration: float, *, private_test: bool = False) -> float:
-    """Keep regular long-form bulletins in the 3–5 minute window; allow short private smoke tests."""
+    """Keep regular long-form episodes within 4–8 minutes; allow short private smoke tests."""
     try:
         value = float(duration)
     except (TypeError, ValueError):
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.") from None
     if not math.isfinite(value) or value <= 0:
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.")
-    minimum = 1 if private_test else 181
-    if value < minimum or value > 300:
-        target = "أكثر من 3 وحتى 5 دقائق" if not private_test else "حتى 5 دقائق"
+    minimum = 1 if private_test else 240
+    maximum = 300 if private_test else 480
+    if value < minimum or value > maximum:
+        target = "من 4 إلى 8 دقائق" if not private_test else "حتى 5 دقائق"
         raise RuntimeError(f"مدة الفيديو الرئيسي يجب أن تكون {target}؛ تم إيقاف الإنتاج.")
     return value
 
@@ -539,6 +540,20 @@ def split_required_hashtags(description, *, short=False):
     if len(set(hashtags)) != 4 or not required.issubset(set(hashtags)):
         raise RuntimeError("الهاشتاجات المطلوبة ناقصة أو مكررة.")
     return "\n".join(lines[:-1]).rstrip(), tag_line
+
+
+def append_long_video_link(description, long_video_url):
+    """Add the verified companion episode URL without disturbing source links or hashtags."""
+    url = str(long_video_url or "").strip()
+    if not url:
+        return description
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.netloc.casefold() != "youtu.be" or not parsed.path.strip("/"):
+        raise RuntimeError("رابط الحلقة الطويلة غير صالح؛ لم نضفه إلى وصف Short.")
+    body, footer = split_required_hashtags(description, short=True)
+    if url not in body:
+        body = f"{body}\n\nشاهد الحلقة الكاملة المرتبطة بهذا الخبر: {url}"
+    return f"{body}\n\n{footer}"
 
 
 def append_broll_attribution(description, video_path, *, short=False):
@@ -1213,13 +1228,15 @@ def main():
     if args.private_staging:
         print("[PRIVATE_STAGING] All media passed; uploads remain PRIVATE for owner review only.")
     if upload_enabled:
-        youtube_upload(
+        long_video_url = youtube_upload(
             long_video, video_title, description, tags,
             privacy_override="private", credentials=auth_credentials,
         )
         for short_video, short_title, short_description, short_tags in staged_shorts:
+            linked_description = append_long_video_link(short_description, long_video_url)
+            validate_youtube_metadata(short_title, linked_description, short=True)
             youtube_upload(
-                short_video, short_title, short_description, short_tags,
+                short_video, short_title, linked_description, short_tags,
                 privacy_override="private", credentials=auth_credentials,
             )
     else:
