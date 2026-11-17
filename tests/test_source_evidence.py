@@ -122,6 +122,41 @@ class OriginalSourceFetchTests(unittest.TestCase):
         self.assertNotIn("fact_checked", result)
         self.assertEqual(result["warnings"], [])
 
+    def test_fetch_downgrades_long_page_with_unrendered_template_artifacts(self):
+        related_titles = " ".join(
+            [
+                "رئيسة فيدرالي كليفلاند تؤيد رفع الفائدة بشكل متتابع لخفض التضخم",
+                "رئيس الفيدرالي يحذر من تباطؤ الاقتصاد وارتفاع البطالة",
+            ] * 12
+        )
+        body = (
+            "<html><body><article><h1>عنوان الخبر الأصلي</h1>"
+            f"<p>{related_titles}</p>"
+            "<p>{{ article.article_title }}</p>"
+            "</article></body></html>"
+        ).encode("utf-8")
+        story = {"id": "template-page", "link": "https://publisher.example/story"}
+        with patch("newsflow.source_evidence.urlopen", return_value=self._response(body)):
+            result = fetch_original_source(story)
+        self.assertGreaterEqual(result["extracted_chars"], 700)
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["evidence_level"], "partial_text")
+        self.assertTrue(any("عناصر قالب" in warning for warning in result["warnings"]))
+
+    def test_fetch_downgrades_related_articles_template_marker(self):
+        related_titles = " ".join(["عنوان خبر مرتبط طويل يحتوي على تفاصيل اقتصادية كافية"] * 20)
+        body = (
+            "<html><body><article><h1>عنوان الخبر الأصلي</h1>"
+            f"<p>{related_titles} related_articles[827941]</p>"
+            "</article></body></html>"
+        ).encode("utf-8")
+        story = {"id": "related-template", "link": "https://publisher.example/story"}
+        with patch("newsflow.source_evidence.urlopen", return_value=self._response(body)):
+            result = fetch_original_source(story)
+        self.assertGreaterEqual(result["extracted_chars"], 700)
+        self.assertEqual(result["status"], "partial")
+        self.assertTrue(any("عناصر قالب" in warning for warning in result["warnings"]))
+
     def test_fetch_retries_temporary_network_failure(self):
         story = {"id": "story-2", "link": "https://publisher.example/story"}
         with patch(
