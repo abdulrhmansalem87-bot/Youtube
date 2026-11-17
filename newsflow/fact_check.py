@@ -232,6 +232,32 @@ def _extract_output_text(response: dict) -> str:
     return "\n".join(chunks).strip()
 
 
+def _openai_error_details(exc: HTTPError) -> tuple[str, str]:
+    """Extract a safe API error type/message without logging request credentials."""
+    try:
+        error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
+        error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+        error_type = str(error_info.get("type") or error_info.get("code") or "api_error")[:80]
+        error_message = re.sub(r"\s+", " ", str(error_info.get("message") or ""))[:500]
+    except Exception:
+        error_type, error_message = "api_error", ""
+
+    if exc.code == 401 or re.search(
+        r"(?i)(incorrect|invalid|unauthorized).{0,30}api.?key", error_message
+    ):
+        error_message = (
+            "API key rejected; verify the OPENAI_API_KEY repository secret "
+            "and replace it with a valid key."
+        )
+    else:
+        error_message = re.sub(
+            r"(?i)(sk-[A-Za-z0-9_-]{6,}|sess-[A-Za-z0-9_-]{6,})",
+            "[REDACTED]",
+            error_message,
+        )
+    return error_type, error_message
+
+
 def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model: str) -> dict:
     article_text = str(evidence.get("article_text") or "")[:MAX_ARTICLE_CHARS]
     if evidence.get("status") != "readable" or len(article_text) < 700:
@@ -295,20 +321,13 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
             response_payload = json.loads(raw.decode("utf-8"))
             break
         except HTTPError as exc:
-            if exc.code not in TRANSIENT_HTTP_CODES or attempt == 2:
-                # Preserve the API's safe error code/message for diagnosis; never log request headers.
-                try:
-                    error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
-                    error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
-                    error_type = str(error_info.get("type") or error_info.get("code") or "api_error")[:80]
-                    error_message = re.sub(r"\s+", " ", str(error_info.get("message") or ""))[:500]
-                    # API providers may echo a prefix of a rejected credential. Never persist it.
-                    if exc.code == 401 or re.search(r"(?i)(incorrect|invalid|unauthorized).{0,30}api.?key", error_message):
-                        error_message = "API key rejected; verify the OPENAI_API_KEY repository secret and replace it with a valid key."
-                    else:
-                        error_message = re.sub(r"(?i)(sk-[A-Za-z0-9_-]{6,}|sess-[A-Za-z0-9_-]{6,})", "[REDACTED]", error_message)
-                except Exception:
-                    error_type, error_message = "api_error", ""
+            error_type, error_message = _openai_error_details(exc)
+            # A depleted balance cannot recover by retrying. Stop immediately to
+            # avoid wasting time and repeated requests; ordinary rate limits remain retryable.
+            quota_exhausted = exc.code == 429 and error_type in {
+                "insufficient_quota", "billing_hard_limit_reached", "billing_not_active",
+            }
+            if quota_exhausted or exc.code not in TRANSIENT_HTTP_CODES or attempt == 2:
                 detail = f" type={error_type}; message={error_message}" if error_message else ""
                 raise RuntimeError(f"OpenAI Fact Check HTTP {exc.code}.{detail}") from None
         except (URLError, TimeoutError, OSError) as exc:
