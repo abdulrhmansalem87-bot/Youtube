@@ -68,9 +68,15 @@ class WorkflowSafetyTests(unittest.TestCase):
         run_step = next(item for item in steps if item.get("name") == "Run NewsFlow")
         env = run_step["env"]
 
-        self.assertEqual(env["NEWSFLOW_PRIVATE_STAGING"], "false")
+        self.assertIn("workflow_dispatch", env["NEWSFLOW_PRIVATE_STAGING"])
+        self.assertIn("inputs.private_test", env["NEWSFLOW_PRIVATE_STAGING"])
+        self.assertIn("inputs.visual_qa_approved", env["NEWSFLOW_PRIVATE_STAGING"])
+        self.assertIn("inputs.dry_run != true", env["NEWSFLOW_PRIVATE_STAGING"])
+        self.assertNotIn("schedule", env["NEWSFLOW_PRIVATE_STAGING"])
+        self.assertNotIn("[private-stage]", env["NEWSFLOW_PRIVATE_STAGING"])
         self.assertEqual(env["YOUTUBE_PRIVACY_STATUS"], "private")
         self.assertIn("I am the channel owner", workflow["on"]["workflow_dispatch"]["inputs"]["private_test"]["description"])
+        self.assertIn("main video + companion Shorts", workflow["on"]["workflow_dispatch"]["inputs"]["private_test"]["description"])
 
         # Scheduled collection may use a fact-check provider, but it must never
         # receive media-generation or YouTube credentials.
@@ -93,9 +99,11 @@ class WorkflowSafetyTests(unittest.TestCase):
 
         run = run_step["run"]
         self.assertIn('if [ "${{ github.event_name }}" = "schedule" ]', run)
-        self.assertIn("python -m newsflow --dry-run", run)
-        self.assertNotIn("python -m newsflow --private-staging", run)
-        self.assertIn("python -m newsflow --private-test", run)
+        scheduled_branch = run.split("elif", 1)[0]
+        self.assertIn("python -m newsflow --dry-run", scheduled_branch)
+        self.assertNotIn("--private-staging", scheduled_branch)
+        self.assertIn("python -m newsflow --private-staging", run)
+        self.assertNotIn("python -m newsflow --private-test", run)
         self.assertIn('"${{ inputs.private_test }}" = "true"', run)
         self.assertIn('"${{ inputs.visual_qa_approved }}" = "true"', run)
         self.assertIn('"${{ inputs.dry_run }}" != "true"', run)
