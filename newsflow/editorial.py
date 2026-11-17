@@ -77,7 +77,7 @@ DIRECT_FINANCE_TITLE_TERMS = tuple(
 
 TECH_DISCOVERY_CATEGORIES = {"شخصيات مؤثرة", "تكنولوجيا"}
 TECH_TITLE_TERMS = (
-    "ذكاء اصطناعي", "الذكاء الاصطناعي", "ai", "artificial intelligence",
+    "ذكاء اصطناعي", "الذكاء الاصطناعي", "artificial intelligence",
     "شرائح", "رقائق", "أشباه الموصلات", "semiconductor", "chip", "gpu",
     "مراكز البيانات", "data center", "cloud", "روبوت", "robot", "تقنية",
     "تكنولوجيا", "technology", "tech", "chatgpt", "openai", "nvidia",
