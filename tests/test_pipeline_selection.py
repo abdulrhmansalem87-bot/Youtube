@@ -1,4 +1,7 @@
 import unittest
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from newsflow.pipeline import clamp_max_stories, make_script, select_stories, source_display_name, validate_audio_duration
 
@@ -193,6 +196,42 @@ class TrendPriorityTests(unittest.TestCase):
         ]
         selected, rejected = select_stories(stories, 1)
         self.assertEqual([item["id"] for item in selected], ["trending"])
+        self.assertEqual(rejected, [])
+
+
+class TrendCollectionIntegrationTests(unittest.TestCase):
+    def test_google_trends_feed_is_signal_only_and_matches_news_story(self):
+        now = datetime.now(timezone.utc)
+        published = now.strftime("%a, %d %b %Y %H:%M:%S GMT")
+        published_struct = now.utctimetuple()
+        sources = [
+            {"name": "Google Trends - Egypt", "url": "https://trends.example/rss", "category": "ترند مصر"},
+            {"name": "Google News - Jensen Huang", "url": "https://news.example/rss", "category": "شخصيات مؤثرة"},
+        ]
+        trend_entry = {
+            "title": "Nvidia AI chips",
+            "link": "https://trends.example/search",
+            "summary": "Trending query",
+        }
+        news_entry = {
+            "title": "Nvidia AI chips demand rises",
+            "link": "https://publisher.example/nvidia",
+            "summary": "Rising chip orders are driving investment and data-center capacity.",
+            "published": published,
+            "published_parsed": published_struct,
+        }
+
+        def fake_parse(url):
+            return SimpleNamespace(entries=[trend_entry] if "trends.example" in url else [news_entry])
+
+        with patch("newsflow.pipeline.config", return_value={"sources": sources}), \
+             patch("newsflow.pipeline.feedparser.parse", side_effect=fake_parse), \
+             patch.dict("os.environ", {"NEWSFLOW_LOOKBACK_HOURS": "72", "NEWSFLOW_STRICT_FRESHNESS": "true"}):
+            stories, rejected = collect(1)
+
+        self.assertEqual(len(stories), 1)
+        self.assertEqual(stories[0]["title"], news_entry["title"])
+        self.assertEqual(stories[0]["trend_matches"][0]["query"], "Nvidia AI chips")
         self.assertEqual(rejected, [])
 
 
