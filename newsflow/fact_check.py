@@ -331,16 +331,26 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
             response_payload = json.loads(raw.decode("utf-8"))
             break
         except HTTPError as exc:
-            error_type, error_message = _openai_error_details(exc)
-            # A depleted balance cannot recover by retrying. Stop immediately to
-            # avoid wasting time and repeated requests; ordinary rate limits remain retryable.
-            quota_exhausted = exc.code == 429 and error_type in {
-                "insufficient_quota", "billing_hard_limit_reached", "billing_not_active",
-            }
-            if quota_exhausted or exc.code not in TRANSIENT_HTTP_CODES or attempt == 2:
-                detail = f" type={error_type}; message={error_message}" if error_message else ""
-                raise RuntimeError(f"OpenAI Fact Check HTTP {exc.code}.{detail}") from None
-        except (URLError, TimeoutError, OSError) as exc:
+        # Preserve actionable provider errors without exposing request credentials
+        # or the submitted story metadata.
+        try:
+            error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
+            error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+            if not isinstance(error_info, dict):
+                error_info = {}
+            error_code = re.sub(r"\s+", " ", str(error_info.get("code") or error_info.get("type") or "")).strip()[:100]
+            error_message = re.sub(r"\s+", " ", str(error_info.get("message") or "")).strip()[:500]
+        except Exception:
+            error_code, error_message = "", ""
+        detail = "; ".join(part for part in (error_code, error_message) if part)
+        detail = re.sub(
+            r"(?i)(?:Bearer\s+)?(?:gsk_[A-Za-z0-9_-]{8,}|tvly-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,})",
+            "[REDACTED]",
+            detail,
+        )[:620]
+        suffix = f": {detail}" if detail else ""
+        raise RuntimeError(f"{service} HTTP {exc.code}{suffix}") from None
+    except (URLError, TimeoutError, OSError) as exc:
             if attempt == 2:
                 raise RuntimeError(
                     f"تعذر الاتصال بخدمة التحقق بعد ثلاث محاولات ({type(exc).__name__})."
