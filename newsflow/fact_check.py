@@ -29,7 +29,7 @@ MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 TRANSIENT_HTTP_CODES = {408, 425, 429, 500, 502, 503, 504}
 BLOCKED_SOURCE_ROOTS = {
     "google.com", "bing.com", "duckduckgo.com", "wikipedia.org",
-    "reddit.com", "quora.com", "facebook.com", "instagram.com",
+    "reddit.com", "quora.com", "facebook.com", "instagram.com", "linkedin.com",
     "tiktok.com", "twitter.com", "x.com", "youtube.com",
 }
 BLOCKED_SOURCE_LABELS = {
@@ -485,9 +485,13 @@ def _request_groq_tavily_fact_check(
 
     search_payload = {
         "query": query,
-        "search_depth": "basic",
+        "search_depth": "advanced",
         "topic": "news",
-        "max_results": 6,
+        "max_results": 8,
+        "exclude_domains": [
+            "linkedin.com", "facebook.com", "instagram.com", "x.com",
+            "twitter.com", "youtube.com", "reddit.com", "quora.com",
+        ],
         "include_answer": False,
         "include_raw_content": False,
     }
@@ -544,6 +548,8 @@ def _request_groq_tavily_fact_check(
                 "لكل ادعاء، انسخ رابط HTTPS كاملاً كما ورد حرفياً في search_results[].url وضعه في "
                 "claims[].evidence_urls؛ لا تترك القائمة فارغة إذا كانت نتيجة محددة تدعم الادعاء. "
                 "لا تضع عنوان المصدر أو نطاقه بدلاً من الرابط الكامل، ولا تخترع أي رابط. "
+                "لا تُخرج claim فارغاً أبداً؛ اكتب الادعاء المحدد الذي تختبره، أو أعد claims=[] وdecision=needs_review. "
+                "اربط كل رابط بالادعاء الذي يدعمه مباشرة، ولا تستخدم ملفاً شخصياً أو سيرة ذاتية لإثبات خبر أو تصريح مختلف. "
                 "إذا لم تدعم أي نتيجة الادعاء، اجعل verdict=uncertain واترك evidence_urls فارغة. "
                 "لا تستخدم decision=verified إلا إذا كانت كل الادعاءات verdict=supported ولكل ادعاء "
                 "رابط مستقل واحد على الأقل في evidence_urls؛ وإلا استخدم needs_review أو "
@@ -572,9 +578,34 @@ def _request_groq_tavily_fact_check(
             },
         ],
     }
-    groq_response = _post_json(
-        GROQ_CHAT_URL, groq_payload, groq_api_key, "Groq Chat"
-    )
+    try:
+        groq_response = _post_json(
+            GROQ_CHAT_URL, groq_payload, groq_api_key, "Groq Chat"
+        )
+    except RuntimeError as exc:
+        # GPT-OSS occasionally rejects its first JSON-mode generation with
+        # json_validate_failed. Retry once with a smaller evidence payload and
+        # simpler decoding settings; never relax the local evidence validator.
+        if "json_validate_failed" not in str(exc).casefold():
+            raise
+        retry_payload = dict(groq_payload)
+        retry_payload["temperature"] = 0
+        retry_payload["max_tokens"] = 1500
+        retry_messages = [dict(message) for message in groq_payload["messages"]]
+        retry_messages[0]["content"] += (
+            " أخرج JSON صالحاً ومختصراً فقط. لا تترك أي claim فارغاً. "
+            "إذا لم تتوفر أدلة مباشرة كافية، أعد needs_review وclaims=[] دون تخمين."
+        )
+        user_data = json.loads(retry_messages[1]["content"])
+        user_data["search_results"] = [
+            {**item, "snippet": str(item.get("snippet") or "")[:900]}
+            for item in user_data.get("search_results", [])[:5]
+        ]
+        retry_messages[1]["content"] = json.dumps(user_data, ensure_ascii=False)
+        retry_payload["messages"] = retry_messages
+        groq_response = _post_json(
+            GROQ_CHAT_URL, retry_payload, groq_api_key, "Groq Chat retry"
+        )
     try:
         content = groq_response["choices"][0]["message"]["content"]
         parsed = json.loads(content)
