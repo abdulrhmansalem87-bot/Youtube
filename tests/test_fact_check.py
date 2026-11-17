@@ -290,6 +290,40 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
         self.assertEqual(len(result["sources"]), 2)
         self.assertNotIn("test-secret", json.dumps(result))
 
+    def test_uses_publisher_rss_summary_when_article_page_cannot_be_extracted(self):
+        story = {
+            "id": "rss-fallback",
+            "title": "البنك المركزي يعلن قراراً جديداً بشأن أسعار الفائدة",
+            "summary": "أعلن البنك المركزي اليوم قراراً جديداً بشأن أسعار الفائدة، موضحاً موعد بدء التنفيذ وأثر القرار على أدوات السياسة النقدية. ويأتي الإعلان بعد اجتماع لجنة السياسة النقدية.",
+            "source": "Original Publisher",
+            "link": "https://original-publisher.example/article",
+            "published": "2026-11-16",
+        }
+        evidence = {
+            "story_id": "rss-fallback",
+            "status": "partial",
+            "article_text": "نص جزئي من الصفحة.",
+            "final_url": "https://original-publisher.example/article",
+        }
+        body = json.dumps(successful_api_response()).encode("utf-8")
+
+        class Response(BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+
+        def fake_urlopen(request, timeout):
+            sent = json.loads(request.data.decode("utf-8"))
+            self.assertIn("ملخص RSS", sent["input"])
+            self.assertIn("أعلن البنك المركزي اليوم", sent["input"])
+            return Response(body)
+
+        with patch("newsflow.fact_check.urlopen", side_effect=fake_urlopen):
+            result = _request_openai_fact_check(
+                story, evidence, "test-secret", "gpt-6-astra"
+            )
+        self.assertTrue(result["verified"])
+        self.assertEqual(result["status"], "verified")
+
     def test_insufficient_quota_429_is_not_retried(self):
         story = {
             "id": "quota-story",
