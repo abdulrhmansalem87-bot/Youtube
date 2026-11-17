@@ -24,6 +24,20 @@ SKIP_TAGS = {"script", "style", "noscript", "svg", "nav", "header", "footer", "a
 TEXT_TAGS = {"p", "h1", "h2", "h3", "blockquote", "li"}
 
 
+# Some publisher pages expose a list of related headlines plus an unrendered
+# template token instead of the article body. Length alone must not promote
+# that page to readable source evidence.
+TEMPLATE_ARTIFACT_PATTERNS = (
+    re.compile(r"\\{\\{\\s*[^{}]{1,160}\\s*\\}\\}"),
+    re.compile(r"\\brelated_articles\\s*\\[\\s*\\d+\\s*\\]", re.IGNORECASE),
+)
+
+
+def _has_template_artifacts(value: str) -> bool:
+    text = str(value or "")
+    return any(pattern.search(text) for pattern in TEMPLATE_ARTIFACT_PATTERNS)
+
+
 class ArticleTextParser(HTMLParser):
     """Extract human-readable paragraphs/headings while ignoring page chrome."""
 
@@ -239,6 +253,13 @@ def fetch_original_source(story: dict) -> dict:
             extracted = parser.result()
             record.update(extracted)
             record["extracted_chars"] = len(extracted["article_text"])
+            if _has_template_artifacts(record["article_text"]):
+                record["status"] = "partial"
+                record["evidence_level"] = "partial_text"
+                record["warnings"].append(
+                    "صفحة المصدر تحتوي على عناصر قالب أو عناوين مقالات مرتبطة بدلاً من نص مقال مكتمل."
+                )
+                return record
             if record["extracted_chars"] >= 700:
                 record["status"] = "readable"
                 record["evidence_level"] = "article_text"
