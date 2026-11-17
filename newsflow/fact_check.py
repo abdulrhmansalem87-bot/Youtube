@@ -582,7 +582,12 @@ def _request_groq_tavily_fact_check(
         "status": "verified" if verified else "needs_review",
         "verified": verified,
         "summary": str(parsed.get("summary") or ""),
-        "decision": str(parsed.get("decision") or "insufficient_evidence"),
+        # Do not expose an optimistic model label when local evidence gates reject it.
+        "decision": (
+            str(parsed.get("decision") or "insufficient_evidence")
+            if verified or parsed.get("decision") == "contradicted"
+            else "needs_review"
+        ),
         "blockers": blockers,
         "claims": claims,
         "sources": [
