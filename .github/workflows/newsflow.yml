@@ -167,7 +167,7 @@ jobs:
           # Keep the proven provider as default; switch only after both alternative secrets exist.
           NEWSFLOW_FACT_CHECK_PROVIDER: ${{ vars.NEWSFLOW_FACT_CHECK_PROVIDER || (secrets.GROQ_API_KEY != '' && secrets.TAVILY_API_KEY != '' && 'groq_tavily') || 'openai' }}
           NEWSFLOW_FACT_CHECK_MODEL: gpt-6-astra
-          NEWSFLOW_GROQ_MODEL: openai/gpt-oss-20b
+          NEWSFLOW_GROQ_MODEL: openai/gpt-oss-120b
           GROQ_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.GROQ_API_KEY || '' }}
           TAVILY_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.TAVILY_API_KEY || '' }}
           OPENAI_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.OPENAI_API_KEY || '' }}
