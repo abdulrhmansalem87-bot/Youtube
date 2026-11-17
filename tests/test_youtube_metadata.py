@@ -6,6 +6,7 @@ from pathlib import Path
 from newsflow.pipeline import (
     add_private_review_notice,
     append_broll_attribution,
+    append_long_video_link,
     build_short_youtube_metadata,
     build_youtube_metadata,
     validate_youtube_metadata,
@@ -46,6 +47,31 @@ class YouTubeMetadataTests(unittest.TestCase):
         title, description, _ = build_short_youtube_metadata(story, "نص قصير")
         self.assertTrue(validate_youtube_metadata(title, description, short=True))
         self.assertEqual(len(description.splitlines()[-1].split()), 4)
+
+    def test_companion_long_video_link_is_added_before_exact_four_hashtags(self):
+        story = {
+            "title": "الذهب يتراجع مع ارتفاع الدولار",
+            "summary": "تراجع الذهب مع ارتفاع الدولار وتوقعات أسعار الفائدة الأمريكية.",
+            "source": "Reuters",
+            "link": "https://www.reuters.com/example",
+        }
+        title, description, _ = build_short_youtube_metadata(story, "نص قصير")
+        long_url = "https://youtu.be/AbCdEf12345"
+        linked = append_long_video_link(description, long_url)
+        self.assertIn(long_url, linked)
+        self.assertIn(story["link"], linked)
+        self.assertEqual(len(linked.splitlines()[-1].split()), 4)
+        self.assertTrue(validate_youtube_metadata(title, linked, short=True))
+
+    def test_companion_long_video_link_rejects_non_youtube_urls(self):
+        _, description, _ = build_short_youtube_metadata({
+            "title": "الذهب يتراجع مع ارتفاع الدولار",
+            "summary": "تراجع الذهب مع ارتفاع الدولار.",
+            "source": "Reuters",
+            "link": "https://www.reuters.com/example",
+        }, "نص قصير")
+        with self.assertRaisesRegex(RuntimeError, "رابط الحلقة الطويلة"):
+            append_long_video_link(description, "https://example.com/not-youtube")
 
     def test_broll_attribution_and_private_notice_preserve_hashtag_footer(self):
         stories = [{

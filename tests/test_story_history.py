@@ -56,6 +56,48 @@ class StoryHistoryTests(unittest.TestCase):
         self.assertEqual(accepted, [])
         self.assertEqual(len(rejected), 1)
 
+    def test_near_duplicate_same_publisher_same_day_is_rejected_within_batch(self):
+        first = {
+            "id": "fed-rate-1",
+            "link": "https://cnnbusinessarabic.com/finance-markets/1152738",
+            "title": "عاجل: رئيسة الاحتياطي الفيدرالي في كليفلاند بيث هاماك: أؤيد رفع أسعار الفائدة بشكل متتابع للمساعدة في خفض التضخم",
+            "summary": "تصريحات بيث هاماك عن رفع أسعار الفائدة لمواجهة التضخم.",
+            "source": "CNBC عربية - أسواق المال",
+            "published": "Mon, 16 Nov 2026 14:00:00 +0200",
+        }
+        duplicate = {
+            "id": "fed-rate-2",
+            "link": "https://cnnbusinessarabic.com/finance-markets/1152740",
+            "title": "رئيسة فيدرالي كليفلاند تؤيد رفع الفائدة بشكل متتابع لخفض التضخم",
+            "summary": "بيث هاماك تؤيد رفع الفائدة تدريجياً لخفض التضخم.",
+            "source": "CNBC عربية - أسواق المال",
+            "published": "Mon, 16 Nov 2026 14:02:00 +0200",
+        }
+        accepted, rejected = filter_recent_repeats([first, duplicate], [], now=self.now)
+        self.assertEqual([item["id"] for item in accepted], ["fed-rate-1"])
+        self.assertEqual([item["id"] for item in rejected], ["fed-rate-2"])
+        self.assertEqual(rejected[0]["duplicate_of_id"], "fed-rate-1")
+        self.assertIn("نفس الدفعة", rejected[0]["reasons"][0])
+
+    def test_opposite_financial_directions_are_not_deduplicated_within_batch(self):
+        first = {
+            "id": "rate-up",
+            "link": "https://example.com/rates-up",
+            "title": "البنك المركزي يرفع أسعار الفائدة لمواجهة التضخم",
+            "source": "مصدر مالي",
+            "published": "Mon, 16 Nov 2026 14:00:00 +0200",
+        }
+        opposite = {
+            "id": "rate-down",
+            "link": "https://example.com/rates-down",
+            "title": "البنك المركزي يخفض أسعار الفائدة لدعم الاقتصاد",
+            "source": "مصدر مالي",
+            "published": "Mon, 16 Nov 2026 14:02:00 +0200",
+        }
+        accepted, rejected = filter_recent_repeats([first, opposite], [], now=self.now)
+        self.assertEqual([item["id"] for item in accepted], ["rate-up", "rate-down"])
+        self.assertEqual(rejected, [])
+
     def test_story_within_30_day_window_is_rejected(self):
         history = [{
             **self.story,

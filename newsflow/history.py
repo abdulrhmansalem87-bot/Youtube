@@ -6,6 +6,7 @@ import json
 import re
 import unicodedata
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -64,6 +65,50 @@ def _entry_timestamp(item: dict) -> datetime | None:
         timestamp = timestamp.replace(tzinfo=timezone.utc)
     return timestamp.astimezone(timezone.utc)
 
+def _published_day(item: dict) -> str:
+    """Return the publisher's calendar day for conservative same-batch duplicate checks."""
+    value = str(item.get("published") or "").strip()
+    if not value:
+        return ""
+    try:
+        timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        try:
+            timestamp = parsedate_to_datetime(value)
+        except (TypeError, ValueError, OverflowError):
+            return ""
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(timezone.utc).date().isoformat()
+
+
+def _batch_comparison_title(value: str) -> str:
+    """Ignore common headline filler so same-day syndicated variants compare reliably."""
+    stopwords = {
+        "عاجل", "في", "من", "على", "عن", "الى", "إلى", "بعد", "قبل",
+        "بشكل", "للمساعدة", "المساعدة", "هذا", "هذه", "ذلك", "التي", "الذي",
+    }
+    return " ".join(
+        token for token in normalize_story_title(value).split()
+        if token not in stopwords
+    )
+
+
+def _opposite_financial_direction(first: str, second: str) -> bool:
+    """Do not collapse otherwise similar headlines that report opposite market moves."""
+    positive_terms = ("يرفع", "رفع", "يزيد", "زيادة", "يرتفع", "ارتفاع", "صعود", "يصعد", "قفز", "نمو")
+    negative_terms = ("يخفض", "خفض", "يتراجع", "تراجع", "ينخفض", "انخفاض", "هبوط", "يهبط", "تقلص", "تباطؤ")
+    first = normalize_story_title(first)
+    second = normalize_story_title(second)
+    first_positive = any(term in first for term in positive_terms)
+    first_negative = any(term in first for term in negative_terms)
+    second_positive = any(term in second for term in positive_terms)
+    second_negative = any(term in second for term in negative_terms)
+    return (
+        (first_positive and not first_negative and second_negative and not second_positive)
+        or (first_negative and not first_positive and second_positive and not second_negative)
+    )
+
 
 def load_story_history(path: Path) -> list[dict]:
     """Load history; fail closed on a malformed cache instead of silently repeating stories."""
@@ -111,14 +156,18 @@ def filter_recent_repeats(
 
     accepted: list[dict] = []
     rejected: list[dict] = []
+    batch_seen: list[dict] = []
     for story in stories:
         story_id = str(story.get("id") or "").strip()
         link = canonical_story_link(story.get("link", ""))
         title = normalize_story_title(story.get("title", ""))
         summary = normalize_story_title(story.get("summary", ""))
         duplicate = None
+        duplicate_in_batch = False
 
-        for previous in recent:
+        comparisons = [(item, False) for item in recent]
+        comparisons.extend((item, True) for item in batch_seen)
+        for previous, same_batch in comparisons:
             old_id = str(previous.get("id") or "").strip()
             old_link = canonical_story_link(previous.get("link", ""))
             old_title = normalize_story_title(previous.get("title", ""))
@@ -136,32 +185,68 @@ def filter_recent_repeats(
                 difflib.SequenceMatcher(None, summary, old_summary).ratio()
                 if len(summary) >= 80 and len(old_summary) >= 80 else 0.0
             )
+            same_publisher_same_day = (
+                same_batch
+                and bool(str(story.get("source") or "").strip())
+                and normalize_story_title(story.get("source", ""))
+                    == normalize_story_title(previous.get("source", ""))
+                and bool(_published_day(story))
+                and _published_day(story) == _published_day(previous)
+            )
+            batch_title_ratio = (
+                difflib.SequenceMatcher(
+                    None,
+                    _batch_comparison_title(title),
+                    _batch_comparison_title(old_title),
+                ).ratio()
+                if title and old_title else 0.0
+            )
+            similar_same_batch_headline = (
+                same_publisher_same_day
+                and len(title) >= 24
+                and batch_title_ratio >= 0.76
+                and not _opposite_financial_direction(title, old_title)
+            )
+            opposite_direction = _opposite_financial_direction(title, old_title)
             if (
                 same_id or same_link
-                or (len(title) >= 24 and title_ratio >= 0.90)
-                or summary_ratio >= 0.88
+                or (
+                    not opposite_direction
+                    and (
+                        (len(title) >= 24 and title_ratio >= 0.90)
+                        or summary_ratio >= 0.88
+                    )
+                )
+                or similar_same_batch_headline
             ):
                 duplicate = previous
+                duplicate_in_batch = same_batch
                 break
 
         if duplicate is not None:
             cooldown_days = float(cooldown_hours) / 24
             cooldown_label = (
-                f"{int(cooldown_days)} يوماً"
-                if cooldown_days.is_integer()
-                else f"{float(cooldown_hours):g} ساعة"
+                "نفس الدفعة"
+                if duplicate_in_batch
+                else (
+                    f"{int(cooldown_days)} يوماً"
+                    if cooldown_days.is_integer()
+                    else f"{float(cooldown_hours):g} ساعة"
+                )
             )
             rejected.append({
                 "id": story.get("id"),
                 "title": story.get("title"),
                 "source": story.get("source", "مصدر غير محدد"),
                 "reasons": [
-                    f"خبر مكرر أو زاويته سبق تناولها خلال آخر {cooldown_label}."
+                    f"خبر مكرر أو زاويته سبق تناولها خلال {cooldown_label}."
                 ],
+                "duplicate_of_id": duplicate.get("id", ""),
                 "previously_prepared_at": duplicate.get("prepared_at") or duplicate.get("used_at", ""),
             })
         else:
             accepted.append(story)
+            batch_seen.append(story)
     return accepted, rejected
 
 
