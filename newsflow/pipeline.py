@@ -15,7 +15,6 @@ from urllib.parse import urlparse
 import urllib.error
 import urllib.request
 
-import edge_tts
 import feedparser
 import yaml
 from dotenv import load_dotenv
@@ -422,69 +421,10 @@ def clean_narration(value):
 
 
 async def make_audio(text, path):
-    """Generate the user's cloned WealthRadar voice through Fish Audio, then master it."""
-    api_key = os.getenv("FISH_AUDIO_API_KEY", "").strip()
-    reference_id = os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
-    model = os.getenv("FISH_AUDIO_MODEL", "s2.1-pro-free").strip()
-    if not api_key:
-        raise RuntimeError("FISH_AUDIO_API_KEY غير موجود في GitHub Secrets؛ لن نستخدم صوتاً بديلاً.")
-    if not reference_id:
-        raise RuntimeError("FISH_AUDIO_REFERENCE_ID غير موجود في GitHub Secrets؛ لن نستخدم صوتاً بديلاً.")
-    clean_text = clean_narration(text)
-    payload = json.dumps(
-        {"text": clean_text, "reference_id": reference_id, "format": "mp3"},
-        ensure_ascii=False,
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        "https://api.fish.audio/v1/tts",
-        data=payload,
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "model": model,
-            "Accept": "audio/mpeg",
-            "User-Agent": "WealthRadarNewsFlow/1.0",
-        },
-        method="POST",
+    """Synthetic narration is disabled; only a synchronized owner recording is acceptable."""
+    raise RuntimeError(
+        "توليد الصوت أو استنساخه معطل. يلزم تسجيل أصلي متزامن بصوت صاحب القناة قبل إنتاج أي فيديو."
     )
-    raw_path = path.with_name(path.stem + ".raw.mp3")
-    try:
-        with urllib.request.urlopen(request, timeout=240) as response:
-            audio = response.read()
-    except urllib.error.HTTPError as exc:
-        try:
-            detail = exc.read(500).decode("utf-8", errors="replace")
-        except Exception:
-            detail = ""
-        detail = " ".join(detail.split()).replace(api_key, "[REDACTED]")[:300]
-        raise RuntimeError(
-            f"Fish Audio رفض توليد الصوت (HTTP {exc.code}). "
-            f"{detail or 'راجع المفتاح والرصيد وVoice ID واسم النموذج.'}"
-        ) from None
-    if len(audio) < 1000:
-        raise RuntimeError("Fish Audio أعاد ملفاً صوتياً فارغاً أو غير مكتمل.")
-    raw_path.parent.mkdir(parents=True, exist_ok=True)
-    raw_path.write_bytes(audio)
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        shutil.move(str(raw_path), str(path))
-        print(f"[VOICE_READY] Fish Audio | model={model} | mastering=skipped")
-        return
-    try:
-        subprocess.run(
-            [
-                ffmpeg, "-y", "-i", str(raw_path),
-                "-af",
-                "highpass=f=75,lowpass=f=12500,"
-                "acompressor=threshold=-18dB:ratio=2.2:attack=18:release=220,"
-                "loudnorm=I=-16:TP=-1.5:LRA=10",
-                "-codec:a", "libmp3lame", "-q:a", "2", str(path),
-            ],
-            check=True, capture_output=True,
-        )
-    finally:
-        raw_path.unlink(missing_ok=True)
-    print(f"[VOICE_READY] Fish Audio cloned voice | model={model} | bytes={path.stat().st_size}")
 
 
 def find_font(bold=False):
@@ -814,6 +754,18 @@ def youtube_upload(
     print(f"[UPLOAD_VERIFIED] {video_url} privacy={status} channel={target_channel_id}")
     return video_url
 
+def require_owner_approval(*, dry_run: bool, environ=None):
+    """Require explicit owner authorization before any non-dry-run media operation."""
+    if dry_run:
+        return
+    env = os.environ if environ is None else environ
+    if str(env.get("NEWSFLOW_OWNER_APPROVED", "false")).strip().lower() != "true":
+        raise RuntimeError(
+            "إنشاء الفيديو أو رفعه يحتاج موافقة صريحة من صاحب القناة؛ "
+            "شغّل المسار اليدوي بعد اعتماد صاحب القناة فقط."
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(description="WealthRadar Arabic financial news pipeline")
     parser.add_argument("--dry-run", action="store_true", help="Collect and write drafts only")
@@ -823,6 +775,10 @@ def main():
     parser.add_argument("--private-staging", action="store_true", help="Scheduled production: render bulletin and Shorts and upload as PRIVATE for owner review")
     parser.add_argument("--shorts-only", action="store_true", help="Experimental isolated run: render one Short only; never use for standard production")
     args = parser.parse_args()
+    try:
+        require_owner_approval(dry_run=args.dry_run)
+    except RuntimeError as exc:
+        parser.error(str(exc))
     if args.shorts_only and os.getenv("NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT", "false").strip().lower() != "true":
         parser.error("--shorts-only is an isolated experiment and requires NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT=true; use NewsFlow standard production for the main video and companion Shorts.")
     args.max_stories = clamp_max_stories(args.max_stories)
