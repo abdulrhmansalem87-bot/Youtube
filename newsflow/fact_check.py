@@ -167,6 +167,8 @@ def validate_fact_check_decision(
     claims = decision.get("claims")
     if decision.get("decision") != "verified":
         blockers.append("المراجع الآلي لم يصدر حكماً بالتحقق الكامل.")
+    if not str(decision.get("summary") or "").strip():
+        blockers.append("تقرير التحقق لا يتضمن خلاصة واضحة للأدلة.")
     if not isinstance(claims, list) or not claims:
         blockers.append("لم تُستخرج ادعاءات جوهرية قابلة للتحقق.")
         claims = []
@@ -203,6 +205,8 @@ def validate_fact_check_decision(
             )
         if not str(claim.get("claim") or "").strip():
             blockers.append(f"الادعاء رقم {index} بلا نص واضح.")
+        if not str(claim.get("explanation") or "").strip():
+            blockers.append(f"الادعاء رقم {index} بلا تفسير يوضح كيف تدعمه المصادر.")
         accepted_claims.append({
             "claim": str(claim.get("claim") or "").strip(),
             "verdict": str(claim.get("verdict") or "uncertain"),
@@ -389,7 +393,7 @@ def _request_openai_fact_check(story: dict, evidence: dict, api_key: str, model:
 
 TAVILY_SEARCH_URL = "https://api.tavily.com/search"
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEFAULT_GROQ_MODEL = "openai/gpt-oss-20b"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
 
 def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
@@ -487,13 +491,15 @@ def _request_groq_tavily_fact_check(
         "query": query,
         "search_depth": "advanced",
         "topic": "news",
-        "max_results": 8,
+        "max_results": 6,
         "exclude_domains": [
             "linkedin.com", "facebook.com", "instagram.com", "x.com",
             "twitter.com", "youtube.com", "reddit.com", "quora.com",
         ],
         "include_answer": False,
-        "include_raw_content": False,
+        # Retrieve evidence passages rather than relying on search snippets alone.
+        "include_raw_content": "markdown",
+        "chunks_per_source": 3,
     }
     search_response = _post_json(
         TAVILY_SEARCH_URL, search_payload, tavily_api_key, "Tavily Search"
@@ -520,7 +526,7 @@ def _request_groq_tavily_fact_check(
             "url": url,
             "title": str(item.get("title") or "")[:500],
             "domain": domain,
-            "snippet": str(item.get("content") or "")[:1800],
+            "snippet": str(item.get("raw_content") or item.get("content") or "")[:2800],
         })
     if not sources:
         raise RuntimeError("لم يعثر البحث على صفحات مصادر قابلة للتحقق.")
@@ -528,12 +534,17 @@ def _request_groq_tavily_fact_check(
     groq_payload = {
         "model": model,
         "temperature": 0.1,
-        "max_tokens": 2200,
-        # GPT-OSS on Groq can emit built-in tool calls or reject strict enum
-        # schemas even when the requested verdict vocabulary is explicit. JSON
-        # mode guarantees syntactically valid JSON; our local validator remains
-        # the authority for every field and all evidence acceptance gates.
-        "response_format": {"type": "json_object"},
+        "max_tokens": 3200,
+        # Groq supports strict structured output on GPT-OSS 120B. The local
+        # evidence validator remains the final authority for every claim.
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "economic_fact_check",
+                "strict": True,
+                "schema": FACT_CHECK_SCHEMA,
+            },
+        },
         "tool_choice": "none",
         "messages": [
             {"role": "system", "content": (
@@ -548,6 +559,7 @@ def _request_groq_tavily_fact_check(
                 "لكل ادعاء، انسخ رابط HTTPS كاملاً كما ورد حرفياً في search_results[].url وضعه في "
                 "claims[].evidence_urls؛ لا تترك القائمة فارغة إذا كانت نتيجة محددة تدعم الادعاء. "
                 "لا تضع عنوان المصدر أو نطاقه بدلاً من الرابط الكامل، ولا تخترع أي رابط. "
+                "اكتب خلاصة واضحة وشرحاً محدداً لكل ادعاء يربط نص المصدر بالادعاء؛ لا تترك summary أو explanation فارغاً. "
                 "لا تُخرج claim فارغاً أبداً؛ اكتب الادعاء المحدد الذي تختبره، أو أعد claims=[] وdecision=needs_review. "
                 "اربط كل رابط بالادعاء الذي يدعمه مباشرة، ولا تستخدم ملفاً شخصياً أو سيرة ذاتية لإثبات خبر أو تصريح مختلف. "
                 "إذا لم تدعم أي نتيجة الادعاء، اجعل verdict=uncertain واترك evidence_urls فارغة. "
@@ -590,7 +602,10 @@ def _request_groq_tavily_fact_check(
             raise
         retry_payload = dict(groq_payload)
         retry_payload["temperature"] = 0
-        retry_payload["max_tokens"] = 1500
+        retry_payload["max_tokens"] = 2200
+        # Retry in ordinary JSON mode only when strict decoding reports its
+        # specific generation error. All local evidence gates remain unchanged.
+        retry_payload["response_format"] = {"type": "json_object"}
         retry_messages = [dict(message) for message in groq_payload["messages"]]
         retry_messages[0]["content"] += (
             " أخرج JSON صالحاً ومختصراً فقط. لا تترك أي claim فارغاً. "
@@ -598,7 +613,7 @@ def _request_groq_tavily_fact_check(
         )
         user_data = json.loads(retry_messages[1]["content"])
         user_data["search_results"] = [
-            {**item, "snippet": str(item.get("snippet") or "")[:900]}
+            {**item, "snippet": str(item.get("snippet") or "")[:1400]}
             for item in user_data.get("search_results", [])[:5]
         ]
         retry_messages[1]["content"] = json.dumps(user_data, ensure_ascii=False)
