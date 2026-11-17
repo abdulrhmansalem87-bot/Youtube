@@ -493,7 +493,8 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         self.story = {
             "id": "story-groq",
             "title": "البنك المركزي يعلن قراراً جديداً بشأن أسعار الفائدة",
-            "summary": "أعلن البنك المركزي قراراً جديداً بشأن أسعار الفائدة اليوم.",
+            "summary": "PRIVATE_ARTICLE_BODY_MARKER نص المقال الأصلي الكامل. " * 80,
+            "rss_summary": "أعلن البنك المركزي قراراً جديداً بشأن أسعار الفائدة اليوم.",
             "source": "Original Publisher",
             "link": "https://original-publisher.example/article",
             "published": "2026-11-16",
