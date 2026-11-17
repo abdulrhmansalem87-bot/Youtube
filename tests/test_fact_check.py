@@ -2,7 +2,7 @@ import json
 import unittest
 from io import BytesIO
 from unittest.mock import patch
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 from newsflow.fact_check import (
     _annotation_sources,
@@ -289,6 +289,87 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
         self.assertEqual(result["status"], "verified")
         self.assertEqual(len(result["sources"]), 2)
         self.assertNotIn("test-secret", json.dumps(result))
+
+    def test_insufficient_quota_429_is_not_retried(self):
+        story = {
+            "id": "quota-story",
+            "title": "خبر مالي واضح",
+            "summary": "ملخص الخبر.",
+            "source": "Original Publisher",
+            "link": "https://original-publisher.example/article",
+        }
+        evidence = {
+            "story_id": "quota-story",
+            "status": "readable",
+            "article_text": "نص المقال الأصلي. " * 100,
+        }
+        error_body = json.dumps({
+            "error": {
+                "type": "insufficient_quota",
+                "message": "You have no credits remaining.",
+            }
+        }).encode("utf-8")
+        attempts = []
+
+        def exhausted(request, timeout):
+            attempts.append(request.full_url)
+            raise HTTPError(
+                request.full_url, 429, "Too Many Requests", None, BytesIO(error_body)
+            )
+
+        with patch("newsflow.fact_check.urlopen", side_effect=exhausted), \\
+             patch("newsflow.fact_check.time.sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "insufficient_quota"):
+                _request_openai_fact_check(story, evidence, "test-secret", "gpt-6-astra")
+
+        self.assertEqual(len(attempts), 1)
+        sleep.assert_not_called()
+
+    def test_transient_rate_limit_429_is_still_retried(self):
+        story = {
+            "id": "rate-limit-story",
+            "title": "خبر مالي واضح",
+            "summary": "ملخص الخبر.",
+            "source": "Original Publisher",
+            "link": "https://original-publisher.example/article",
+        }
+        evidence = {
+            "story_id": "rate-limit-story",
+            "status": "readable",
+            "article_text": "نص المقال الأصلي. " * 100,
+            "final_url": "https://original-publisher.example/canonical",
+        }
+        rate_limit_body = json.dumps({
+            "error": {
+                "type": "rate_limit_exceeded",
+                "message": "Please retry shortly.",
+            }
+        }).encode("utf-8")
+        success_body = json.dumps(successful_api_response()).encode("utf-8")
+        attempts = []
+
+        class Response(BytesIO):
+            def __enter__(self): return self
+            def __exit__(self, *args): self.close()
+
+        def rate_limited_once(request, timeout):
+            attempts.append(request.full_url)
+            if len(attempts) == 1:
+                raise HTTPError(
+                    request.full_url, 429, "Too Many Requests", None,
+                    BytesIO(rate_limit_body),
+                )
+            return Response(success_body)
+
+        with patch("newsflow.fact_check.urlopen", side_effect=rate_limited_once), \\
+             patch("newsflow.fact_check.time.sleep") as sleep:
+            result = _request_openai_fact_check(
+                story, evidence, "test-secret", "gpt-6-astra"
+            )
+
+        self.assertTrue(result["verified"])
+        self.assertEqual(len(attempts), 2)
+        sleep.assert_called_once_with(2)
 
     def test_does_not_call_api_for_unreadable_original_article(self):
         story = {"id": "story-2", "link": "https://publisher.example/story"}
