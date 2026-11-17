@@ -187,10 +187,16 @@ def filter_recent_repeats(
                 and title_ratio >= 0.76
                 and not _opposite_financial_direction(title, old_title)
             )
+            opposite_direction = _opposite_financial_direction(title, old_title)
             if (
                 same_id or same_link
-                or (len(title) >= 24 and title_ratio >= 0.90)
-                or summary_ratio >= 0.88
+                or (
+                    not opposite_direction
+                    and (
+                        (len(title) >= 24 and title_ratio >= 0.90)
+                        or summary_ratio >= 0.88
+                    )
+                )
                 or similar_same_batch_headline
             ):
                 duplicate = previous
