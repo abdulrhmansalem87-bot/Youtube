@@ -50,10 +50,10 @@ EXPLICIT_FINANCE_CATEGORIES = {
 
 # A publisher label appended by an aggregator is not evidence that the story is financial.
 PUBLISHER_BRANDING_SUFFIX = re.compile(
-    r"\\s*(?:[-–—|]\\s*|\\(\\s*)"
+    r"\s*(?:[-–—|]\s*|\(\s*)"
     r"(?:Yahoo Finance|Fox Business|Reuters|CNBC|Bloomberg|Financial Times|"
     r"MarketWatch|AP News|Associated Press|BBC News|The Guardian|"
-    r"Wall Street Journal|WSJ|Investing\\.com)\\s*\\)?\\s*$",
+    r"Wall Street Journal|WSJ|Investing\.com)\s*\)?\s*$",
     re.IGNORECASE,
 )
 
