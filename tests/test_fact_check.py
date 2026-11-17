@@ -623,6 +623,11 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         self.assertIn("https://api.groq.com/openai/v1/chat/completions", sent[1][0])
         self.assertNotIn("PRIVATE_ARTICLE_BODY_MARKER", sent[0][1])
         self.assertNotIn("PRIVATE_ARTICLE_BODY_MARKER", sent[1][1])
+        groq_request = json.loads(sent[1][1])
+        self.assertEqual(groq_request["response_format"], {"type": "json_object"})
+        self.assertEqual(groq_request["tool_choice"], "none")
+        self.assertNotIn("tools", groq_request)
+        self.assertIn("لا تستخدم أدوات أو متصفحاً", groq_request["messages"][0]["content"])
         self.assertNotIn("groq-test-key", sent[0][1] + sent[1][1])
         self.assertEqual(result["claims"][0]["independent_domains"], ["cbe.org.eg"])
 
