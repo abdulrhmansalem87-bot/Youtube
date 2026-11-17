@@ -392,7 +392,25 @@ def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
         with urlopen(request, timeout=90) as response:
             raw = response.read(MAX_RESPONSE_BYTES + 1)
     except HTTPError as exc:
-        raise RuntimeError(f"{service} HTTP {exc.code}") from None
+        # Preserve actionable provider errors without exposing request credentials
+        # or the submitted story metadata.
+        try:
+            error_body = json.loads(exc.read(16_384).decode("utf-8", errors="replace"))
+            error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+            if not isinstance(error_info, dict):
+                error_info = {}
+            error_code = re.sub(r"\s+", " ", str(error_info.get("code") or error_info.get("type") or "")).strip()[:100]
+            error_message = re.sub(r"\s+", " ", str(error_info.get("message") or "")).strip()[:500]
+        except Exception:
+            error_code, error_message = "", ""
+        detail = "; ".join(part for part in (error_code, error_message) if part)
+        detail = re.sub(
+            r"(?i)(?:Bearer\s+)?(?:gsk_[A-Za-z0-9_-]{8,}|tvly-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,})",
+            "[REDACTED]",
+            detail,
+        )[:620]
+        suffix = f": {detail}" if detail else ""
+        raise RuntimeError(f"{service} HTTP {exc.code}{suffix}") from None
     except (URLError, TimeoutError, OSError) as exc:
         raise RuntimeError(f"{service} connection failed ({type(exc).__name__})") from None
     if len(raw) > MAX_RESPONSE_BYTES:
