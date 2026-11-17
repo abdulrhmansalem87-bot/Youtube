@@ -44,7 +44,7 @@ SPORT_TERMS = (
     "football", "soccer", "match", "goal", "player", "coach", "league",
 )
 EXPLICIT_FINANCE_CATEGORIES = {
-    "أسواق المال", "اقتصاد", "اقتصادي", "اقتصاد عالمي", "اقتصاد وأسواق",
+    "أسواق المال", "اقتصاد", "اقتصادي", "اقتصاد عالمي",
     "financial markets", "finance", "financial", "markets", "business",
 }
 
@@ -114,7 +114,17 @@ SECURITY_OR_CRIME_TERMS = (
 
 def _has_term(text: str, terms: tuple[str, ...]) -> bool:
     value = (text or "").casefold()
-    return any(term.casefold() in value for term in terms)
+    for term in terms:
+        candidate = term.casefold()
+        if candidate.isascii():
+            # English keywords must match whole words: "tax" in "taxiway"
+            # or "trade" inside an unrelated word is not a finance signal.
+            pattern = rf"(?<![a-z0-9]){re.escape(candidate)}(?![a-z0-9])"
+            if re.search(pattern, value):
+                return True
+        elif candidate in value:
+            return True
+    return False
 
 
 def relevance(story: dict) -> tuple[bool, str]:
