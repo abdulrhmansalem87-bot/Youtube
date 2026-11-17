@@ -1,10 +1,38 @@
 import unittest
 
-from newsflow.editorial import review_stories
+from newsflow.editorial import relevance, review_stories
 from newsflow.pipeline import make_script, clean_narration
 
 
 class EditorialReviewTests(unittest.TestCase):
+    def test_publisher_suffix_alone_does_not_make_a_story_financial(self):
+        story = {
+            "id": "profile-not-finance",
+            "title": "Why 'Shark Tank' star Kevin O'Leary wouldn't bring Jensen Huang back as Nvidia CEO - Yahoo Finance",
+            "summary": "He discussed a television disagreement and a personal opinion about another executive.",
+            "link": "https://example.com/profile",
+            "source": "Google News - Jensen Huang",
+            "category": "شخصيات مؤثرة",
+            "published": "2026-11-17",
+        }
+        accepted, reason = relevance(story)
+        self.assertFalse(accepted)
+        self.assertIn("لا توجد صلة مالية", reason)
+
+    def test_general_world_news_is_not_promoted_by_business_trip_context(self):
+        story = {
+            "id": "heathrow",
+            "title": "British Airways plane veers off Heathrow taxiway",
+            "summary": "A passenger said he was travelling on a business trip and was rebooked after the delay.",
+            "link": "https://example.com/heathrow",
+            "source": "BBC News - Top Stories",
+            "category": "أخبار عالمية",
+            "published": "2026-11-17",
+        }
+        accepted, reason = relevance(story)
+        self.assertFalse(accepted)
+        self.assertIn("لا توجد صلة مالية", reason)
+
     def test_clean_narration_removes_english_parenthetical_aliases(self):
         cleaned = clean_narration("سيمنز إنرجي (Siemens Energy) تعلن نتائجها، مع دعم من صندوق النقد (IMF).")
         self.assertNotIn("Siemens Energy", cleaned)

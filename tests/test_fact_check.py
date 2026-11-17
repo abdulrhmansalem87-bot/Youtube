@@ -5,6 +5,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 
 from newsflow.fact_check import (
+    DEFAULT_GROQ_MODEL,
     _annotation_sources,
     _extract_output_text,
     fact_check_stories,
@@ -86,6 +87,25 @@ class FactCheckEvidenceValidationTests(unittest.TestCase):
             {"url": "https://publisher-one.example/story", "title": "Source One"},
             {"url": "https://publisher-two.example/report", "title": "Source Two"},
         ]
+
+    def test_rejects_blank_summary_and_blank_claim_explanation(self):
+        decision = {
+            "decision": "verified",
+            "summary": "",
+            "claims": [{
+                "claim": "القرار صدر.",
+                "verdict": "supported",
+                "explanation": "",
+                "evidence_urls": ["https://publisher-one.example/story"],
+            }],
+            "material_disagreements": [],
+        }
+        verified, blockers, _ = validate_fact_check_decision(
+            self.story, decision, self.annotations[:1]
+        )
+        self.assertFalse(verified)
+        self.assertTrue(any("خلاصة واضحة" in item for item in blockers))
+        self.assertTrue(any("بلا تفسير" in item for item in blockers))
 
     def test_accepts_supported_claim_with_one_credible_cited_domain(self):
         decision = {
@@ -578,6 +598,9 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
 
 
 class GroqTavilyFactCheckTests(unittest.TestCase):
+    def test_default_groq_model_uses_the_stronger_production_model(self):
+        self.assertEqual(DEFAULT_GROQ_MODEL, "openai/gpt-oss-120b")
+
     def setUp(self):
         self.story = {
             "id": "story-groq",
@@ -617,6 +640,7 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
             "title": "Central Bank announcement",
             "url": "https://cbe.org.eg/en/news/decision",
             "content": "The central bank announced the decision.",
+            "raw_content": "Official report: The central bank announced the decision and set the effective date.",
         }]}
         groq = {"choices": [{"message": {"content": json.dumps(decision)}}]}
         sent = []
@@ -628,7 +652,7 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         with patch("newsflow.fact_check.urlopen", side_effect=fake_urlopen):
             result = _request_groq_tavily_fact_check(
                 self.story, self.evidence, "groq-test-key", "tavily-test-key",
-                "openai/gpt-oss-20b",
+                "openai/gpt-oss-120b",
             )
 
         self.assertTrue(result["verified"])
@@ -639,12 +663,16 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         self.assertNotIn("PRIVATE_ARTICLE_BODY_MARKER", sent[0][1])
         self.assertNotIn("PRIVATE_ARTICLE_BODY_MARKER", sent[1][1])
         groq_request = json.loads(sent[1][1])
-        self.assertEqual(groq_request["response_format"], {"type": "json_object"})
+        self.assertEqual(groq_request["response_format"]["type"], "json_schema")
+        self.assertTrue(groq_request["response_format"]["json_schema"]["strict"])
         self.assertEqual(groq_request["tool_choice"], "none")
         self.assertNotIn("tools", groq_request)
         tavily_request = json.loads(sent[0][1])
         self.assertEqual(tavily_request["search_depth"], "advanced")
-        self.assertEqual(tavily_request["max_results"], 8)
+        self.assertEqual(tavily_request["max_results"], 6)
+        self.assertEqual(tavily_request["include_raw_content"], "markdown")
+        self.assertEqual(tavily_request["chunks_per_source"], 3)
+        self.assertIn("Official report", groq_request["messages"][1]["content"])
         self.assertIn("linkedin.com", tavily_request["exclude_domains"])
         self.assertIn("لا تستخدم أدوات أو متصفحاً", groq_request["messages"][0]["content"])
         self.assertIn("claims[].evidence_urls", groq_request["messages"][0]["content"])
@@ -676,7 +704,7 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         with patch("newsflow.fact_check.urlopen", side_effect=fake_urlopen):
             result = _request_groq_tavily_fact_check(
                 self.story, self.evidence, "groq-test-key", "tavily-test-key",
-                "openai/gpt-oss-20b",
+                "openai/gpt-oss-120b",
             )
         self.assertFalse(result["verified"])
         self.assertEqual(result["decision"], "needs_review")
@@ -722,18 +750,19 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         with patch("newsflow.fact_check.urlopen", side_effect=fake_urlopen):
             result = _request_groq_tavily_fact_check(
                 self.story, self.evidence, "groq-test-key", "tavily-test-key",
-                "openai/gpt-oss-20b",
+                "openai/gpt-oss-120b",
             )
 
         self.assertTrue(result["verified"])
         self.assertEqual(len(sent), 3)
         retry = sent[2][1]
+        self.assertEqual(retry["response_format"], {"type": "json_object"})
         self.assertEqual(retry["temperature"], 0)
-        self.assertEqual(retry["max_tokens"], 1500)
+        self.assertEqual(retry["max_tokens"], 2200)
         self.assertIn("لا تترك أي claim فارغاً", retry["messages"][0]["content"])
         retry_data = json.loads(retry["messages"][1]["content"])
         self.assertLessEqual(len(retry_data["search_results"]), 5)
-        self.assertLessEqual(len(retry_data["search_results"][0]["snippet"]), 900)
+        self.assertLessEqual(len(retry_data["search_results"][0]["snippet"]), 1400)
 
     def test_groq_tavily_provider_requires_both_secrets_and_never_falls_back(self):
         with patch.dict("os.environ", {
