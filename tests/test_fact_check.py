@@ -12,6 +12,7 @@ from newsflow.fact_check import (
     _request_openai_fact_check,
     _request_groq_tavily_fact_check,
     _post_json,
+    _reported_decision,
     SYSTEM_INSTRUCTIONS,
 )
 
@@ -50,6 +51,20 @@ def successful_api_response():
         }],
     }
     return payload
+
+
+class ReportedDecisionTests(unittest.TestCase):
+    def test_unsubstantiated_contradicted_label_becomes_needs_review(self):
+        claims = [{"verdict": "uncertain", "evidence_urls": [], "independent_domains": []}]
+        self.assertEqual(_reported_decision({"decision": "contradicted"}, False, claims), "needs_review")
+
+    def test_contradicted_label_requires_cited_independent_claim(self):
+        claims = [{
+            "verdict": "contradicted",
+            "evidence_urls": ["https://independent.example/report"],
+            "independent_domains": ["independent.example"],
+        }]
+        self.assertEqual(_reported_decision({"decision": "contradicted"}, False, claims), "contradicted")
 
 
 class FactCheckEvidenceValidationTests(unittest.TestCase):
