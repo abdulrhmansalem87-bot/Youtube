@@ -401,8 +401,8 @@ def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
                 error_info = error_body.get("error", {}) if isinstance(error_body, dict) else {}
                 if not isinstance(error_info, dict):
                     error_info = {}
-                error_code = re.sub(r"\\s+", " ", str(error_info.get("code") or error_info.get("type") or "")).strip()[:100]
-                error_message = re.sub(r"\\s+", " ", str(error_info.get("message") or "")).strip()[:500]
+                error_code = re.sub(r"\s+", " ", str(error_info.get("code") or error_info.get("type") or "")).strip()[:100]
+                error_message = re.sub(r"\s+", " ", str(error_info.get("message") or "")).strip()[:500]
             except Exception:
                 error_code, error_message = "", ""
             if exc.code == 429 and attempt < 2:
@@ -415,7 +415,7 @@ def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
                 continue
             detail = "; ".join(part for part in (error_code, error_message) if part)
             detail = re.sub(
-                r"(?i)(?:Bearer\\s+)?(?:gsk_[A-Za-z0-9_-]{8,}|tvly-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,})",
+                r"(?i)(?:Bearer\s+)?(?:gsk_[A-Za-z0-9_-]{8,}|tvly-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,})",
                 "[REDACTED]",
                 detail,
             )[:620]
