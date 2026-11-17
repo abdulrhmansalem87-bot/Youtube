@@ -50,6 +50,12 @@ class WorkflowSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "restricted to PRIVATE"):
             resolve_upload_privacy("public")
 
+    def test_fact_check_prefers_groq_tavily_when_both_secrets_are_configured(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
+        self.assertIn(
+            "NEWSFLOW_FACT_CHECK_PROVIDER: ${{ vars.NEWSFLOW_FACT_CHECK_PROVIDER || (secrets.GROQ_API_KEY != '' && secrets.TAVILY_API_KEY != '' && 'groq_tavily') || 'openai' }}",
+            workflow,
+        )
     def test_scheduled_runs_upload_only_private_review_drafts(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
         self.assertIn("YOUTUBE_UPLOAD_ENABLED: ${{ (github.event_name == 'schedule'", workflow)
