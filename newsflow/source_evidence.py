@@ -28,8 +28,8 @@ TEXT_TAGS = {"p", "h1", "h2", "h3", "blockquote", "li"}
 # template token instead of the article body. Length alone must not promote
 # that page to readable source evidence.
 TEMPLATE_ARTIFACT_PATTERNS = (
-    re.compile(r"\\{\\{\\s*[^{}]{1,160}\\s*\\}\\}"),
-    re.compile(r"\\brelated_articles\\s*\\[\\s*\\d+\\s*\\]", re.IGNORECASE),
+    re.compile(r"\{\{\s*[^{}]{1,160}\s*\}\}"),
+    re.compile(r"\brelated_articles\s*\[\s*\d+\s*\]", re.IGNORECASE),
 )
 
 
