@@ -405,7 +405,7 @@ def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
                 error_message = re.sub(r"\s+", " ", str(error_info.get("message") or "")).strip()[:500]
             except Exception:
                 error_code, error_message = "", ""
-            if exc.code == 429 and attempt < 2:
+            if exc.code == 429 and attempt < 2 and error_code not in {"insufficient_quota", "billing_hard_limit_reached", "billing_not_active"}:
                 try:
                     retry_after = str(exc.headers.get("Retry-After") or "").strip()
                     delay = min(30, max(1, int(float(retry_after)))) if retry_after else 5 * (attempt + 1)
