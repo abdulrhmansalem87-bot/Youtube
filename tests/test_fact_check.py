@@ -758,7 +758,7 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         retry = sent[2][1]
         self.assertEqual(retry["response_format"], {"type": "json_object"})
         self.assertEqual(retry["temperature"], 0)
-        self.assertEqual(retry["max_tokens"], 1500)
+        self.assertEqual(retry["max_tokens"], 2200)
         self.assertIn("لا تترك أي claim فارغاً", retry["messages"][0]["content"])
         retry_data = json.loads(retry["messages"][1]["content"])
         self.assertLessEqual(len(retry_data["search_results"]), 5)
