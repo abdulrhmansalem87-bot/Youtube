@@ -165,7 +165,7 @@ jobs:
           NEWSFLOW_BROLL_CACHE_DIR: output/broll-cache
           NEWSFLOW_FACT_CHECK_ENABLED: "true"
           # Keep the proven provider as default; switch only after both alternative secrets exist.
-          NEWSFLOW_FACT_CHECK_PROVIDER: ${{ vars.NEWSFLOW_FACT_CHECK_PROVIDER || 'openai' }}
+          NEWSFLOW_FACT_CHECK_PROVIDER: ${{ vars.NEWSFLOW_FACT_CHECK_PROVIDER || (secrets.GROQ_API_KEY != '' && secrets.TAVILY_API_KEY != '' && 'groq_tavily') || 'openai' }}
           NEWSFLOW_FACT_CHECK_MODEL: gpt-6-astra
           NEWSFLOW_GROQ_MODEL: openai/gpt-oss-20b
           GROQ_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')) || (github.event_name == 'workflow_dispatch' && inputs.private_test && inputs.visual_qa_approved && inputs.dry_run != true)) && secrets.GROQ_API_KEY || '' }}
