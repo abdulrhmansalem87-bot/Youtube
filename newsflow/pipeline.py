@@ -820,7 +820,7 @@ def main():
     parser.add_argument("--render-only", action="store_true", help="Render long video and companion Shorts as review artifacts; never upload")
     parser.add_argument("--max-stories", type=int, default=int(os.getenv("NEWSFLOW_MAX_STORIES", "4")))
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy after manual approvals")
-    parser.add_argument("--private-staging", action="store_true", help="Scheduled production: render bulletin and Shorts and upload as PRIVATE for owner review")
+    parser.add_argument("--private-staging", action="store_true", help="Owner-approved PRIVATE production: render the main episode and companion Shorts for review")
     parser.add_argument("--shorts-only", action="store_true", help="Experimental isolated run: render one Short only; never use for standard production")
     args = parser.parse_args()
     if args.shorts_only and os.getenv("NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT", "false").strip().lower() != "true":
