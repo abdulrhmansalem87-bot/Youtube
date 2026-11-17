@@ -317,8 +317,10 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
                 request.full_url, 429, "Too Many Requests", None, BytesIO(error_body)
             )
 
-        with patch("newsflow.fact_check.urlopen", side_effect=exhausted), \\
-             patch("newsflow.fact_check.time.sleep") as sleep:
+        with (
+            patch("newsflow.fact_check.urlopen", side_effect=exhausted),
+            patch("newsflow.fact_check.time.sleep") as sleep,
+        ):
             with self.assertRaisesRegex(RuntimeError, "insufficient_quota"):
                 _request_openai_fact_check(story, evidence, "test-secret", "gpt-6-astra")
 
@@ -361,8 +363,10 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
                 )
             return Response(success_body)
 
-        with patch("newsflow.fact_check.urlopen", side_effect=rate_limited_once), \\
-             patch("newsflow.fact_check.time.sleep") as sleep:
+        with (
+            patch("newsflow.fact_check.urlopen", side_effect=rate_limited_once),
+            patch("newsflow.fact_check.time.sleep") as sleep,
+        ):
             result = _request_openai_fact_check(
                 story, evidence, "test-secret", "gpt-6-astra"
             )
