@@ -14,7 +14,7 @@ class ApprovedProductionMethodContractTests(unittest.TestCase):
         story = {"title": "خبر اقتصادي مهم", "summary": "تفاصيل مؤكدة", "source": "المصدر"}
         with patch("newsflow.pipeline.make_opening_hook", return_value="هوك الخبر المباشر"):
             script = make_script([story])
-        self.assertTrue(script.startswith("هوك الخبر المباشر\\n\\n"))
+        self.assertTrue(script.startswith("هوك الخبر المباشر\n\n"))
         self.assertLess(script.index("هوك الخبر المباشر"), script.index("أهلاً بكم."))
 
 
