@@ -213,8 +213,8 @@ def make_opening_hook(stories):
 
 def make_script(stories):
     parts = [
-        "أهلاً بكم. إليكم أهم الأخبار الاقتصادية والمالية، ببساطة ووضوح.",
         make_opening_hook(stories),
+        "أهلاً بكم. إليكم أهم الأخبار الاقتصادية والمالية، ببساطة ووضوح.",
         "سنقدم الوقائع المؤكدة، ونفصلها عن التحليل والتوقع."
     ]
     for index, story in enumerate(stories, start=1):
