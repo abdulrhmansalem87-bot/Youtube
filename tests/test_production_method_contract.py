@@ -3,13 +3,21 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from newsflow.pipeline import main
+from newsflow.pipeline import main, make_script
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class ApprovedProductionMethodContractTests(unittest.TestCase):
+    def test_long_form_opens_with_story_hook_before_greeting(self):
+        story = {"title": "خبر اقتصادي مهم", "summary": "تفاصيل مؤكدة", "source": "المصدر"}
+        with patch("newsflow.pipeline.make_opening_hook", return_value="هوك الخبر المباشر"):
+            script = make_script([story])
+        self.assertTrue(script.startswith("هوك الخبر المباشر\\n\\n"))
+        self.assertLess(script.index("هوك الخبر المباشر"), script.index("أهلاً بكم."))
+
+
     def test_reference_pair_is_recorded_as_method_not_repeated_content(self):
         guide = (ROOT / "WEALTHRADAR_PRODUCTION_METHOD.md").read_text(encoding="utf-8")
         self.assertIn("https://youtu.be/pjTLj1U3XTY", guide)
