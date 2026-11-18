@@ -29,7 +29,7 @@ class ShortScriptTests(unittest.TestCase):
             "summary": "ارتفع التضخم الأساسي في الولايات المتحدة خلال أكتوبر.",
             "source": "Reuters",
         }])
-        self.assertTrue(script.startswith("أهلاً بكم. إليكم أهم الأخبار الاقتصادية والمالية"))
+        self.assertTrue(script.startswith("التضخم الأمريكي يضغط على الأسواق."))
         self.assertNotIn("WealthRadar", script)
 
     def test_short_rejects_incomplete_summary(self):
