@@ -252,6 +252,7 @@ jobs:
           echo "[PHONE_QA_COMPLETE] videos=$qa_count (main + available Shorts)"
       - name: Upload generated files
         if: always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
+        continue-on-error: true
         uses: actions/upload-artifact@v7.0.2
         with:
           name: newsflow-output-${{ github.run_number }}
