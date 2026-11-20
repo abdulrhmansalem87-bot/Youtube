@@ -1,0 +1,14 @@
+{
+  "plans": [
+    {
+      "id": "yen-160-20261113",
+      "path": "wealthradar/plans/verified-2026-11-13-yen.json"
+    },
+    {
+      "id": "foxconn-q3-20261113",
+      "path": "wealthradar/plans/verified-2026-11-13-foxconn.json"
+    }
+  ],
+  "brand": "WealthRadar",
+  "description": "Two independently validated Shorts based on source-verified 13 November 2026 stories. Render only after a real owner narration is supplied."
+}
