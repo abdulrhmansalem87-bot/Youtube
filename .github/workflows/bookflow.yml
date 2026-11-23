@@ -57,5 +57,7 @@ jobs:
           PLAN_PATH: ${{ github.event.inputs.plan_path || 'bookflow/examples/sample_short.json' }}
       - name: Validate five-minute sample too
         run: python scripts/bookflow_validate.py bookflow/examples/sample_long.json
+      - name: Validate Episode 1 production plan
+        run: python scripts/bookflow_validate.py bookflow/episodes/episode-01-psychology-of-money.json
       - name: Run BookFlow contract tests
         run: python -m unittest discover -s tests -p "test_bookflow_contract.py" -v
