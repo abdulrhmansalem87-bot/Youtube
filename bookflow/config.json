@@ -1,0 +1,11 @@
+{
+  "project": "BookFlow",
+  "mode": "silent_book_pages",
+  "default_language": "en",
+  "translation_language": "ar",
+  "visual_change_seconds": [2, 3],
+  "short": {"aspect_ratio": "9:16", "resolution": "1080x1920", "scene_count": [6, 8], "scene_duration_seconds": [6, 10]},
+  "long": {"aspect_ratio": "16:9", "resolution": "1920x1080", "target_duration_seconds": 300, "duration_tolerance_seconds": 10, "minimum_scene_count": 20, "maximum_scene_duration_seconds": 15},
+  "audio": {"enabled": false, "mode": "silent"},
+  "publishing": {"enabled": false, "platforms": []}
+}
