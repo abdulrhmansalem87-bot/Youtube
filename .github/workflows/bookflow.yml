@@ -70,6 +70,15 @@ jobs:
         run: python -m unittest discover -s tests -p "test_bookflow_contract.py" -v
       - name: Render Episode 1 long video
         run: python scripts/bookflow_render.py bookflow/episodes/episode-01-psychology-of-money.json --output output/bookflow/episode-01-long.mp4 --cache output/bookflow/cache-long
+      - name: Enforce exact five-minute long-video duration
+        run: |
+          ffmpeg -y -i output/bookflow/episode-01-long.mp4 \
+            -vf "tpad=stop_mode=clone:stop_duration=2,trim=duration=300,setpts=PTS-STARTPTS" \
+            -t 300 -an -c:v libx264 -preset fast -crf 22 -pix_fmt yuv420p \
+            -movflags +faststart output/bookflow/episode-01-long-exact.mp4
+          mv output/bookflow/episode-01-long-exact.mp4 output/bookflow/episode-01-long.mp4
+          DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/bookflow/episode-01-long.mp4)
+          python -c "import sys; d=float(sys.argv[1]); assert d >= 300.0, f'Long video is shorter than five minutes: {d}'" "$DURATION"
       - name: Render Episode 1 companion Short
         run: python scripts/bookflow_render.py bookflow/episodes/episode-01-companion-short.json --output output/bookflow/episode-01-short.mp4 --cache output/bookflow/cache-short
       - name: Verify review files
