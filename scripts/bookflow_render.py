@@ -15,15 +15,13 @@ def resolve_font(pattern, candidates):
     for candidate in candidates:
         if Path(candidate).is_file():
             return candidate
-    matcher = shutil.which("fc-match")
-    if matcher:
-        result = subprocess.run(
-            [matcher, "-f", "%{file}", pattern],
-            check=True, capture_output=True, text=True
-        )
-        resolved = result.stdout.strip()
-        if resolved and Path(resolved).is_file():
-            return resolved
+    # Ubuntu runner images do not always include fontconfig's fc-match binary.
+    # Search installed font directories as a portable fallback.
+    for root in (Path("/usr/share/fonts"), Path("/usr/local/share/fonts")):
+        if root.is_dir():
+            for candidate in root.rglob(Path(candidates[0]).name):
+                if candidate.is_file():
+                    return str(candidate)
     raise RuntimeError(f"Required font not found: {pattern}")
 
 FONT_AR_BOLD = resolve_font(
