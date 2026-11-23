@@ -1,0 +1,51 @@
+name: BookFlow plan validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "bookflow/**"
+      - "scripts/bookflow_validate.py"
+      - "tests/test_bookflow_contract.py"
+      - ".github/workflows/bookflow.yml"
+      - "BOOKFLOW_PRODUCTION_METHOD.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "bookflow/**"
+      - "scripts/bookflow_validate.py"
+      - "tests/test_bookflow_contract.py"
+      - ".github/workflows/bookflow.yml"
+      - "BOOKFLOW_PRODUCTION_METHOD.md"
+  workflow_dispatch:
+    inputs:
+      plan_path:
+        description: "Path to a BookFlow JSON plan in this repository"
+        required: true
+        default: "bookflow/examples/sample_short.json"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bookflow-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate BookFlow plan
+        run: python scripts/bookflow_validate.py "$PLAN_PATH"
+        env:
+          PLAN_PATH: ${{ github.event.inputs.plan_path || 'bookflow/examples/sample_short.json' }}
+      - name: Run BookFlow contract tests
+        run: python -m unittest discover -s tests -p "test_bookflow_contract.py" -v
