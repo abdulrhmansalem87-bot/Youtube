@@ -76,6 +76,8 @@ def draw_wrapped(draw, value, center, fnt, fill, max_width, line_gap=12, rtl=Fal
 
 def motif_kind(cues):
     """Map each scene's own words to a recognizable editorial illustration."""
+    if any(k in cues for k in ("hospital", "medical", "clinic")) and any(k in cues for k in ("library", "book donation", "bookshelf")):
+        return "community"
     if any(k in cues for k in ("hospital", "medical", "clinic")):
         return "hospital"
     if any(k in cues for k in ("library", "book donation", "bookshelf")):
@@ -144,6 +146,20 @@ def draw_scene_motif(draw, cues, width, height, mode, beat):
                       (cx+int(r*.82),cy+int(r*.02))],fill=gold,outline=cream)
         rect((cx+int(r*.12),cy+int(r*.02),cx+int(r*.68),cy+int(r*.66)),fill=(90,66,48))
         line([(cx+int(r*.40),cy+int(r*.28)),(cx+int(r*.40),cy+int(r*.66))],cream)
+    elif kind == "community":
+        # Two distinct civic destinations: the hospital and the public library.
+        for offset, roof_color in ((-.34, gold), (.34, green)):
+            bx = cx + int(r*offset)
+            rect((bx-int(r*.27),cy-int(r*.05),bx+int(r*.27),cy+int(r*.57)),fill=(65,82,70),outline=cream,width=max(3,lw//2))
+            draw.polygon([(bx-int(r*.32),cy-int(r*.05)),(bx,cy-int(r*.38)),
+                          (bx+int(r*.32),cy-int(r*.05))],fill=roof_color,outline=cream)
+            rect((bx-int(r*.07),cy+int(r*.25),bx+int(r*.07),cy+int(r*.57)),fill=(234,219,191),outline=gold,width=2)
+        # A medical cross marks one destination; book spines mark the other.
+        line([(cx-int(r*.34),cy-int(r*.23)),(cx-int(r*.34),cy-int(r*.05))],cream,max(4,lw))
+        line([(cx-int(r*.43),cy-int(r*.14)),(cx-int(r*.25),cy-int(r*.14))],cream,max(4,lw))
+        for offset in (.24,.34,.44):
+            x=cx+int(r*offset)
+            line([(x,cy-int(r*.20)),(x,cy-int(r*.04))],cream,max(3,lw//2))
     elif kind in ("hospital", "library"):
         rect((cx-int(r*.62),cy-int(r*.30),cx+int(r*.62),cy+int(r*.58)),fill=(65,82,70))
         draw.polygon([(cx-int(r*.72),cy-int(r*.30)),(cx,cy-int(r*.78)),
@@ -313,7 +329,6 @@ def make_frame(scene, index, total, beat, width, height, path):
         text(d,(int(width*.68),int(height*.455)),"SPEND",small,ink)
         caption(int(width*.14),int(height*.66),int(width*.86),int(height*.89),int(height*.027),int(height*.023))
 
-    motif_kind(cues)
     draw_scene_motif(d, cues, width, height, mode, beat)
 
     # A restrained scene progress marker; beat changes the moving highlight.
