@@ -1,0 +1,234 @@
+{
+  "title": "How a Janitor Built $8 Million While a Harvard Executive Went Bankrupt",
+  "video_type": "long",
+  "duration_seconds": 298.5,
+  "aspect_ratio": "16:9",
+  "resolution": "1920x1080",
+  "audio": {
+    "enabled": false,
+    "mode": "silent"
+  },
+  "book_reference": {
+    "title": "The Psychology of Money",
+    "author": "Morgan Housel",
+    "edition_or_url": "Opening introduction; page number varies by edition. Conceptual summary, not reproduction of book pages."
+  },
+  "scenes": [
+    {
+      "id": "ep01-01",
+      "role": "hook",
+      "duration_seconds": 13,
+      "visual": "Book opening; split-screen silhouette of modest worker and luxury mansion; huge $8M versus debt.",
+      "text_en": "A janitor left about $8 million. A Harvard-educated executive went bankrupt.",
+      "translation_ar": "(عامل بسيط ساب ثروة بحوالي 8 مليون دولار، ومدير متعلم خسر ثروته.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-02",
+      "role": "hook",
+      "duration_seconds": 13,
+      "visual": "Two facing book pages; one modest home, one executive office; quick page snap.",
+      "text_en": "One had little formal education. The other had an MBA.",
+      "translation_ar": "(واحد تعليمه محدود، والتاني معاه ماجستير إدارة أعمال.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-03",
+      "role": "hook",
+      "duration_seconds": 13,
+      "visual": "Camera dives into the center fold; gold question mark forms from coins.",
+      "text_en": "So why did their financial lives end so differently?",
+      "translation_ar": "(إزاي نهايتهم المالية كانت مختلفة بالشكل ده؟)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-04",
+      "role": "story",
+      "duration_seconds": 13,
+      "visual": "A humble work jacket, gas pump and shop floor represented as editorial still-life.",
+      "text_en": "Meet Ronald Read: a gas-station attendant and department-store janitor.",
+      "translation_ar": "(اتعرف على رونالد ريد: اشتغل في محطة بنزين وعامل نظافة في متجر.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-05",
+      "role": "story",
+      "duration_seconds": 13,
+      "visual": "Calendar pages flip; small coins accumulate beside the book.",
+      "text_en": "He lived modestly, saved steadily, and invested for decades.",
+      "translation_ar": "(عاش ببساطة، وادخر باستمرار، واستثمر لعقود.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-06",
+      "role": "story",
+      "duration_seconds": 13,
+      "visual": "A bold $8,000,000 appears, then separates into family and community gifts.",
+      "text_en": "When he died in 2014, his estate was worth about $8 million.",
+      "translation_ar": "(لما توفى سنة 2014، ثروته كانت حوالي 8 مليون دولار.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-07",
+      "role": "story",
+      "duration_seconds": 13,
+      "visual": "Two gold streams flow toward hospital and library icons.",
+      "text_en": "More than $6 million went to a local hospital and library.",
+      "translation_ar": "(أكتر من 6 مليون دولار راحوا لمستشفى ومكتبة محلية.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-08",
+      "role": "contrast",
+      "duration_seconds": 12.5,
+      "visual": "The facing page reveals an executive desk and luxury property.",
+      "text_en": "Now meet Richard Fuscone, a Harvard-educated finance executive.",
+      "translation_ar": "(وده ريتشارد فوسكوني، مدير مالي متخرج من هارفارد.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-09",
+      "role": "contrast",
+      "duration_seconds": 12.5,
+      "visual": "Architectural blueprint expands; debt figures stack at page edge.",
+      "text_en": "He borrowed heavily to expand an enormous home.",
+      "translation_ar": "(استدان بمبالغ كبيرة عشان يوسّع بيت ضخم.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-10",
+      "role": "contrast",
+      "duration_seconds": 12.5,
+      "visual": "Market chart drops; house silhouette dims; debt column rises.",
+      "text_en": "After the 2008 crisis, debt and illiquid assets overwhelmed him.",
+      "translation_ar": "(بعد أزمة 2008، الديون والأصول صعبة البيع ضغطت عليه.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-11",
+      "role": "contrast",
+      "duration_seconds": 12.5,
+      "visual": "A foreclosure stamp lands on a property document; no sensational imagery.",
+      "text_en": "His home eventually went through foreclosure.",
+      "translation_ar": "(وفي النهاية، بيته دخل في إجراءات الحجز.)",
+      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+    },
+    {
+      "id": "ep01-12",
+      "role": "insight",
+      "duration_seconds": 12.5,
+      "visual": "The two story pages align; IQ symbols fade away.",
+      "text_en": "The contrast is not a test of intelligence.",
+      "translation_ar": "(المقارنة مش اختبار ذكاء.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-13",
+      "role": "insight",
+      "duration_seconds": 12.5,
+      "visual": "The words SOFT SKILL are underlined; behavioral choices animate around them.",
+      "text_en": "Housel argues that money success is a soft skill.",
+      "translation_ar": "(هاوسل بيقول إن النجاح المالي مهارة سلوكية.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-14",
+      "role": "insight",
+      "duration_seconds": 12.5,
+      "visual": "A plan on one page; emotional spending impulses appear on the facing page.",
+      "text_en": "Knowing what to do is different from doing it under pressure.",
+      "translation_ar": "(إنك تعرف الصح غير إنك تقدر تعمله وقت الضغط.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-15",
+      "role": "insight",
+      "duration_seconds": 12.5,
+      "visual": "Income column rises while spending column rises faster.",
+      "text_en": "A high income cannot protect you from uncontrolled spending.",
+      "translation_ar": "(الدخل العالي مش هيحميك لو مصاريفك خارجة عن السيطرة.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-16",
+      "role": "insight",
+      "duration_seconds": 12.5,
+      "visual": "Small consistent savings fill a growing jar over calendar turns.",
+      "text_en": "And a modest income can still leave room to build wealth.",
+      "translation_ar": "(حتى الدخل البسيط ممكن يسيب مساحة لبناء ثروة.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-17",
+      "role": "lesson",
+      "duration_seconds": 13.75,
+      "visual": "Luxury-car reflection dissolves into an unseen reserve behind the page.",
+      "text_en": "Wealth is not the car people see. It is the money you keep.",
+      "translation_ar": "(الثروة مش العربية اللي الناس بتشوفها؛ الثروة هي الفلوس اللي احتفظت بيها.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-18",
+      "role": "lesson",
+      "duration_seconds": 13.75,
+      "visual": "A gold line opens between two columns, revealing future paths.",
+      "text_en": "The gap between earning and spending creates options.",
+      "translation_ar": "(الفرق بين دخلك ومصاريفك هو اللي بيخلق اختياراتك.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-19",
+      "role": "lesson",
+      "duration_seconds": 13.75,
+      "visual": "A simple ledger highlights income, essentials and remaining balance.",
+      "text_en": "Start with one question: what part of your income stays yours?",
+      "translation_ar": "(ابدأ بسؤال واحد: كام من دخلك بيفضل معاك فعلًا؟)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-20",
+      "role": "lesson",
+      "duration_seconds": 13.75,
+      "visual": "Small monthly coins repeat steadily; no unrealistic growth claim.",
+      "text_en": "Choose a saving habit you can repeat—not one that looks impressive.",
+      "translation_ar": "(اختار عادة ادخار تقدر تستمر عليها، مش رقم شكله مبهر.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-21",
+      "role": "recap",
+      "duration_seconds": 10,
+      "visual": "Three keywords appear on separate page highlights.",
+      "text_en": "The lesson: behavior, patience, and room to breathe matter.",
+      "translation_ar": "(الخلاصة: السلوك والصبر ووجود مساحة أمان أهم مما تتخيل.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-22",
+      "role": "recap",
+      "duration_seconds": 10,
+      "visual": "The book closes halfway; a modest coin stack remains in focus.",
+      "text_en": "You do not need to look rich to build real wealth.",
+      "translation_ar": "(مش لازم تبان غني عشان تبني ثروة حقيقية.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-23",
+      "role": "cta",
+      "duration_seconds": 10,
+      "visual": "A new page turns to a simple compounding curve, teaser only.",
+      "text_en": "Save this lesson. Next: why time can make small investments grow.",
+      "translation_ar": "(احفظ الدرس ده. الحلقة الجاية: إزاي الوقت بيكبر الاستثمارات الصغيرة.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    },
+    {
+      "id": "ep01-24",
+      "role": "cta",
+      "duration_seconds": 10,
+      "visual": "Book closes; animated gold arrow points to follow prompt.",
+      "text_en": "Follow for Episode 2: the surprising power of compounding.",
+      "translation_ar": "(تابعنا للحلقة التانية: القوة المدهشة للفائدة المركبة.)",
+      "source_note": "Original explanation of the book's central behavioral lesson; not a direct quotation."
+    }
+  ]
+}
