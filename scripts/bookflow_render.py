@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render a silent, animated BookFlow plan with resumable scene-beat clips."""
 from __future__ import annotations
-import argparse, hashlib, json, math, shutil, subprocess
+import argparse, hashlib, json, math, os, shutil, subprocess
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -10,9 +10,37 @@ PALETTE = {
     "muted": (102, 91, 73), "gold": (190, 145, 69), "green": (60, 104, 84),
     "cream": (255, 249, 236), "highlight": (239, 205, 112), "shadow": (22, 15, 12)
 }
-FONT_AR_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-FONT_LATIN = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-FONT_LATIN_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+def resolve_font(pattern, candidates):
+    """Resolve fonts across Ubuntu runner image revisions without hard-coded paths."""
+    for candidate in candidates:
+        if Path(candidate).is_file():
+            return candidate
+    matcher = shutil.which("fc-match")
+    if matcher:
+        result = subprocess.run(
+            [matcher, "-f", "%{file}", pattern],
+            check=True, capture_output=True, text=True
+        )
+        resolved = result.stdout.strip()
+        if resolved and Path(resolved).is_file():
+            return resolved
+    raise RuntimeError(f"Required font not found: {pattern}")
+
+FONT_AR_BOLD = resolve_font(
+    "DejaVu Sans:style=Bold",
+    [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu-sans-fonts/DejaVuSans-Bold.ttf",
+    ],
+)
+FONT_LATIN = resolve_font(
+    "DejaVu Sans",
+    [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu-sans-fonts/DejaVuSans.ttf",
+    ],
+)
+FONT_LATIN_BOLD = FONT_AR_BOLD
 
 def font(path, size):
     return ImageFont.truetype(path, size)
