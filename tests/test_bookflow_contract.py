@@ -11,7 +11,7 @@ SHORT = ROOT / "bookflow" / "examples" / "sample_short.json"
 LONG = ROOT / "bookflow" / "examples" / "sample_long.json"
 sys.path.insert(0, str(ROOT))
 from scripts.bookflow_validate import validate
-from scripts.bookflow_render import make_frame, render
+from scripts.bookflow_render import beats_for_duration, make_frame, render
 
 class BookFlowContractTests(unittest.TestCase):
     def setUp(self):
@@ -56,6 +56,11 @@ class BookFlowContractTests(unittest.TestCase):
     def test_book_reference_is_required(self):
         self.plan["book_reference"] = {"title": "Only a title"}
         self.assertTrue(any("book_reference" in e for e in validate(self.plan)))
+
+    def test_visual_changes_stay_within_three_seconds(self):
+        self.assertEqual(beats_for_duration(8), 3)
+        self.assertEqual(beats_for_duration(15), 5)
+        self.assertEqual(beats_for_duration(6), 2)
 
     def test_three_beats_are_visually_distinct(self):
         with tempfile.TemporaryDirectory() as tmp:
