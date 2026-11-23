@@ -73,6 +73,130 @@ def draw_wrapped(draw, value, center, fnt, fill, max_width, line_gap=12, rtl=Fal
         text(draw, (center[0], y + h/2), line, fnt, fill)
         y += h + line_gap
 
+
+def motif_kind(cues):
+    """Map each scene's own words to a recognizable editorial illustration."""
+    if any(k in cues for k in ("hospital", "medical", "clinic")):
+        return "hospital"
+    if any(k in cues for k in ("library", "book donation", "bookshelf")):
+        return "library"
+    if any(k in cues for k in ("foreclosure", "seized", "repossession")):
+        return "foreclosure"
+    if any(k in cues for k in ("gas pump", "gas-station", "janitor", "mop", "worker", "attendant")):
+        return "worker"
+    if any(k in cues for k in ("mansion", "executive", "office tower", "finance executive", "luxury home")):
+        return "executive"
+    if any(k in cues for k in ("calendar", "decades", "monthly", "coins accumulate", "savings jar", "patience")):
+        return "time"
+    if any(k in cues for k in ("chart", "curve", "market", "growth", "investment", "compound")):
+        return "growth"
+    if any(k in cues for k in ("ledger", "income", "spending", "remaining balance", "budget", "choices")):
+        return "ledger"
+    return "book"
+
+def draw_scene_motif(draw, cues, width, height, mode, beat):
+    """Add a scene-specific illustrated prop so the visual follows the narration."""
+    kind = motif_kind(cues)
+    unit = min(width, height)
+    gold, cream = PALETTE["gold"], PALETTE["cream"]
+    green, ink = PALETTE["green"], PALETTE["ink"]
+    if mode == 0:
+        cx, cy = int(width*.28), int(height*.43)
+    elif mode == 1:
+        left_side = any(k in cues for k in ("worker", "janitor", "attendant", "gas pump"))
+        cx, cy = (int(width*.25) if left_side else int(width*.75)), int(height*.39)
+    elif mode == 2:
+        cx, cy = int(width*.50), int(height*.25)
+    elif mode == 3:
+        cx, cy = int(width*.78), int(height*.35)
+    elif mode == 4:
+        cx, cy = int(width*.88), int(height*.18)
+    else:
+        cx, cy = int(width*.78), int(height*.23)
+
+    r = int(unit*.105)
+    # A warm illuminated medallion anchors the illustration without becoming a card.
+    draw.ellipse((cx-r, cy-r, cx+r, cy+r), fill=(72, 53, 38), outline=gold, width=max(3, unit//260))
+    lw = max(4, unit//115)
+    def line(points, fill=cream, width=lw):
+        draw.line(points, fill=fill, width=width, joint="curve")
+    def rect(box, fill=None, outline=cream, radius=8, width=lw):
+        draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
+    def circle(x, y, radius, fill=None, outline=cream, width=lw):
+        draw.ellipse((x-radius, y-radius, x+radius, y+radius), fill=fill, outline=outline, width=width)
+
+    if kind == "worker":
+        # Work jacket, head and mop: a human-scale visual for the opening story.
+        circle(cx, cy-int(r*.42), int(r*.19), fill=gold, outline=gold)
+        draw.polygon([(cx-int(r*.43),cy+int(r*.53)),(cx-int(r*.29),cy-int(r*.08)),
+                      (cx+int(r*.29),cy-int(r*.08)),(cx+int(r*.43),cy+int(r*.53))],
+                     fill=green, outline=cream)
+        line([(cx+int(r*.55),cy-int(r*.50)),(cx+int(r*.83),cy+int(r*.67))], gold, max(5,lw))
+        line([(cx+int(r*.68),cy+int(r*.57)),(cx+int(r*.93),cy+int(r*.75))], cream, max(4,lw))
+    elif kind == "executive":
+        # Office tower and pitched roof suggest status and an expensive property.
+        rect((cx-int(r*.62),cy-int(r*.30),cx-int(r*.05),cy+int(r*.68)), fill=(54,75,69))
+        for row in range(3):
+            for col in range(2):
+                x=cx-int(r*.48)+col*int(r*.22); y=cy-int(r*.14)+row*int(r*.23)
+                draw.rectangle((x,y,x+int(r*.09),y+int(r*.10)),fill=gold)
+        draw.polygon([(cx-int(r*.02),cy+int(r*.02)),(cx+int(r*.40),cy-int(r*.40)),
+                      (cx+int(r*.82),cy+int(r*.02))],fill=gold,outline=cream)
+        rect((cx+int(r*.12),cy+int(r*.02),cx+int(r*.68),cy+int(r*.66)),fill=(90,66,48))
+        line([(cx+int(r*.40),cy+int(r*.28)),(cx+int(r*.40),cy+int(r*.66))],cream)
+    elif kind in ("hospital", "library"):
+        rect((cx-int(r*.62),cy-int(r*.30),cx+int(r*.62),cy+int(r*.58)),fill=(65,82,70))
+        draw.polygon([(cx-int(r*.72),cy-int(r*.30)),(cx,cy-int(r*.78)),
+                      (cx+int(r*.72),cy-int(r*.30))],fill=gold,outline=cream)
+        for off in (-.38,0,.38):
+            rect((cx+int(r*off)-int(r*.10),cy+int(r*.10),cx+int(r*off)+int(r*.10),cy+int(r*.58)),fill=(234,219,191),outline=gold,width=2)
+        if kind == "hospital":
+            line([(cx,cy-int(r*.20)),(cx,cy+int(r*.02))],cream,max(6,lw*2))
+            line([(cx-int(r*.11),cy-int(r*.09)),(cx+int(r*.11),cy-int(r*.09))],cream,max(6,lw*2))
+        else:
+            line([(cx-int(r*.23),cy+int(r*.02)),(cx,cy+int(r*.20)),(cx+int(r*.23),cy+int(r*.02))],gold,max(5,lw))
+    elif kind == "foreclosure":
+        draw.polygon([(cx-int(r*.72),cy-int(r*.02)),(cx,cy-int(r*.62)),
+                      (cx+int(r*.72),cy-int(r*.02))],fill=gold,outline=cream)
+        rect((cx-int(r*.52),cy-int(r*.02),cx+int(r*.52),cy+int(r*.63)),fill=(78,57,43))
+        rect((cx-int(r*.22),cy+int(r*.27),cx+int(r*.02),cy+int(r*.63)),fill=cream,outline=gold,width=2)
+        line([(cx-int(r*.62),cy-int(r*.42)),(cx+int(r*.62),cy+int(r*.42))],(190,85,64),max(7,lw*2))
+    elif kind == "time":
+        rect((cx-int(r*.58),cy-int(r*.52),cx+int(r*.58),cy+int(r*.48)),fill=(234,219,191),outline=gold)
+        line([(cx-int(r*.58),cy-int(r*.20)),(cx+int(r*.58),cy-int(r*.20))],green)
+        for off in (-.30,0,.30):
+            circle(cx+int(r*off),cy+int(r*.08),int(r*.07),fill=gold,outline=gold,width=1)
+        for stack, height_n in ((-.25,2),(.15,3),(.48,1)):
+            x=cx+int(r*stack)
+            for n in range(height_n):
+                draw.ellipse((x-int(r*.10),cy+int(r*.68)-n*int(r*.13),x+int(r*.10),cy+int(r*.78)-n*int(r*.13)),fill=gold,outline=cream,width=2)
+    elif kind in ("growth", "ledger"):
+        base_y=cy+int(r*.55)
+        line([(cx-int(r*.68),base_y),(cx+int(r*.68),base_y)],cream)
+        heights=(.25,.43,.62,.82) if kind=="growth" else (.30,.48,.35,.68)
+        for i,hv in enumerate(heights):
+            x=cx-int(r*.55)+i*int(r*.31)
+            draw.rounded_rectangle((x,base_y-int(r*hv),x+int(r*.18),base_y),radius=5,fill=green if i<3 else gold)
+        if kind == "growth":
+            line([(cx-int(r*.58),cy+int(r*.10)),(cx-int(r*.20),cy-int(r*.12)),
+                  (cx+int(r*.12),cy-int(r*.04)),(cx+int(r*.57),cy-int(r*.58))],gold,max(5,lw))
+    else:
+        # Open book: recurring series signature.
+        draw.polygon([(cx-int(r*.68),cy-int(r*.38)),(cx-int(r*.05),cy-int(r*.20)),
+                      (cx-int(r*.05),cy+int(r*.56)),(cx-int(r*.68),cy+int(r*.34))],
+                     fill=(234,219,191),outline=gold)
+        draw.polygon([(cx+int(r*.05),cy-int(r*.20)),(cx+int(r*.68),cy-int(r*.38)),
+                      (cx+int(r*.68),cy+int(r*.34)),(cx+int(r*.05),cy+int(r*.56))],
+                     fill=(234,219,191),outline=gold)
+        line([(cx,cy-int(r*.20)),(cx,cy+int(r*.56))],green)
+    # Small orbit marks shift between beats, adding movement without random clutter.
+    orbit = r + int(unit*.025)
+    for offset in (-1, 1):
+        x = cx + offset*orbit
+        y = cy + int(math.sin((beat+1)*1.2)*r*.12)
+        circle(x, y, max(3,unit//180), fill=gold, outline=gold, width=1)
+    return kind
+
 def make_frame(scene, index, total, beat, width, height, path):
     """Create varied editorial compositions rather than repeating one centered card."""
     im = Image.new("RGB", (width, height), PALETTE["wood"])
@@ -188,6 +312,9 @@ def make_frame(scene, index, total, beat, width, height, path):
         text(d,(int(width*.35),int(height*.455)),"SAVE",small,green)
         text(d,(int(width*.68),int(height*.455)),"SPEND",small,ink)
         caption(int(width*.14),int(height*.66),int(width*.86),int(height*.89),int(height*.027),int(height*.023))
+
+    motif_kind(cues)
+    draw_scene_motif(d, cues, width, height, mode, beat)
 
     # A restrained scene progress marker; beat changes the moving highlight.
     bar_y=int(height*.955); bar_l=int(width*.12); bar_r=int(width*.88)
