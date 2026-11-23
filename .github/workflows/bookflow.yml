@@ -2,7 +2,7 @@ name: BookFlow validation and renderer contract
 
 on:
   push:
-    branches: [main]
+    branches: [main, feat/book-page-video-pipeline]
     paths:
       - "bookflow/**"
       - "scripts/bookflow_validate.py"
