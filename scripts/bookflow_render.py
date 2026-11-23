@@ -10,7 +10,7 @@ PALETTE = {
     "muted": (102, 91, 73), "gold": (190, 145, 69), "green": (60, 104, 84),
     "cream": (255, 249, 236), "highlight": (239, 205, 112), "shadow": (22, 15, 12)
 }
-FONT_AR_BOLD = "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf"
+FONT_AR_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 FONT_LATIN = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 FONT_LATIN_BOLD = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
