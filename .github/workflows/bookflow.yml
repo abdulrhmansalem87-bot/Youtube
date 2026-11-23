@@ -28,7 +28,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: bookflow-validation-${{ github.ref }}
@@ -37,7 +37,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -72,10 +72,20 @@ jobs:
         run: python scripts/bookflow_render.py bookflow/episodes/episode-01-psychology-of-money.json --output output/bookflow/episode-01-long.mp4 --cache output/bookflow/cache-long
       - name: Render Episode 1 companion Short
         run: python scripts/bookflow_render.py bookflow/episodes/episode-01-companion-short.json --output output/bookflow/episode-01-short.mp4 --cache output/bookflow/cache-short
-      - name: Upload review videos
-        uses: actions/upload-artifact@v4
-        with:
-          name: bookflow-episode-01-review
-          path: output/bookflow/*.mp4
-          if-no-files-found: error
-          retention-days: 14
+      - name: Verify review files
+        run: |
+          test -s output/bookflow/episode-01-long.mp4
+          test -s output/bookflow/episode-01-short.mp4
+          ls -lh output/bookflow/*.mp4
+          sha256sum output/bookflow/*.mp4
+      - name: Create private draft release with review videos
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "bookflow-review-${GITHUB_RUN_NUMBER}" \
+            --draft \
+            --target "$GITHUB_SHA" \
+            --title "BookFlow Episode 01 — Private Review (Run ${GITHUB_RUN_NUMBER})" \
+            --notes "Private draft review only. These MP4s have not been published to YouTube or TikTok." \
+            output/bookflow/episode-01-long.mp4 \
+            output/bookflow/episode-01-short.mp4
