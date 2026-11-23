@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render a silent, animated BookFlow plan with resumable scene-beat clips."""
 from __future__ import annotations
-import argparse, hashlib, json, shutil, subprocess
+import argparse, hashlib, json, math, shutil, subprocess
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -128,13 +128,15 @@ def render(plan_path, output, cache):
     segments=[]
     for i,scene in enumerate(plan["scenes"]):
         duration=float(scene["duration_seconds"])
-        phase_duration=duration/3
+        beat_count=max(2, math.ceil(duration/3.0))
+        phase_duration=duration/beat_count
         scene_id=scene.get("id",f"scene-{i+1}")
         scene_fp=hashlib.sha256(json.dumps({"scene":scene,"size":[w,h]},sort_keys=True,ensure_ascii=False).encode()).hexdigest()
         scene_state=manifest["scenes"].setdefault(scene_id,{"fingerprint":scene_fp,"beats":{}})
         if scene_state.get("fingerprint") != scene_fp:
             scene_state.update({"fingerprint":scene_fp,"beats":{}})
-        for beat in range(3):
+        scene_state["beat_count"]=beat_count
+        for beat in range(beat_count):
             frame=cache/f"scene-{i:03d}-beat-{beat}.png"
             clip=cache/f"scene-{i:03d}-beat-{beat}.mp4"
             beat_fp=hashlib.sha256(f"{scene_fp}:{beat}:{phase_duration:.5f}".encode()).hexdigest()
@@ -148,7 +150,7 @@ def render(plan_path, output, cache):
                     actual=float(meta.get("format",{}).get("duration",0))
                     reusable=bool(vs and (int(vs.get("width",0)),int(vs.get("height",0)))==(w,h) and abs(actual-phase_duration)<.5 and not any(x.get("codec_type")=="audio" for x in meta.get("streams",[])))
             if not reusable:
-                make_frame(scene,i,len(plan["scenes"]),beat,w,h,frame)
+                make_frame(scene,i,len(plan["scenes"]),beat % 3,w,h,frame)
                 vf=f"zoompan=z='min(zoom+0.00035,1.035)':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={w}x{h}:fps=24,fade=t=in:st=0:d=0.12,format=yuv420p"
                 try:
                     run([ffmpeg,"-y","-loop","1","-i",str(frame),"-t",f"{phase_duration:.3f}","-vf",vf,"-an","-c:v","libx264","-preset","ultrafast","-crf","25","-pix_fmt","yuv420p",str(clip)])
