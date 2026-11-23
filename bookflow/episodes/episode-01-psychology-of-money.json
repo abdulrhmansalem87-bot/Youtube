@@ -1,7 +1,7 @@
 {
   "title": "How a Janitor Built $8 Million While a Harvard Executive Went Bankrupt",
   "video_type": "long",
-  "duration_seconds": 298.5,
+  "duration_seconds": 300,
   "aspect_ratio": "16:9",
   "resolution": "1920x1080",
   "audio": {
@@ -62,7 +62,7 @@
     {
       "id": "ep01-06",
       "role": "story",
-      "duration_seconds": 13,
+      "duration_seconds": 12.5,
       "visual": "A bold $8,000,000 appears, then separates into family and community gifts.",
       "text_en": "When he died in 2014, his estate was worth about $8 million.",
       "translation_ar": "(لما توفى سنة 2014، ثروته كانت حوالي 8 مليون دولار.)",
@@ -71,7 +71,7 @@
     {
       "id": "ep01-07",
       "role": "story",
-      "duration_seconds": 13,
+      "duration_seconds": 12.5,
       "visual": "Two gold streams flow toward hospital and library icons.",
       "text_en": "More than $6 million went to a local hospital and library.",
       "translation_ar": "(أكتر من 6 مليون دولار راحوا لمستشفى ومكتبة محلية.)",
@@ -116,7 +116,7 @@
     {
       "id": "ep01-12",
       "role": "insight",
-      "duration_seconds": 12.5,
+      "duration_seconds": 12.142857142857142,
       "visual": "The two story pages align; IQ symbols fade away.",
       "text_en": "The contrast is not a test of intelligence.",
       "translation_ar": "(المقارنة مش اختبار ذكاء.)",
@@ -125,7 +125,7 @@
     {
       "id": "ep01-13",
       "role": "insight",
-      "duration_seconds": 12.5,
+      "duration_seconds": 12.142857142857142,
       "visual": "The words SOFT SKILL are underlined; behavioral choices animate around them.",
       "text_en": "Housel argues that money success is a soft skill.",
       "translation_ar": "(هاوسل بيقول إن النجاح المالي مهارة سلوكية.)",
@@ -134,7 +134,7 @@
     {
       "id": "ep01-14",
       "role": "insight",
-      "duration_seconds": 12.5,
+      "duration_seconds": 12.142857142857142,
       "visual": "A plan on one page; emotional spending impulses appear on the facing page.",
       "text_en": "Knowing what to do is different from doing it under pressure.",
       "translation_ar": "(إنك تعرف الصح غير إنك تقدر تعمله وقت الضغط.)",
@@ -143,7 +143,7 @@
     {
       "id": "ep01-15",
       "role": "insight",
-      "duration_seconds": 12.5,
+      "duration_seconds": 12.142857142857142,
       "visual": "Income column rises while spending column rises faster.",
       "text_en": "A high income cannot protect you from uncontrolled spending.",
       "translation_ar": "(الدخل العالي مش هيحميك لو مصاريفك خارجة عن السيطرة.)",
@@ -152,7 +152,7 @@
     {
       "id": "ep01-16",
       "role": "insight",
-      "duration_seconds": 12.5,
+      "duration_seconds": 12.142857142857142,
       "visual": "Small consistent savings fill a growing jar over calendar turns.",
       "text_en": "And a modest income can still leave room to build wealth.",
       "translation_ar": "(حتى الدخل البسيط ممكن يسيب مساحة لبناء ثروة.)",
@@ -161,7 +161,7 @@
     {
       "id": "ep01-17",
       "role": "lesson",
-      "duration_seconds": 13.75,
+      "duration_seconds": 12.142857142857142,
       "visual": "Luxury-car reflection dissolves into an unseen reserve behind the page.",
       "text_en": "Wealth is not the car people see. It is the money you keep.",
       "translation_ar": "(الثروة مش العربية اللي الناس بتشوفها؛ الثروة هي الفلوس اللي احتفظت بيها.)",
@@ -170,7 +170,7 @@
     {
       "id": "ep01-18",
       "role": "lesson",
-      "duration_seconds": 13.75,
+      "duration_seconds": 12.142857142857142,
       "visual": "A gold line opens between two columns, revealing future paths.",
       "text_en": "The gap between earning and spending creates options.",
       "translation_ar": "(الفرق بين دخلك ومصاريفك هو اللي بيخلق اختياراتك.)",
@@ -197,7 +197,7 @@
     {
       "id": "ep01-21",
       "role": "recap",
-      "duration_seconds": 10,
+      "duration_seconds": 13.75,
       "visual": "Three keywords appear on separate page highlights.",
       "text_en": "The lesson: behavior, patience, and room to breathe matter.",
       "translation_ar": "(الخلاصة: السلوك والصبر ووجود مساحة أمان أهم مما تتخيل.)",
@@ -206,7 +206,7 @@
     {
       "id": "ep01-22",
       "role": "recap",
-      "duration_seconds": 10,
+      "duration_seconds": 13.75,
       "visual": "The book closes halfway; a modest coin stack remains in focus.",
       "text_en": "You do not need to look rich to build real wealth.",
       "translation_ar": "(مش لازم تبان غني عشان تبني ثروة حقيقية.)",
