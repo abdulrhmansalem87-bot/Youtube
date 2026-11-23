@@ -88,7 +88,21 @@ def make_frame(scene, index, total, beat, width, height, path):
     title, ar = scene["text_en"], scene["translation_ar"]
     role = str(scene.get("role", "story")).lower()
     visual = str(scene.get("visual", "")).lower()
-    mode = index % 6
+    # Select the composition from the actual editorial direction, not scene order.
+    # This keeps the visual grammar attached to the story beat when scenes are reordered.
+    cues = f"{visual} {title} {role}".lower()
+    if any(k in cues for k in ("split-screen", "facing", "contrast", "two ", "versus", "executive", "worker", "align")):
+        mode = 1
+    elif any(k in cues for k in ("calendar", "coins accumulate", "decades", "monthly", "patience", "steadily", "savings jar", "repeat")):
+        mode = 2
+    elif any(k in cues for k in ("chart", "blueprint", "debt", "curve", "column", "income", "market", "foreclosure", "financial")):
+        mode = 3
+    elif any(k in cues for k in ("soft skill", "iq", "keywords", "underlined", "question mark", "behavioral", "lesson", "three keywords")):
+        mode = 4
+    elif any(k in cues for k in ("ledger", "spending", "plan on", "reserve", "remaining balance", "options", "jar")):
+        mode = 5
+    else:
+        mode = 0
     gold, cream, ink, green = PALETTE["gold"], PALETTE["cream"], PALETTE["ink"], PALETTE["green"]
     pad = int(width * .07)
     headline = font(FONT_LATIN_BOLD, int(height * (.050 if width > height else .043)))
