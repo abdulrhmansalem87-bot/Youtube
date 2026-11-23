@@ -48,57 +48,113 @@ def draw_wrapped(draw, value, center, fnt, fill, max_width, line_gap=12, rtl=Fal
         y += h + line_gap
 
 def make_frame(scene, index, total, beat, width, height, path):
+    """Create varied editorial compositions rather than repeating one centered card."""
     im = Image.new("RGB", (width, height), PALETTE["wood"])
+    px = im.load()
+    # Warm cinematic vignette/gradient, kept lightweight for CI rendering.
+    for y in range(height):
+        t = y / max(1, height - 1)
+        shade = int(10 * (1 - abs(t - .48) * 1.7))
+        for x in range(width):
+            edge = abs(x / max(1, width - 1) - .5) * 2
+            v = max(0, shade - int(edge * 8))
+            px[x, y] = (PALETTE["wood"][0] + v, PALETTE["wood"][1] + v, PALETTE["wood"][2] + v)
     d = ImageDraw.Draw(im)
-    for y in range(0, height, max(18, height//70)):
-        d.line((0, y, width, y+int(height*.012)), fill=(59 + (y//13)%7, 39, 29), width=max(2,height//700))
-    margin = int(width*.075)
-    book_top, book_bottom = int(height*.13), int(height*.88)
-    d.rounded_rectangle((margin+12, book_top+20, width-margin+12, book_bottom+20), radius=34, fill=PALETTE["shadow"])
-    d.rounded_rectangle((margin, book_top, width-margin, book_bottom), radius=30, fill=PALETTE["paper2"], outline=PALETTE["gold"], width=3)
-    gutter = width//2
-    d.line((gutter, book_top+22, gutter, book_bottom-22), fill=(183,157,121), width=5)
-    left, right = margin+int(width*.065), width-margin-int(width*.065)
-    for x1,x2 in ((left,gutter-28),(gutter+28,right)):
-        for j in range(8):
-            yy = book_top+int(height*.12)+j*int(height*.055)
-            d.line((x1,yy,x2,yy), fill=(211,196,170), width=max(1,width//1500))
-    text(d,(width//2,book_top+int(height*.065)),"MONEY • MINDSET",font(FONT_LATIN_BOLD,int(height*.025)),PALETTE["green"])
-    text(d,(left+12,book_bottom-int(height*.055)),f"{index+1:02d}",font(FONT_LATIN,int(height*.022)),PALETTE["muted"],anchor="lm")
-    highlight_y = book_top+int(height*(.30 + .12*beat))
-    if beat == 0:
-        hx1,hx2 = left+12,gutter-35
-    elif beat == 1:
-        hx1,hx2 = gutter+35,right-12
-    else:
-        hx1,hx2 = left+12,right-12
-    d.rounded_rectangle((hx1,highlight_y,hx2,highlight_y+int(height*.052)),radius=10,fill=PALETTE["highlight"])
-    card_w, card_h = int(width*.72), int(height*.39)
-    cx, cy = width//2, int(height*.54)
-    d.rounded_rectangle((cx-card_w//2+10,cy-card_h//2+14,cx+card_w//2+10,cy+card_h//2+14),radius=24,fill=(194,178,151))
-    d.rounded_rectangle((cx-card_w//2,cy-card_h//2,cx+card_w//2,cy+card_h//2),radius=24,fill=PALETTE["cream"],outline=PALETTE["gold"],width=3)
     title, ar = scene["text_en"], scene["translation_ar"]
-    draw_wrapped(d,title,(cx,cy-int(height*.105)),font(FONT_LATIN_BOLD,int(height*.038)),PALETTE["ink"],int(card_w*.84),line_gap=int(height*.010))
-    d.line((cx-int(card_w*.28),cy+int(height*.045),cx+int(card_w*.28),cy+int(height*.045)),fill=PALETTE["gold"],width=max(2,width//600))
-    draw_wrapped(d,ar,(cx,cy+int(height*.135)),font(FONT_AR_BOLD,int(height*.028)),PALETTE["green"],int(card_w*.84),line_gap=int(height*.008),rtl=True)
-    mx,my = int(width*.83), int(height*.79)
-    if beat == 0:
-        for k in range(3):
-            r=int(height*(.025+k*.004)); x=mx+k*int(width*.018)
-            d.ellipse((x-r,my-r,x+r,my+r),fill=PALETTE["gold"],outline=PALETTE["cream"],width=3)
-            text(d,(x,my),"$",font(FONT_LATIN_BOLD,r),PALETTE["cream"])
-    elif beat == 1:
-        bx=mx-int(width*.06); by=my+int(height*.04)
-        for k,hv in enumerate((.06,.11,.17)):
-            x=bx+k*int(width*.045)
-            d.rounded_rectangle((x,by-int(height*hv),x+int(width*.026),by),radius=8,fill=PALETTE["green"] if k<2 else PALETTE["gold"])
-        d.line((bx-int(width*.01),by-int(height*.20),mx+int(width*.10),by-int(height*.20)),fill=PALETTE["gold"],width=4)
-    else:
-        d.arc((mx-int(width*.07),my-int(height*.07),mx+int(width*.07),my+int(height*.07)),190,510,fill=PALETTE["green"],width=8)
-        d.polygon([(mx+int(width*.065),my-int(height*.045)),(mx+int(width*.095),my-int(height*.04)),(mx+int(width*.08),my-int(height*.01))],fill=PALETTE["green"])
-    bar_y=int(height*.94); bar_l=int(width*.12); bar_r=int(width*.88)
+    role = str(scene.get("role", "story")).lower()
+    visual = str(scene.get("visual", "")).lower()
+    mode = index % 6
+    gold, cream, ink, green = PALETTE["gold"], PALETTE["cream"], PALETTE["ink"], PALETTE["green"]
+    pad = int(width * .07)
+    headline = font(FONT_LATIN_BOLD, int(height * (.050 if width > height else .043)))
+    arabic = font(FONT_AR_BOLD, int(height * (.034 if width > height else .030)))
+    small = font(FONT_LATIN_BOLD, int(height * .022))
+
+    def page(x1, y1, x2, y2, tilt=False):
+        d.rounded_rectangle((x1+12,y1+18,x2+12,y2+18), radius=24, fill=PALETTE["shadow"])
+        d.rounded_rectangle((x1,y1,x2,y2), radius=22, fill=PALETTE["paper2"], outline=gold, width=3)
+        d.line((x1+24,y1+35,x2-24,y1+35), fill=(197,177,145), width=2)
+        d.line((x1+24,y2-35,x2-24,y2-35), fill=(197,177,145), width=2)
+
+    def caption(x1,y1,x2,y2, title_size=None, ar_size=None):
+        d.rounded_rectangle((x1,y1,x2,y2), radius=20, fill=cream, outline=gold, width=3)
+        tf = font(FONT_LATIN_BOLD, title_size or headline.size)
+        af = font(FONT_AR_BOLD, ar_size or arabic.size)
+        draw_wrapped(d,title,((x1+x2)//2,(y1+y2)//2-int((y2-y1)*.17)),tf,ink,int((x2-x1)*.84),line_gap=int(height*.009))
+        d.line((x1+int((x2-x1)*.22),(y1+y2)//2+int((y2-y1)*.02),x2-int((x2-x1)*.22),(y1+y2)//2+int((y2-y1)*.02)),fill=gold,width=max(2,width//700))
+        draw_wrapped(d,ar,((x1+x2)//2,(y1+y2)//2+int((y2-y1)*.23)),af,green,int((x2-x1)*.84),line_gap=int(height*.007),rtl=True)
+
+    # Six distinct editorial layouts; beat changes move the focal treatment.
+    if mode == 0:  # cinematic open-book spread, text on the right page
+        page(pad,int(height*.12),int(width*.94),int(height*.88))
+        mid=width//2
+        d.line((mid,int(height*.15),mid,int(height*.84)),fill=(173,145,109),width=5)
+        for j in range(7):
+            yy=int(height*(.25+j*.075))
+            d.line((pad+35,yy,mid-28,yy),fill=(207,188,157),width=2)
+        caption(mid+int(width*.035),int(height*.25),int(width*.88),int(height*.75))
+        text(d,(pad+int(width*.16),int(height*.52)),"THE MONEY\nSTORY",small,gold)
+    elif mode == 1:  # two-sided human/wealth comparison
+        d.rectangle((0,0,width//2,height),fill=(37,57,48))
+        d.rectangle((width//2,0,width,height),fill=(48,34,29))
+        text(d,(width//4,int(height*.18)),"THE QUIET BUILDER",small,cream)
+        text(d,(3*width//4,int(height*.18)),"THE BIG SPENDER",small,cream)
+        for cx,cy,r in ((width//4,int(height*.39),int(height*.11)),(3*width//4,int(height*.39),int(height*.11))):
+            d.ellipse((cx-r,cy-r,cx+r,cy+r),outline=gold,width=6)
+        text(d,(width//4,int(height*.39)),"$",font(FONT_LATIN_BOLD,int(height*.12)),gold)
+        text(d,(3*width//4,int(height*.39)),"!",font(FONT_LATIN_BOLD,int(height*.12)),gold)
+        caption(int(width*.06),int(height*.58),int(width*.94),int(height*.91),int(height*.032),int(height*.026))
+    elif mode == 2:  # timeline / compounding / patience
+        page(int(width*.08),int(height*.13),int(width*.92),int(height*.87))
+        y=int(height*.43); x1=int(width*.18); x2=int(width*.82)
+        d.line((x1,y,x2,y),fill=green,width=max(6,height//100))
+        for k in range(5):
+            x=x1+int((x2-x1)*k/4); r=int(height*(.025+.009*((k+beat)%3)))
+            d.ellipse((x-r,y-r,x+r,y+r),fill=gold,outline=cream,width=3)
+            text(d,(x,y+int(height*.09)),str(2000+k*5),small,ink)
+        caption(int(width*.13),int(height*.58),int(width*.87),int(height*.84),int(height*.030),int(height*.025))
+    elif mode == 3:  # data / chart composition
+        page(int(width*.08),int(height*.12),int(width*.92),int(height*.88))
+        left=int(width*.19); bottom=int(height*.72); top=int(height*.29); right=int(width*.82)
+        d.line((left,top,left,bottom,right,bottom),fill=ink,width=4)
+        vals=(.12,.20,.18,.36,.43,.58,.55,.78,.91)
+        pts=[]
+        for k,v in enumerate(vals):
+            pts.append((left+int((right-left)*k/(len(vals)-1)),bottom-int((bottom-top)*v)))
+        d.line(pts,fill=green,width=max(7,height//90),joint="curve")
+        for x,y in pts[::2]:
+            r=max(5,height//100); d.ellipse((x-r,y-r,x+r,y+r),fill=gold)
+        caption(int(width*.14),int(height*.70),int(width*.86),int(height*.91),int(height*.026),int(height*.022))
+    elif mode == 4:  # dramatic full-frame typography with page edge
+        d.rectangle((0,0,int(width*.13),height),fill=(35,57,47))
+        for k in range(9):
+            yy=int(height*(.08+k*.105))
+            d.line((int(width*.04),yy,int(width*.10),yy),fill=gold,width=3)
+        text(d,(int(width*.56),int(height*.20)),"A LESSON IN MONEY",small,gold)
+        d.line((int(width*.23),int(height*.29),int(width*.88),int(height*.29)),fill=gold,width=4)
+        draw_wrapped(d,title,(int(width*.56),int(height*.48)),font(FONT_LATIN_BOLD,int(height*.060)),cream,int(width*.66),line_gap=int(height*.018))
+        d.line((int(width*.23),int(height*.66),int(width*.88),int(height*.66)),fill=gold,width=4)
+        draw_wrapped(d,ar,(int(width*.56),int(height*.79)),font(FONT_AR_BOLD,int(height*.040)),cream,int(width*.66),line_gap=int(height*.012),rtl=True)
+    else:  # desk / ledger still life
+        page(int(width*.09),int(height*.12),int(width*.91),int(height*.88))
+        # Ledger columns and a highlighted actionable line.
+        lx=int(width*.18); rx=int(width*.82); ty=int(height*.30)
+        d.rectangle((lx,ty,rx,int(height*.62)),outline=green,width=4)
+        d.line((lx,int(height*.40),rx,int(height*.40)),fill=(190,170,140),width=3)
+        d.line((lx,int(height*.51),rx,int(height*.51)),fill=(190,170,140),width=3)
+        d.line((int(width*.52),ty,int(width*.52),int(height*.62)),fill=(190,170,140),width=3)
+        d.rounded_rectangle((lx+8,int(height*.405),rx-8,int(height*.505)),radius=8,fill=(239,205,112))
+        text(d,(int(width*.35),int(height*.355)),"INCOME",small,ink)
+        text(d,(int(width*.68),int(height*.355)),"CHOICES",small,ink)
+        text(d,(int(width*.35),int(height*.455)),"SAVE",small,green)
+        text(d,(int(width*.68),int(height*.455)),"SPEND",small,ink)
+        caption(int(width*.14),int(height*.66),int(width*.86),int(height*.89),int(height*.027),int(height*.023))
+
+    # A restrained scene progress marker; beat changes the moving highlight.
+    bar_y=int(height*.955); bar_l=int(width*.12); bar_r=int(width*.88)
     d.rounded_rectangle((bar_l,bar_y,bar_r,bar_y+max(6,height//260)),radius=8,fill=(115,87,62))
-    d.rounded_rectangle((bar_l,bar_y,bar_l+int((bar_r-bar_l)*(index+1)/total),bar_y+max(6,height//260)),radius=8,fill=PALETTE["gold"])
+    progress=(index + (beat+1)/3)/max(1,total)
+    d.rounded_rectangle((bar_l,bar_y,bar_l+int((bar_r-bar_l)*progress),bar_y+max(6,height//260)),radius=8,fill=gold)
     im.save(path,quality=95)
 
 def run(cmd):
