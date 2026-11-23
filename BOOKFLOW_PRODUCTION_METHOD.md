@@ -1,44 +1,53 @@
-# BookFlow — Production Method (isolated from NewsFlow)
+# BookFlow — Premium Silent Book-Page Video Method
 
-## Purpose
-BookFlow is a separate, silent, book-page-inspired visual format for personal finance, investing, business and self-development. It does not replace or modify WealthRadar NewsFlow.
+## Purpose and separation
+BookFlow is a separate format for personal finance, investing, business and entrepreneurship ideas. It does not replace or modify WealthRadar NewsFlow.
+- Code, plans and tests are isolated in `bookflow/`, `scripts/bookflow_*.py`, `tests/test_bookflow_contract.py`, and `.github/workflows/bookflow.yml`.
+- Never import NewsFlow, WealthRadar Shorts, TTS or audio modules.
+- This workflow renders silent MP4s for review only. It never uploads, schedules or publishes to YouTube or TikTok.
 
-## Isolation rules
-- BookFlow code, prompts, plans and tests stay in `bookflow/`, `scripts/bookflow_validate.py`, `tests/test_bookflow_contract.py`, and `.github/workflows/bookflow.yml`.
-- Never import `newsflow`, `wealthradar_shorts`, TTS, or audio modules.
-- Do not change existing workflows, production instructions, secrets, OAuth, channel settings, or upload behavior.
-- This stage validates plans only. It does not render, upload, schedule, or publish videos.
+## Visual identity
+A premium editorial scene: open book on a warm dark wooden desk, ivory pages, deep charcoal text, antique-gold highlights and muted emerald accents. Keep the book, desk, camera language and lighting consistent so the series is recognizable.
+- No black slide backgrounds, tiny type, crowded layouts or repetitive still cards.
+- English statement is the primary line; a readable Arabic translation sits beneath it.
+- Use generous negative space, strong contrast, mobile-safe typography and a restrained color palette.
+- The page is a visual metaphor, not a license to reproduce a copyrighted page.
 
-## Creative direction
-- Silent video: no narration, music, voiceover, or generated audio track.
-- Open physical book on a warm wooden desk, soft natural light, calm premium editorial atmosphere. Keep camera angle, desk, book style and lighting consistent.
-- Short English statements on screen, with a clear Arabic translation in parentheses below for review.
-- First three seconds: curiosity-driven hook, preferably a question or a substantiated number.
-- Visual movement: page turns, line highlights, close-ups, simple charts, coins/currency props, occasional Arabic/English page compositions. Meaningful visual beats change about every 2–3 seconds.
-- End with a natural save/follow/subscribe prompt, varied to fit the subject. Avoid static repeated pages, black backgrounds and tiny text.
+## Motion and retention
+Every scene is built from three independent visual beats, normally 2–3 seconds each:
+1. A cinematic camera push-in and opening page highlight.
+2. A shifted highlight/page focus with a relevant visual motif (coins, a simple financial chart or a page-turn cue).
+3. A second page focus and motif change before the next scene.
+Scene content and visual motif should change with the idea. Avoid random motion that distracts from understanding.
+- Opening hook lands in the first three seconds and creates a clear curiosity gap.
+- Build a progression: question/problem, explanation, example, useful action, caveat, recap, CTA.
+- Every scene contains English text, Arabic translation and a source note.
+- The final scene has one natural action: save, follow or subscribe.
 
-## Formats
+## Format contracts
 ### Short
-- Vertical 9:16, 1080x1920.
-- 6–8 scenes, normally about 8 seconds each (6–10 seconds allowed).
-- English overlay plus Arabic translation in every scene.
-- Hook in opening scene and CTA in final scene.
+- 9:16, 1080x1920.
+- 6–8 scenes, each 6–10 seconds; total 48–80 seconds.
+- First scene role is `hook`; final scene role is `cta`.
 
 ### Long
-- 5-minute target, 16:9, 1920x1080.
-- At least 20 scenes, each no longer than 15 seconds; total scene duration 290–310 seconds.
-- Progression: hook, problem, core idea, practical example, caveat, application, recap and CTA. A long video must add useful explanation; do not stretch the Short.
+- 16:9, 1920x1080.
+- Minimum duration is 300 seconds (5 full minutes); maximum 480 seconds.
+- At least 20 scenes; no scene longer than 15 seconds.
+- A long episode adds examples, context, objections and practical application. Never stretch a Short by repeating lines.
 
-## Accuracy and book rights
-- Cite book title, author, edition/URL and page only when verified.
-- Explain ideas in original wording. Do not reproduce full pages, chapters, tables or long copyrighted excerpts.
-- Direct quotes must be no longer than 25 words and attributed; prefer paraphrase.
-- Never invent quotes, page numbers, statistics, studies or attributions. Mark uncertain references for human review.
-- Numeric hooks, charts and claims need a source reference that supports them. Do not imply author/publisher endorsement.
+## Content, RPM and credibility
+Prioritize high-intent subjects advertisers commonly value—personal finance, saving, investing basics, business models, entrepreneurship, career income and financial decisions—without promising any RPM or view count. Revenue depends on audience geography, advertiser demand, watch time, channel eligibility and many other factors.
+- Use a strong, honest hook; no fake statistics, exaggerated earnings claims or guaranteed returns.
+- Prefer original explanation and practical examples over generic motivation.
+- Verify book title, author, edition and any specific idea attribution before publication. Mark uncertain details as unverified.
+- Never invent quotations, page numbers, studies or statistics. Any direct quote must be short (maximum 25 words) and attributed.
+- Do not reproduce full book pages, chapters, tables or long copyrighted passages. Summarize in original wording.
 
-## Reliability gates
-1. Validate JSON plans before expensive rendering.
-2. Fail early with actionable errors; never silently invent missing facts.
-3. Keep scenes independently reusable so failed scenes can be regenerated without rebuilding approved scenes.
-4. Future renderers must keep a manifest with scene IDs, prompt/version, source reference, duration and asset checksum.
-5. Never upload from BookFlow. Rendering and publishing require a separately approved workflow.
+## Rendering and recovery
+- Run JSON validation before rendering.
+- `scripts/bookflow_render.py` generates three animated beats per scene, slow camera motion and a silent MP4.
+- Each beat is cached with a fingerprint and FFprobe validation. On retry, valid completed beats are reused; only missing, changed or corrupt beats are rebuilt.
+- Final MP4 is checked for resolution, duration and absence of an audio stream.
+- Keep the render manifest with scene IDs, fingerprints, beat status and output QA.
+- Rendering is a draft artifact, not publishing approval. Any future platform workflow requires a separate explicit owner approval and privacy guard.
