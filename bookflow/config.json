@@ -4,7 +4,7 @@
   "default_language": "en",
   "translation_language": "ar",
   "visual_change_seconds": [2, 3],
-  "visual_beats_per_scene": 3,
+  "visual_beat_duration_seconds": [2, 3],
   "animation": {
     "camera": "slow_cinematic_push_in",
     "frame_rate": 24,
