@@ -33,7 +33,7 @@ Save this episode if it gave you a useful way to think about money. Follow for E
 
 ## Editorial corrections applied
 - Ronald Read was a gas-station attendant and a JCPenney janitor; calling him only a gas-station janitor is imprecise.
-- The book describes his estate as more than $8 million; use "about $8 million" rather than implying an exact bank balance.
+- Independent reporting valued his estate at nearly $8 million; use "about $8 million" rather than implying an exact bank balance.
 - Richard Fuscone was a Harvard-educated Merrill Lynch executive; the book links his bankruptcy to heavy borrowing, illiquid assets and the 2008 crisis.
 - Removed "Page 14" from the title and thumbnail because pagination changes between editions.
 - Removed the "$200 monthly at 10%, time does 90% of the work" claim; it is not a sourced statistic from this opening story and needs a clearly labeled calculator example if used in a later episode.
@@ -51,6 +51,7 @@ The current BookFlow renderer is strictly silent. This package assumes no narrat
 
 
 ## Source notes and fact-check trail
+- Ronald Read's work history, age at death, estate value, and exact bequests ($4.8m hospital + $1.2m library): Reuters report (4 Feb 2015), republished by Yahoo: https://www.yahoo.com/news/vermont-gas-station-attendant-bequeaths-millions-library-hospital-212353363.html
 - Ronald Read's work history, age at death, and estate value: Reuters report republished by The Japan Times (5 Feb 2015): https://www.japantimes.co.jp/news/2015/02/05/world/vermont-gas-station-attendant-bequeaths-millions-to-library-hospital/
 - Additional reporting on the estate and his frugal lifestyle: The Washington Post (12 Feb 2015): https://www.washingtonpost.com/business/economy/how-a-janitor-became-the-eight-million-dollar-man/2015/02/12/32072fe2-b1fe-11e4-827f-93f454140e2b_story.html
 - Confirmation from the hospital that the estate was nearly $8 million: Brattleboro Memorial Hospital publication: https://www.bmhvt.org/wp-content/uploads/Healthwise_2021-Spreads.pdf
@@ -60,7 +61,7 @@ The current BookFlow renderer is strictly silent. This package assumes no narrat
 ## Accuracy guardrails
 - Say Read's **estate** was worth nearly $8 million; do not say he had $8 million sitting in a bank account.
 - He worked at a gas station and later as a JCPenney janitor. Avoid compressing his whole career into "gas station janitor."
-- Distinguish the reported $6 million bequests ($4.8m hospital and $1.2m library) from the nearly $8m total estate.
+- Distinguish the reported $6 million bequests ($4.8m hospital and $1.2m library) from the nearly $8m total estate. The two gifts add up to about $6 million—not more than $6 million.
 - Fuscone's bankruptcy is a documented event; avoid claiming the crisis alone caused it unless attributed to the book's account. Explain the combination of leverage, high carrying costs and illiquid assets as the book's interpretation.
 - Add a brief nuance: Read's outcome is an unusual historical case, not a guaranteed recipe. Time, market conditions, risk and luck matter too.
 - Do not imply that the book gives investment instructions or that its story guarantees similar returns.
