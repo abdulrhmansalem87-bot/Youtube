@@ -20,6 +20,6 @@ python scripts/bookflow_render.py bookflow/examples/sample_short.json --output o
 python scripts/bookflow_render.py bookflow/examples/sample_long.json --output output/bookflow-long.mp4 --cache output/bookflow-cache/long
 ```
 
-The renderer creates three visual beats per scene (page highlight/motif changes and a slow camera push-in), saves a resumable cache manifest, and validates that the final MP4 has the correct duration/resolution and no audio stream. A retry reuses verified completed beats.
+The renderer creates a new visual beat every 2–3 seconds (page highlight/motif changes and a slow camera push-in), saves a resumable cache manifest, and validates that the final MP4 has the correct duration/resolution and no audio stream. A retry reuses verified completed beats.
 
 BookFlow is currently render-and-review only. It has no YouTube/TikTok upload, scheduling or publishing action.
