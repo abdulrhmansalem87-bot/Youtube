@@ -1,3 +1,4 @@
+# BookFlow PRIVATE review upload reuses the already-rendered Run 32 MP4s.
 name: BookFlow validation and renderer contract
 
 on:
