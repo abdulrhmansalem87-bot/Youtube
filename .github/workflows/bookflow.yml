@@ -49,7 +49,8 @@ jobs:
         run: |
           command -v ffmpeg
           command -v ffprobe
-          test -f /usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf
+          command -v fc-match
+          fc-match -f '%{file}' 'DejaVu Sans:style=Bold'
       - name: Install Pillow and verify Arabic shaping
         run: |
           pip install Pillow==11.0.0
