@@ -72,10 +72,10 @@
       "id": "ep01-07",
       "role": "story",
       "duration_seconds": 12.5,
-      "visual": "Two gold streams flow toward hospital and library icons.",
-      "text_en": "More than $6 million went to a local hospital and library.",
-      "translation_ar": "(أكتر من 6 مليون دولار راحوا لمستشفى ومكتبة محلية.)",
-      "source_note": "Book opening story; verify facts against the cited edition and independent reporting."
+      "visual": "Two clearly labeled gold streams flow to a hospital ($4.8M) and a library ($1.2M).",
+      "text_en": "He left about $6 million to a local hospital and library.",
+      "translation_ar": "(وساب حوالي 6 مليون دولار لمستشفى ومكتبة في بلدته.)",
+      "source_note": "Reuters reporting (Feb. 4, 2015): $4.8 million to Brattleboro Memorial Hospital and $1.2 million to Brooks Memorial Library."
     },
     {
       "id": "ep01-08",
