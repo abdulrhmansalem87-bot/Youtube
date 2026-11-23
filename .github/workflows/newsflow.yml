@@ -25,6 +25,11 @@ on:
       - "tests/**"
       - "content/**"
       - "scripts/**"
+      # BookFlow is isolated; do not launch NewsFlow/B-roll for its files.
+      - "!bookflow/**"
+      - "!scripts/bookflow_*.py"
+      - "!tests/test_bookflow_contract.py"
+      - "!BOOKFLOW_PRODUCTION_METHOD.md"
   workflow_dispatch:
     inputs:
       private_test:
