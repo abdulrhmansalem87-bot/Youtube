@@ -48,11 +48,10 @@ jobs:
       - name: Install renderer fonts and verify system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends fonts-dejavu-core fontconfig
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core
           command -v ffmpeg
           command -v ffprobe
-          command -v fc-match
-          fc-match -f '%{file}' 'DejaVu Sans:style=Bold'
+          test -n "$(find /usr/share/fonts -type f -name 'DejaVuSans-Bold.ttf' -print -quit)"
       - name: Install Pillow and verify Arabic shaping
         run: |
           pip install Pillow==11.0.0
