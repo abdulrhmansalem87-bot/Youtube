@@ -27,6 +27,16 @@ on:
         required: true
         default: "bookflow/examples/sample_short.json"
         type: string
+      upload_private:
+        description: "Upload the existing review MP4s to WealthRadar as PRIVATE"
+        required: false
+        default: false
+        type: boolean
+      reuse_release_tag:
+        description: "Existing BookFlow draft release tag to reuse"
+        required: false
+        default: "bookflow-review-32"
+        type: string
 
 permissions:
   contents: write
@@ -69,9 +79,21 @@ jobs:
         run: python scripts/bookflow_validate.py bookflow/episodes/episode-01-companion-short.json
       - name: Run BookFlow contract tests
         run: python -m unittest discover -s tests -p "test_bookflow_contract.py" -v
+      - name: Reuse previously rendered review videos
+        if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-upload]')) || (github.event_name == 'workflow_dispatch' && inputs.upload_private)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.reuse_release_tag || 'bookflow-review-32' }}
+        run: |
+          mkdir -p output/bookflow
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern 'episode-01-*.mp4' --dir output/bookflow
+          test -s output/bookflow/episode-01-long.mp4
+          test -s output/bookflow/episode-01-short.mp4
       - name: Render Episode 1 long video
+        if: !((github.event_name == 'push' && contains(github.event.head_commit.message, '[private-upload]')) || (github.event_name == 'workflow_dispatch' && inputs.upload_private))
         run: python scripts/bookflow_render.py bookflow/episodes/episode-01-psychology-of-money.json --output output/bookflow/episode-01-long.mp4 --cache output/bookflow/cache-long
       - name: Enforce exact five-minute long-video duration
+        if: !((github.event_name == 'push' && contains(github.event.head_commit.message, '[private-upload]')) || (github.event_name == 'workflow_dispatch' && inputs.upload_private))
         run: |
           ffmpeg -y -i output/bookflow/episode-01-long.mp4 \
             -vf "tpad=stop_mode=clone:stop_duration=2,trim=duration=300,setpts=PTS-STARTPTS" \
@@ -81,6 +103,7 @@ jobs:
           DURATION=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 output/bookflow/episode-01-long.mp4)
           python -c "import sys; d=float(sys.argv[1]); assert d >= 300.0, f'Long video is shorter than five minutes: {d}'" "$DURATION"
       - name: Render Episode 1 companion Short
+        if: !((github.event_name == 'push' && contains(github.event.head_commit.message, '[private-upload]')) || (github.event_name == 'workflow_dispatch' && inputs.upload_private))
         run: python scripts/bookflow_render.py bookflow/episodes/episode-01-companion-short.json --output output/bookflow/episode-01-short.mp4 --cache output/bookflow/cache-short
       - name: Verify review files
         run: |
@@ -89,6 +112,7 @@ jobs:
           ls -lh output/bookflow/*.mp4
           sha256sum output/bookflow/*.mp4
       - name: Create private draft release with review videos
+        if: !((github.event_name == 'push' && contains(github.event.head_commit.message, '[private-upload]')) || (github.event_name == 'workflow_dispatch' && inputs.upload_private))
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
