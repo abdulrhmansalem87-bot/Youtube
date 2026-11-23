@@ -1,0 +1,72 @@
+{
+  "title": "The Janitor Who Left $8 Million",
+  "video_type": "short",
+  "duration_seconds": 48,
+  "aspect_ratio": "9:16",
+  "resolution": "1080x1920",
+  "audio": {
+    "enabled": false,
+    "mode": "silent"
+  },
+  "book_reference": {
+    "title": "The Psychology of Money",
+    "author": "Morgan Housel",
+    "edition_or_url": "Opening introduction; page numbering varies by edition. Original paraphrase, not copied text."
+  },
+  "scenes": [
+    {
+      "id": "ep01s-01",
+      "role": "hook",
+      "duration_seconds": 8,
+      "visual": "Extreme macro: an ordinary work jacket beside a ledger; a gold $8M figure appears as the book opens.",
+      "text_en": "A janitor died with nearly $8 million.",
+      "translation_ar": "(عامل نظافة توفى وساب ثروة تقرب من 8 مليون دولار.)",
+      "source_note": "Ronald Read's estate was valued at nearly $8 million; Reuters and Washington Post reporting."
+    },
+    {
+      "id": "ep01s-02",
+      "role": "story",
+      "duration_seconds": 8,
+      "visual": "A modest gas station counter transforms into a department-store cleaning aisle; coins quietly accumulate.",
+      "text_en": "Ronald Read worked at a gas station, then as a janitor.",
+      "translation_ar": "(رونالد ريد اشتغل في محطة بنزين، وبعدها عامل نظافة.)",
+      "source_note": "Reuters reporting on Ronald Read's work history."
+    },
+    {
+      "id": "ep01s-03",
+      "role": "story",
+      "duration_seconds": 8,
+      "visual": "A calendar flips across decades while small investments grow on an illustrated timeline.",
+      "text_en": "He lived modestly and invested over many years.",
+      "translation_ar": "(عاش ببساطة واستثمر على مدار سنين طويلة.)",
+      "source_note": "Book-inspired paraphrase; no claim that this result is typical or guaranteed."
+    },
+    {
+      "id": "ep01s-04",
+      "role": "contrast",
+      "duration_seconds": 8,
+      "visual": "A luxury mansion blueprint fills the page; debt columns rise as a market chart falls.",
+      "text_en": "A Harvard-educated finance executive went bankrupt.",
+      "translation_ar": "(ومدير مالي متعلم في هارفارد وصل للإفلاس.)",
+      "source_note": "Richard Fuscone's bankruptcy and foreclosure were reported in 2010."
+    },
+    {
+      "id": "ep01s-05",
+      "role": "lesson",
+      "duration_seconds": 8,
+      "visual": "The mansion fades; a small gap between income and spending glows gold on the open page.",
+      "text_en": "Income is not wealth. What you keep matters.",
+      "translation_ar": "(الدخل مش هو الثروة؛ المهم إيه اللي بتحتفظ بيه.)",
+      "source_note": "Original takeaway based on the book's behavioral argument."
+    },
+    {
+      "id": "ep01s-06",
+      "role": "cta",
+      "duration_seconds": 8,
+      "visual": "A page turns to a simple compounding curve; save and follow prompts appear cleanly.",
+      "text_en": "Save this lesson. Follow for the next money principle.",
+      "translation_ar": "(احفظ الدرس، وتابعنا للمبدأ المالي الجاي.)",
+      "source_note": "Original call to action."
+    }
+  ]
+}
