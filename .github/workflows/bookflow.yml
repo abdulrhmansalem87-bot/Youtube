@@ -45,8 +45,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Verify renderer system dependencies
+      - name: Install renderer fonts and verify system dependencies
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core fontconfig
           command -v ffmpeg
           command -v ffprobe
           command -v fc-match
