@@ -104,6 +104,11 @@ def make_frame(scene, index, total, beat, width, height, path):
 def run(cmd):
     subprocess.run(cmd,check=True,capture_output=True,text=True)
 
+def beats_for_duration(seconds):
+    if float(seconds) <= 0:
+        raise ValueError("Scene duration must be positive")
+    return max(2, math.ceil(float(seconds) / 3.0))
+
 def render(plan_path, output, cache):
     plan=json.loads(Path(plan_path).read_text(encoding="utf-8"))
     if plan.get("audio",{}).get("enabled") is not False:
@@ -128,7 +133,7 @@ def render(plan_path, output, cache):
     segments=[]
     for i,scene in enumerate(plan["scenes"]):
         duration=float(scene["duration_seconds"])
-        beat_count=max(2, math.ceil(duration/3.0))
+        beat_count=beats_for_duration(duration)
         phase_duration=duration/beat_count
         scene_id=scene.get("id",f"scene-{i+1}")
         scene_fp=hashlib.sha256(json.dumps({"scene":scene,"size":[w,h]},sort_keys=True,ensure_ascii=False).encode()).hexdigest()
