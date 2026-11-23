@@ -101,7 +101,7 @@ jobs:
             output/bookflow/episode-01-short.mp4
 
       - name: Upload BookFlow videos to WealthRadar as PRIVATE
-        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[private-upload]')
+        if: (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-upload]')) || (github.event_name == 'workflow_dispatch' && inputs.upload_private)
         env:
           YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
