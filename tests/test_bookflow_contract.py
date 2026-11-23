@@ -22,6 +22,12 @@ class BookFlowContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("[BOOKFLOW_VALID]", result.stdout)
 
+    def test_episode_one_plan_is_exactly_five_minutes(self):
+        episode = ROOT / "bookflow" / "episodes" / "episode-01-psychology-of-money.json"
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/bookflow_validate.py"), str(episode)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("duration=300s", result.stdout)
+
     def test_five_minute_long_sample_passes(self):
         result = subprocess.run([sys.executable, str(ROOT / "scripts/bookflow_validate.py"), str(LONG)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
