@@ -63,3 +63,14 @@ jobs:
         run: python scripts/bookflow_validate.py bookflow/episodes/episode-01-companion-short.json
       - name: Run BookFlow contract tests
         run: python -m unittest discover -s tests -p "test_bookflow_contract.py" -v
+      - name: Render Episode 1 long video
+        run: python scripts/bookflow_render.py bookflow/episodes/episode-01-psychology-of-money.json --output output/bookflow/episode-01-long.mp4 --cache output/bookflow/cache-long
+      - name: Render Episode 1 companion Short
+        run: python scripts/bookflow_render.py bookflow/episodes/episode-01-companion-short.json --output output/bookflow/episode-01-short.mp4 --cache output/bookflow/cache-short
+      - name: Upload review videos
+        uses: actions/upload-artifact@v4
+        with:
+          name: bookflow-episode-01-review
+          path: output/bookflow/*.mp4
+          if-no-files-found: error
+          retention-days: 14
