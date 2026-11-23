@@ -23,10 +23,9 @@ This is an original educational explanation inspired by the book—not a reading
 **Chapters**
 00:00 The $8 Million Contrast
 01:05 Ronald Read's Story
-02:10 The Executive Who Went Bankrupt
-03:15 The Behavioral Lesson
-04:30 What You Can Apply Today
-04:40 Next Episode: The Power of Compounding
+02:20 The Executive Who Went Bankrupt
+03:45 The Behavioral Lesson
+04:40 What You Can Apply Today + Episode 2 Preview
 
 Save this episode if it gave you a useful way to think about money. Follow for Episode 2.
 
