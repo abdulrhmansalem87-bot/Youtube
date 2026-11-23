@@ -14,7 +14,7 @@ A premium editorial scene: open book on a warm dark wooden desk, ivory pages, de
 - The page is a visual metaphor, not a license to reproduce a copyrighted page.
 
 ## Motion and retention
-Every scene is built from three independent visual beats, normally 2–3 seconds each:
+Every scene is divided into visual beats no longer than 3 seconds (usually 3 beats for an 8-second Short scene and 5 beats for a 15-second long-form scene):
 1. A cinematic camera push-in and opening page highlight.
 2. A shifted highlight/page focus with a relevant visual motif (coins, a simple financial chart or a page-turn cue).
 3. A second page focus and motif change before the next scene.
