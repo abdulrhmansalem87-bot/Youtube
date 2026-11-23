@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Validate BookFlow silent-video plans. Standard-library only; no media or network access."""
+"""Validate silent BookFlow plans before rendering."""
 import argparse
 import json
 import sys
 from pathlib import Path
 
 SHORT = {"count": (6, 8), "scene_seconds": (6, 10), "ratio": "9:16", "resolution": "1080x1920"}
-LONG = {"min_scenes": 20, "max_scene_seconds": 15, "ratio": "16:9", "resolution": "1920x1080", "total_seconds": (290, 310)}
+LONG = {"min_scenes": 20, "max_scene_seconds": 15, "ratio": "16:9", "resolution": "1920x1080", "total_seconds": (300, 480)}
 
 def validate(plan):
     errors = []
@@ -25,6 +25,8 @@ def validate(plan):
     scenes = plan["scenes"]
     if not isinstance(scenes, list):
         return errors + ["scenes must be a JSON array"]
+    if not scenes:
+        return errors + ["scenes must not be empty"]
     if kind == "short":
         if not SHORT["count"][0] <= len(scenes) <= SHORT["count"][1]:
             errors.append("short requires 6-8 scenes; found " + str(len(scenes)))
@@ -35,12 +37,22 @@ def validate(plan):
             errors.append("long requires at least 20 scenes; found " + str(len(scenes)))
         if plan["aspect_ratio"] != LONG["ratio"] or plan["resolution"] != LONG["resolution"]:
             errors.append("long must be 16:9 at 1920x1080")
+    if isinstance(scenes[0], dict) and scenes[0].get("role") != "hook":
+        errors.append("first scene role must be 'hook' to secure the opening")
+    if isinstance(scenes[-1], dict) and scenes[-1].get("role") != "cta":
+        errors.append("last scene role must be 'cta' with a natural viewer action")
     durations = []
+    scene_ids = set()
     for i, scene in enumerate(scenes, 1):
         if not isinstance(scene, dict):
             errors.append(f"scene {i} must be an object")
             continue
-        for key in ("duration_seconds", "visual", "text_en", "translation_ar", "source_note"):
+        scene_id = scene.get("id")
+        if scene_id:
+            if scene_id in scene_ids:
+                errors.append(f"scene {i}: duplicate id {scene_id}")
+            scene_ids.add(scene_id)
+        for key in ("role", "duration_seconds", "visual", "text_en", "translation_ar", "source_note"):
             if not scene.get(key):
                 errors.append(f"scene {i}: missing {key}")
         try:
@@ -71,7 +83,7 @@ def validate(plan):
     except (TypeError, ValueError):
         errors.append("duration_seconds must be numeric")
     if kind == "long" and not LONG["total_seconds"][0] <= total <= LONG["total_seconds"][1]:
-        errors.append("long scene total must be 290-310 seconds (5-minute target)")
+        errors.append("long video must be at least 300 seconds (5 minutes) and no longer than 480 seconds")
     if kind == "short" and not 48 <= total <= 80:
         errors.append("short total must be 48-80 seconds for 6-8 scenes")
     book = plan["book_reference"]
