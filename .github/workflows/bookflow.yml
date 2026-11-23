@@ -48,7 +48,7 @@ jobs:
       - name: Install renderer fonts and verify system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
           command -v ffmpeg
           command -v ffprobe
           test -n "$(find /usr/share/fonts -type f -name 'DejaVuSans-Bold.ttf' -print -quit)"
