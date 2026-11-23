@@ -77,7 +77,9 @@ class BookFlowContractTests(unittest.TestCase):
     def test_scene_language_selects_specific_visual_motifs(self):
         self.assertEqual(motif_kind("gas pump and janitor"), "worker")
         self.assertEqual(motif_kind("luxury mansion and finance executive"), "executive")
-        self.assertEqual(motif_kind("hospital and library donation"), "hospital")
+        self.assertEqual(motif_kind("hospital and library donation"), "community")
+        self.assertEqual(motif_kind("hospital entrance"), "hospital")
+        self.assertEqual(motif_kind("public library bookshelf"), "library")
         self.assertEqual(motif_kind("home foreclosure document"), "foreclosure")
         self.assertEqual(motif_kind("calendar pages and coins accumulate"), "time")
         self.assertEqual(motif_kind("investment growth chart"), "growth")
