@@ -11,7 +11,7 @@ SHORT = ROOT / "bookflow" / "examples" / "sample_short.json"
 LONG = ROOT / "bookflow" / "examples" / "sample_long.json"
 sys.path.insert(0, str(ROOT))
 from scripts.bookflow_validate import validate
-from scripts.bookflow_render import beats_for_duration, make_frame, render
+from scripts.bookflow_render import beats_for_duration, make_frame, motif_kind, render
 
 class BookFlowContractTests(unittest.TestCase):
     def setUp(self):
@@ -73,6 +73,14 @@ class BookFlowContractTests(unittest.TestCase):
         self.assertEqual(beats_for_duration(8), 3)
         self.assertEqual(beats_for_duration(15), 5)
         self.assertEqual(beats_for_duration(6), 2)
+
+    def test_scene_language_selects_specific_visual_motifs(self):
+        self.assertEqual(motif_kind("gas pump and janitor"), "worker")
+        self.assertEqual(motif_kind("luxury mansion and finance executive"), "executive")
+        self.assertEqual(motif_kind("hospital and library donation"), "hospital")
+        self.assertEqual(motif_kind("home foreclosure document"), "foreclosure")
+        self.assertEqual(motif_kind("calendar pages and coins accumulate"), "time")
+        self.assertEqual(motif_kind("investment growth chart"), "growth")
 
     def test_three_beats_are_visually_distinct(self):
         with tempfile.TemporaryDirectory() as tmp:
