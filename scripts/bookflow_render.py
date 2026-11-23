@@ -50,16 +50,15 @@ def draw_wrapped(draw, value, center, fnt, fill, max_width, line_gap=12, rtl=Fal
 def make_frame(scene, index, total, beat, width, height, path):
     """Create varied editorial compositions rather than repeating one centered card."""
     im = Image.new("RGB", (width, height), PALETTE["wood"])
-    px = im.load()
-    # Warm cinematic vignette/gradient, kept lightweight for CI rendering.
-    for y in range(height):
-        t = y / max(1, height - 1)
-        shade = int(10 * (1 - abs(t - .48) * 1.7))
-        for x in range(width):
-            edge = abs(x / max(1, width - 1) - .5) * 2
-            v = max(0, shade - int(edge * 8))
-            px[x, y] = (PALETTE["wood"][0] + v, PALETTE["wood"][1] + v, PALETTE["wood"][2] + v)
+    # Draw a subtle warm gradient in horizontal bands; avoid per-pixel Python loops.
     d = ImageDraw.Draw(im)
+    band = max(8, height // 80)
+    for y in range(0, height, band):
+        t = y / max(1, height - 1)
+        shade = int(8 * (1 - abs(t - .48) * 1.7))
+        base = PALETTE["wood"]
+        fill = tuple(min(255, channel + max(0, shade)) for channel in base)
+        d.rectangle((0, y, width, min(height, y + band)), fill=fill)
     title, ar = scene["text_en"], scene["translation_ar"]
     role = str(scene.get("role", "story")).lower()
     visual = str(scene.get("visual", "")).lower()
