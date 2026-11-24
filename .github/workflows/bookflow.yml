@@ -62,7 +62,10 @@ jobs:
       - name: Enforce render-only boundary
         run: |
           test ! -e scripts/bookflow_youtube_upload.py
-          ! grep -Eq 'upload_private|YOUTUBE_CLIENT|YOUTUBE_REFRESH|googleapis.com/upload|upload_video' .github/workflows/bookflow.yml
+          if grep -v 'grep -Eq' .github/workflows/bookflow.yml | grep -Eq 'upload_private|YOUTUBE_CLIENT|YOUTUBE_REFRESH|googleapis.com/upload|upload_video'; then
+            echo "Platform publishing code is forbidden in the render-only workflow."
+            exit 1
+          fi
       - name: Validate selected plan
         run: python scripts/bookflow_validate.py "${{ inputs.plan_path || 'bookflow/examples/sample_short.json' }}"
       - name: Validate five-minute sample
