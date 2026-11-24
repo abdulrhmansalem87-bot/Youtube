@@ -4,7 +4,8 @@
 BookFlow is a separate format for personal finance, investing, business and entrepreneurship ideas. It does not replace or modify WealthRadar NewsFlow.
 - Code, plans and tests are isolated in `bookflow/`, `scripts/bookflow_*.py`, `tests/test_bookflow_contract.py`, and `.github/workflows/bookflow.yml`.
 - Never import NewsFlow, WealthRadar Shorts, TTS or audio modules.
-- This workflow renders silent MP4s for review only. It never uploads, schedules or publishes to YouTube or TikTok.
+- This workflow validates and renders silent MP4 review artifacts only. It has no YouTube or TikTok upload, scheduling, or publishing capability.
+- It uses read-only repository permissions and does not require production secrets, OAuth tokens, or channel credentials.
 
 ## Visual identity
 A premium editorial scene: open book on a warm dark wooden desk, ivory pages, deep charcoal text, antique-gold highlights and muted emerald accents. Keep the book, desk, camera language and lighting consistent so the series is recognizable.
@@ -14,7 +15,7 @@ A premium editorial scene: open book on a warm dark wooden desk, ivory pages, de
 - The page is a visual metaphor, not a license to reproduce a copyrighted page.
 
 ## Motion and retention
-Every scene is divided into visual beats no longer than 3 seconds (usually 3 beats for an 8-second Short scene and 5 beats for a 15-second long-form scene):
+Every scene is divided into visual beats no longer than 3 seconds:
 1. A cinematic camera push-in and opening page highlight.
 2. A shifted highlight/page focus with a relevant visual motif (coins, a simple financial chart or a page-turn cue).
 3. A second page focus and motif change before the next scene.
@@ -46,8 +47,8 @@ Prioritize high-intent subjects advertisers commonly value—personal finance, s
 
 ## Rendering and recovery
 - Run JSON validation before rendering.
-- `scripts/bookflow_render.py` generates three animated beats per scene, slow camera motion and a silent MP4.
+- `scripts/bookflow_render.py` generates animated beats per scene, slow camera motion and a silent MP4.
 - Each beat is cached with a fingerprint and FFprobe validation. On retry, valid completed beats are reused; only missing, changed or corrupt beats are rebuilt.
 - Final MP4 is checked for resolution, duration and absence of an audio stream.
 - Keep the render manifest with scene IDs, fingerprints, beat status and output QA.
-- Rendering is a draft artifact, not publishing approval. Any future platform workflow requires a separate explicit owner approval and privacy guard.
+- The workflow uploads MP4s and manifests only as a temporary GitHub Actions artifact for review. This is not publication or approval to publish.
