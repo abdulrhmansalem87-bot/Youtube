@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "note": "Add only predictions that a public figure published, each with the original https source link. Fields: id, speaker, asset (usd_egp | gold_usd_oz | policy_rate), predicted_value, stated_on, due_date, source_url, optional tolerance_pct (default 3). For policy_rate add actual_value and actual_source_url by hand when due.",
+  "predictions": []
+}
