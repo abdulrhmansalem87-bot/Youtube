@@ -661,17 +661,17 @@ def fact_check_stories(
     max_workers: int = 2,
 ) -> dict:
     """Verify each story independently; callers may proceed with the supported subset."""
-    provider = str(os.getenv("NEWSFLOW_FACT_CHECK_PROVIDER", "openai")).strip().lower()
-    if provider not in {"openai", "groq_tavily"}:
-        provider = "unsupported"
-    key = str(api_key or os.getenv("OPENAI_API_KEY", "")).strip()
+    # WealthRadar is intentionally free-only: OpenAI API is never selected,
+    # even when an OPENAI_API_KEY happens to be present in the environment.
+    requested_provider = str(
+        os.getenv("NEWSFLOW_FACT_CHECK_PROVIDER", "groq_tavily")
+    ).strip().lower()
+    provider = "groq_tavily" if requested_provider == "groq_tavily" else "unsupported"
     groq_key = str(os.getenv("GROQ_API_KEY", "")).strip()
     tavily_key = str(os.getenv("TAVILY_API_KEY", "")).strip()
-    selected_model = str(model or (
-        os.getenv("NEWSFLOW_GROQ_MODEL", DEFAULT_GROQ_MODEL)
-        if provider == "groq_tavily"
-        else os.getenv("NEWSFLOW_FACT_CHECK_MODEL", DEFAULT_MODEL)
-    )).strip()
+    selected_model = str(
+        model or os.getenv("NEWSFLOW_GROQ_MODEL", DEFAULT_GROQ_MODEL)
+    ).strip()
     if not stories:
         return {
             "status": "not_performed",
@@ -716,14 +716,9 @@ def fact_check_stories(
         for item in evidence_records
     }
     results: dict[int, dict] = {}
-    workers = 1 if provider == "groq_tavily" else max(1, min(int(max_workers), 2, len(stories)))
-    checker = (
-        (lambda story, evidence: _request_groq_tavily_fact_check(
-            story, evidence, groq_key, tavily_key, selected_model
-        )) if provider == "groq_tavily"
-        else (lambda story, evidence: _request_openai_fact_check(
-            story, evidence, key, selected_model
-        ))
+    workers = 1
+    checker = lambda story, evidence: _request_groq_tavily_fact_check(
+        story, evidence, groq_key, tavily_key, selected_model
     )
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
@@ -749,7 +744,7 @@ def fact_check_stories(
                     "sources": [],
                     "checked_at": datetime.now(timezone.utc).isoformat(),
                     "model": selected_model,
-                    "method": "groq_tavily_search" if provider == "groq_tavily" else "openai_responses_web_search",
+                    "method": "groq_tavily_search",
                 }
 
     ordered = [results[index] for index in range(len(stories))]
@@ -761,7 +756,7 @@ def fact_check_stories(
         "rejected_count": len(stories) - verified_count,
         "results": ordered,
         "model": selected_model,
-        "method": "groq_tavily_search" if provider == "groq_tavily" else "openai_responses_web_search",
+        "method": "groq_tavily_search",
         "provider": provider,
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
