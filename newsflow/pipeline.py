@@ -1165,7 +1165,7 @@ def main():
              "-of", "default=noprint_wrappers=1:nokey=1", str(audio)],
             check=True, capture_output=True, text=True
         )
-        duration = validate_audio_duration(probe.stdout.strip(), private_test=args.private_test)
+        duration = validate_audio_duration(probe.stdout.strip(), private_test=args.private_test or args.private_staging)
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (duration follows editorial content)")
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
