@@ -780,5 +780,44 @@ class GroqTavilyFactCheckTests(unittest.TestCase):
         self.assertIn("GROQ_API_KEY", report["reason"])
 
 
+class FreeOnlyProviderSelectionTests(unittest.TestCase):
+    def setUp(self):
+        self.story = {
+            "id": "free-only-story",
+            "title": "تقرير اقتصادي تجريبي للتحقق من الخبر",
+            "link": "https://publisher.example/article",
+        }
+        self.evidence = [{
+            "story_id": "free-only-story",
+            "status": "readable",
+            "article_text": "نص تجريبي كافٍ للاختبار فقط.",
+            "final_url": "https://publisher.example/article",
+        }]
+
+    def test_default_provider_is_free_and_never_uses_openai_key(self):
+        with patch.dict("os.environ", {
+            "OPENAI_API_KEY": "must-never-be-used",
+            "GROQ_API_KEY": "",
+            "TAVILY_API_KEY": "",
+        }, clear=True):
+            report = fact_check_stories([self.story], self.evidence)
+
+        self.assertEqual(report["status"], "not_performed")
+        self.assertEqual(report["provider"], "groq_tavily")
+        self.assertIn("GROQ_API_KEY", report["reason"])
+
+    def test_explicit_openai_provider_is_rejected_without_api_call(self):
+        with patch.dict("os.environ", {
+            "NEWSFLOW_FACT_CHECK_PROVIDER": "openai",
+            "OPENAI_API_KEY": "must-never-be-used",
+        }, clear=True):
+            with patch("newsflow.fact_check.urlopen", side_effect=AssertionError("paid provider must not be called")):
+                report = fact_check_stories([self.story], self.evidence)
+
+        self.assertEqual(report["status"], "not_performed")
+        self.assertEqual(report["provider"], "unsupported")
+        self.assertIn("غير مدعوم", report["reason"])
+
+
 if __name__ == "__main__":
     unittest.main()
