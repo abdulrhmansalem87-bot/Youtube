@@ -544,13 +544,18 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
             {"story_id": "needs-review", "status": "readable", "article_text": "نص" * 500},
         ]
 
-        def check_one(story, evidence_record, api_key, model):
+        def check_one(story, evidence_record, groq_api_key, tavily_api_key, model):
             if story["id"] == "supported":
                 return {"story_id": "supported", "status": "verified", "verified": True}
             return {"story_id": "needs-review", "status": "needs_review", "verified": False}
 
-        with patch("newsflow.fact_check._request_openai_fact_check", side_effect=check_one):
-            report = fact_check_stories(stories, evidence, api_key="test-secret")
+        with patch.dict("os.environ", {
+            "NEWSFLOW_FACT_CHECK_PROVIDER": "groq_tavily",
+            "GROQ_API_KEY": "test-groq-key",
+            "TAVILY_API_KEY": "test-tavily-key",
+        }, clear=False):
+            with patch("newsflow.fact_check._request_groq_tavily_fact_check", side_effect=check_one):
+                report = fact_check_stories(stories, evidence)
 
         self.assertEqual(report["status"], "partial")
         self.assertEqual(report["verified_count"], 1)
@@ -572,10 +577,13 @@ class OpenAIResponsesFactCheckTests(unittest.TestCase):
             "id": "story-1",
             "link": "https://original-publisher.example/article",
         }
-        with patch("newsflow.fact_check.urlopen") as opened:
-            report = fact_check_stories(
-                [story], mismatched_evidence, api_key="test-secret"
-            )
+        with patch.dict("os.environ", {
+            "NEWSFLOW_FACT_CHECK_PROVIDER": "groq_tavily",
+            "GROQ_API_KEY": "test-groq-key",
+            "TAVILY_API_KEY": "test-tavily-key",
+        }, clear=False):
+            with patch("newsflow.fact_check.urlopen") as opened:
+                report = fact_check_stories([story], mismatched_evidence)
         opened.assert_not_called()
         self.assertEqual(report["status"], "needs_review")
         self.assertFalse(report["results"][0]["verified"])
