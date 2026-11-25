@@ -110,6 +110,11 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertNotIn("visual_qa_approved", run)
         self.assertNotIn("inputs.dry_run", run)
 
+        artifact_upload = next(item for item in steps if item.get("name") == "Upload generated files")
+        self.assertNotIn("pull_request", artifact_upload["if"])
+        self.assertIn("workflow_dispatch", artifact_upload["if"])
+        self.assertIn("schedule", artifact_upload["if"])
+
         report = next(item for item in steps if item.get("name") == "Report Cairo schedule decision")
         self.assertIn("collect sources, run independent fact-check", report["run"])
         self.assertIn("never render or upload", report["run"])
