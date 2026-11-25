@@ -1,0 +1,72 @@
+{
+  "title": "The Quiet Cost of Lifestyle Inflation",
+  "video_type": "short",
+  "duration_seconds": 48,
+  "aspect_ratio": "9:16",
+  "resolution": "1080x1920",
+  "audio": {
+    "enabled": false,
+    "mode": "silent"
+  },
+  "book_reference": {
+    "title": "The Psychology of Money",
+    "author": "Morgan Housel",
+    "edition_or_url": "Conceptual inspiration only; verify specific attribution before production"
+  },
+  "scenes": [
+    {
+      "id": "s01",
+      "role": "hook",
+      "duration_seconds": 8,
+      "visual": "Open book on a warm wooden desk; cinematic push-in.",
+      "text_en": "A bigger paycheck can still leave you broke.",
+      "translation_ar": "(ممكن مرتبك يزيد، وبرضه تفضل مفلس.)",
+      "source_note": "Original hook; no numerical claim."
+    },
+    {
+      "id": "s02",
+      "role": "idea",
+      "duration_seconds": 8,
+      "visual": "Turn the page; show income and expenses moving apart.",
+      "text_en": "The danger is letting spending rise with income.",
+      "translation_ar": "(الخطر إن مصاريفك تكبر كل ما دخلك يكبر.)",
+      "source_note": "Original explanation; not a direct quote."
+    },
+    {
+      "id": "s03",
+      "role": "idea",
+      "duration_seconds": 8,
+      "visual": "Highlight the key idea; close-up of the page.",
+      "text_en": "New purchases quickly become the new normal.",
+      "translation_ar": "(الحاجات الجديدة بتتحول بسرعة لمستوى معيشة معتاد.)",
+      "source_note": "Original explanatory wording."
+    },
+    {
+      "id": "s04",
+      "role": "action",
+      "duration_seconds": 8,
+      "visual": "Coins beside the book; savings jar in the background.",
+      "text_en": "Protect the gap between what you earn and spend.",
+      "translation_ar": "(حافظ على الفرق بين اللي بتكسبه واللي بتصرفه.)",
+      "source_note": "Original practical takeaway."
+    },
+    {
+      "id": "s05",
+      "role": "action",
+      "duration_seconds": 8,
+      "visual": "A two-column page: needs versus upgrades.",
+      "text_en": "Choose upgrades deliberately, not automatically.",
+      "translation_ar": "(اختار تطور مستوى معيشتك بوعي، مش بشكل تلقائي.)",
+      "source_note": "Original practical takeaway."
+    },
+    {
+      "id": "s06",
+      "role": "cta",
+      "duration_seconds": 8,
+      "visual": "Close the book gently; elegant save prompt.",
+      "text_en": "Save this idea before your next raise.",
+      "translation_ar": "(احفظ الفكرة دي قبل الزيادة الجاية في دخلك.)",
+      "source_note": "Original CTA."
+    }
+  ]
+}
