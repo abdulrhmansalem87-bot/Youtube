@@ -318,6 +318,14 @@ def _select_distinct_candidates(candidates: list[dict], count: int,
         seen.add(key)
         if len(selected) >= count:
             break
+    if len(selected) < count and candidates and os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true":
+        # Private owner-review render only: when Pexels has too few unused clips,
+        # reuse results already found rather than stopping the preview.
+        pool = list(selected) + [c for c in candidates if c not in selected]
+        index = 0
+        while len(selected) < count:
+            selected.append(pool[index % len(pool)])
+            index += 1
     if len(selected) != count:
         raise RuntimeError(
             f"لم يوفر Pexels {count} لقطات مختلفة للمشهد؛ أوقفنا الرندر بدلاً من تكرار نفس اللقطة."

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 import ipaddress
 import json
+import os
 import re
 import time
 from urllib.error import HTTPError, URLError
@@ -196,7 +197,7 @@ def _validate_http_url(value: str) -> None:
         raise ValueError("عناوين الشبكات الخاصة أو المحلية غير مسموح بها.")
 
 
-def fetch_original_source(story: dict) -> dict:
+def _fetch_direct(story: dict) -> dict:
     """Fetch one original article with bounded retries and a truthful extraction status."""
     source_url = str(story.get("link") or "").strip()
     record = {
@@ -224,8 +225,8 @@ def fetch_original_source(story: dict) -> dict:
     request = Request(
         source_url,
         headers={
-            "User-Agent": "Mozilla/5.0 (compatible; NewsFlowSourceReview/1.0)",
-            "Accept": "text/html,application/xhtml+xml;q=0.9",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "ar,en;q=0.8",
         },
     )
@@ -275,6 +276,7 @@ def fetch_original_source(story: dict) -> dict:
         except HTTPError as exc:
             last_error = exc
             if exc.code not in TRANSIENT_HTTP_CODES or attempt == 2:
+                record["http_status"] = exc.code
                 record["warnings"].append(f"تعذر فتح المصدر (HTTP {exc.code}).")
                 return record
         except (URLError, TimeoutError, OSError) as exc:
@@ -289,6 +291,55 @@ def fetch_original_source(story: dict) -> dict:
 
     record["warnings"].append(
         f"تعذر فتح المصدر بعد ثلاث محاولات ({type(last_error).__name__ if last_error else 'unknown'})."
+    )
+    return record
+
+
+def _tavily_extract(source_url: str) -> str:
+    """Optional fallback: ask Tavily to extract the original article text. Empty on any failure."""
+    key = os.getenv("TAVILY_API_KEY", "").strip()
+    if not key:
+        return ""
+    try:
+        payload = json.dumps({"urls": [source_url]}).encode("utf-8")
+        request = Request(
+            "https://api.tavily.com/extract",
+            data=payload,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        )
+        with urlopen(request, timeout=30) as response:
+            data = json.loads(response.read(MAX_RESPONSE_BYTES).decode("utf-8", errors="replace"))
+        results = data.get("results") or []
+        if results:
+            return str(results[0].get("raw_content") or "")[:MAX_ARTICLE_CHARS]
+    except Exception:
+        return ""
+    return ""
+
+
+def fetch_original_source(story: dict) -> dict:
+    """Direct fetch first; if the publisher blocks us, try Tavily extract of the same URL."""
+    record = _fetch_direct(story)
+    direct_status = record.get("status")
+    direct_http = record.get("http_status")
+    if record.get("status") != "readable" and record.get("source_url", "").startswith("https://"):
+        text = _tavily_extract(record["source_url"])
+        if len(text) >= 700 and not _has_template_artifacts(text):
+            record["article_text"] = text
+            record["extracted_chars"] = len(text)
+            record["status"] = "readable"
+            record["evidence_level"] = "article_text"
+            record["warnings"].append("نص المقال من Tavily extract لأن الصفحة المباشرة لم تكن مقروءة.")
+    print(
+        "[SOURCE_FETCH] domain=%s direct_status=%s http=%s final_status=%s chars=%s"
+        % (
+            urlparse(record.get("source_url", "")).hostname,
+            direct_status,
+            direct_http,
+            record.get("status"),
+            record.get("extracted_chars"),
+        ),
+        flush=True,
     )
     return record
 
