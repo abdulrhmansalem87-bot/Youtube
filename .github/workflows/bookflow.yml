@@ -1,0 +1,103 @@
+name: BookFlow validation and renderer contract
+
+on:
+  push:
+    branches: [main, feat/book-page-video-pipeline]
+    paths:
+      - "bookflow/**"
+      - "scripts/bookflow_validate.py"
+      - "scripts/bookflow_render.py"
+      # Keep the removed uploader path covered so its deletion is exercised by CI.
+      - "scripts/bookflow_youtube_upload.py"
+      - "tests/test_bookflow_contract.py"
+      - ".github/workflows/bookflow.yml"
+      - "BOOKFLOW_PRODUCTION_METHOD.md"
+  pull_request:
+    branches: [main]
+    paths:
+      - "bookflow/**"
+      - "scripts/bookflow_validate.py"
+      - "scripts/bookflow_render.py"
+      - "tests/test_bookflow_contract.py"
+      - ".github/workflows/bookflow.yml"
+      - "BOOKFLOW_PRODUCTION_METHOD.md"
+  workflow_dispatch:
+    inputs:
+      plan_path:
+        description: "Path to a BookFlow JSON plan in this repository"
+        required: true
+        default: "bookflow/examples/sample_short.json"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bookflow-validation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install renderer dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+          command -v ffmpeg
+          command -v ffprobe
+          test -n "$(find /usr/share/fonts -type f -name 'DejaVuSans-Bold.ttf' -print -quit)"
+      - name: Install Python dependencies and verify Arabic shaping
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install Pillow==11.0.0
+          python -c "from PIL import features; assert features.check('raqm'), 'Pillow must support RAQM for correctly shaped Arabic text'"
+      - name: Enforce render-only boundary
+        run: |
+          test ! -e scripts/bookflow_youtube_upload.py
+          if grep -v 'grep -Eq' .github/workflows/bookflow.yml | grep -Eq 'upload_private|YOUTUBE_CLIENT|YOUTUBE_REFRESH|googleapis.com/upload|upload_video'; then
+            echo "Platform publishing code is forbidden in the render-only workflow."
+            exit 1
+          fi
+      - name: Validate selected plan
+        run: python scripts/bookflow_validate.py "${{ inputs.plan_path || 'bookflow/examples/sample_short.json' }}"
+      - name: Validate five-minute sample
+        run: python scripts/bookflow_validate.py bookflow/examples/sample_long.json
+      - name: Validate Episode 1 long-form plan
+        run: python scripts/bookflow_validate.py bookflow/episodes/episode-01-psychology-of-money.json
+      - name: Validate Episode 1 companion Short
+        run: python scripts/bookflow_validate.py bookflow/episodes/episode-01-companion-short.json
+      - name: Run BookFlow contract tests
+        run: python -m unittest discover -s tests -p "test_bookflow_contract.py" -v
+      - name: Render Episode 1 long video
+        run: python scripts/bookflow_render.py bookflow/episodes/episode-01-psychology-of-money.json --output output/bookflow/episode-01-long.mp4 --cache output/bookflow/cache-long
+      - name: Render Episode 1 companion Short
+        run: python scripts/bookflow_render.py bookflow/episodes/episode-01-companion-short.json --output output/bookflow/episode-01-short.mp4 --cache output/bookflow/cache-short
+      - name: Verify review videos
+        run: |
+          test -s output/bookflow/episode-01-long.mp4
+          test -s output/bookflow/episode-01-short.mp4
+          ffprobe -v error -show_entries stream=codec_type,width,height -show_entries format=duration -of json output/bookflow/episode-01-long.mp4
+          ffprobe -v error -show_entries stream=codec_type,width,height -show_entries format=duration -of json output/bookflow/episode-01-short.mp4
+          sha256sum output/bookflow/episode-01-long.mp4 output/bookflow/episode-01-short.mp4
+      # Artifact storage quota may be exhausted; review evidence (ffprobe output and
+      # sha256sums) is already in the job log, so a failed upload must not fail the run.
+      - name: Save review MP4s and QA manifest
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: bookflow-episode-01-review
+          path: |
+            output/bookflow/episode-01-long.mp4
+            output/bookflow/episode-01-short.mp4
+            output/bookflow/cache-long/manifest.json
+            output/bookflow/cache-short/manifest.json
+          if-no-files-found: error
+          retention-days: 1
