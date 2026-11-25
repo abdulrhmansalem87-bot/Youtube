@@ -680,16 +680,10 @@ def fact_check_stories(
             "results": [],
             "reason": "لا توجد أخبار لإجراء التحقق عليها.",
         }
-    credentials_ready = (
-        bool(groq_key and tavily_key) if provider == "groq_tavily"
-        else bool(key) if provider == "openai"
-        else False
-    )
+    credentials_ready = provider == "groq_tavily" and bool(groq_key and tavily_key)
     if not credentials_ready:
         if provider == "groq_tavily":
             reason = "يتطلب مزود groq_tavily وجود GROQ_API_KEY وTAVILY_API_KEY."
-        elif provider == "openai":
-            reason = "OPENAI_API_KEY غير مضبوط؛ لم ندّعِ إتمام التحقق."
         else:
             reason = "NEWSFLOW_FACT_CHECK_PROVIDER غير مدعوم."
         return {
