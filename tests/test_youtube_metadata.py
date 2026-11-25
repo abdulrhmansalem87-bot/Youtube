@@ -1,4 +1,6 @@
 import json
+import os
+from unittest.mock import patch
 import tempfile
 import unittest
 from pathlib import Path
@@ -30,8 +32,8 @@ class YouTubeMetadataTests(unittest.TestCase):
         self.assertLessEqual(len(description), 5000)
         self.assertEqual(len(hashtags), 4)
         self.assertIn("#WealthRadar", hashtags)
-        self.assertIn("#أخبار_اقتصادية", hashtags)
-        self.assertIn("#الأسواق", hashtags)
+        # Hashtags come from the stories' own topics, not a fixed generic set.
+        self.assertEqual(len(set(hashtags)), 4)
         self.assertNotIn("WealthRadar", title)
         for story in stories:
             self.assertIn(story["link"], description)
@@ -99,7 +101,8 @@ class YouTubeMetadataTests(unittest.TestCase):
                 ],
             }), encoding="utf-8")
             description = append_broll_attribution(description, video)
-            description = add_private_review_notice(description)
+            with patch.dict(os.environ, {"NEWSFLOW_PRIVATE_REVIEW_NOTICE": "true"}):
+                description = add_private_review_notice(description)
         self.assertIn("publisher.example/interest-rate", description)
         self.assertIn("pexels.com/video/111", description)
         self.assertIn("نسخة مراجعة خاصة", description)
@@ -144,3 +147,4 @@ class YouTubeMetadataTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

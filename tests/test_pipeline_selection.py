@@ -7,13 +7,13 @@ from newsflow.pipeline import clamp_max_stories, collect, make_script, select_st
 
 
 class PipelineSelectionTests(unittest.TestCase):
-    def test_bulletin_is_capped_at_four_stories(self):
+    def test_bulletin_is_capped_at_five_stories(self):
         self.assertEqual(clamp_max_stories(4), 4)
-        self.assertEqual(clamp_max_stories(8), 4)
-        self.assertEqual(clamp_max_stories(9), 4)
+        self.assertEqual(clamp_max_stories(8), 5)
+        self.assertEqual(clamp_max_stories(9), 5)
         self.assertEqual(clamp_max_stories(0), 1)
 
-    def test_eight_candidates_select_only_four_relevant_stories(self):
+    def test_eight_candidates_select_only_five_relevant_stories(self):
         stories = []
         sources = ["CNBC", "BBC", "IMF"]
         for index in range(8):
@@ -27,8 +27,8 @@ class PipelineSelectionTests(unittest.TestCase):
                 "category": "أسواق المال",
             })
         selected, rejected = select_stories(stories, 8)
-        self.assertEqual(len(selected), 4)
-        self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3"])
+        self.assertEqual(len(selected), 5)
+        self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3", "4"])
         self.assertEqual(rejected, [])
 
     def test_incomplete_rss_summary_is_kept_for_original_source_recovery(self):
@@ -157,8 +157,8 @@ class AudioDurationTests(unittest.TestCase):
             with self.subTest(duration=duration):
                 self.assertEqual(validate_audio_duration(duration), float(duration))
 
-    def test_private_smoke_test_may_be_short_but_never_over_five_minutes(self):
-        for duration in (45, 150, 180, 210, 300):
+    def test_private_smoke_test_may_be_short_but_never_over_eight_minutes(self):
+        for duration in (45, 150, 180, 210, 300, 420, 480):
             with self.subTest(duration=duration):
                 self.assertEqual(validate_audio_duration(duration, private_test=True), float(duration))
 
@@ -169,7 +169,7 @@ class AudioDurationTests(unittest.TestCase):
                     validate_audio_duration(duration)
 
     def test_private_smoke_test_rejects_invalid_or_overlong_audio(self):
-        for duration in (0, -1, 301, 480, float("nan"), "not-a-duration"):
+        for duration in (0, -1, 481, float("nan"), "not-a-duration"):
             with self.subTest(duration=duration):
                 with self.assertRaisesRegex(RuntimeError, "مدة"):
                     validate_audio_duration(duration, private_test=True)
@@ -237,3 +237,4 @@ class TrendCollectionIntegrationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

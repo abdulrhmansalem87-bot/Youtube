@@ -50,7 +50,7 @@ class ShortScriptTests(unittest.TestCase):
         self.assertEqual(len(hashtags), 4)
         self.assertIn("1. Reuters:", description)
         self.assertIn("#الذهب", description)
-        self.assertIn("نحرص على تقديم المعلومة بوضوح", description)
+        self.assertIn("ليس نصيحة استثمارية", description)
         self.assertNotIn("هفوة بسيطة في الصوت", description)
         self.assertLessEqual(len(title), 100)
         self.assertNotIn("WealthRadar", title)
@@ -58,3 +58,4 @@ class ShortScriptTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

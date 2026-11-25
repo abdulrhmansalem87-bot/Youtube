@@ -63,16 +63,28 @@ class BrollPlanningTests(unittest.TestCase):
             self.assertNotEqual(first.read_bytes(), second.read_bytes())
 
     @unittest.skipUnless(features.check("raqm"), "Arabic RAQM shaping is unavailable")
-    def test_caption_only_panel_is_compact_in_portrait_layout(self):
-        card = {"captions": ["حركة الأسواق اليوم"]}
+    def test_portrait_overlay_has_no_boxed_panel_and_keeps_midscreen_clear(self):
+        card = {"captions": ["حركة الأسواق اليوم"], "headline": "عنوان عربي واضح للخبر", "key_number": "4.3%"}
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "portrait.png"
             _overlay(card, target, 1080, 1920)
             image = Image.open(target).convert("RGBA")
-            # The old panel began at 68% of the image height; caption-only
-            # overlays now start at 82% and leave more licensed footage visible.
-            self.assertEqual(image.getpixel((540, 1500))[3], 0)
-            self.assertGreater(image.getpixel((540, 1700))[3], 200)
+            # No dark panel behind the lower area or across the middle of the frame.
+            self.assertEqual(image.getpixel((60, 1500))[3], 0)
+            self.assertEqual(image.getpixel((60, 1800))[3], 0)
+            self.assertEqual(image.getpixel((60, 1000))[3], 0)
+
+    def test_headline_bar_only_on_first_shot_and_never_for_english(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a, b, c = (Path(directory) / n for n in ("a.png", "b.png", "c.png"))
+            ar = {"captions": ["نص", "نص"], "headline": "عنوان عربي واضح للخبر"}
+            _overlay(ar, a, 1080, 1920, caption_index=0)
+            _overlay(ar, b, 1080, 1920, caption_index=1)
+            en = {"captions": ["نص", "نص"], "headline": "US economy grew faster than first estimated - NTD News"}
+            _overlay(en, c, 1080, 1920, caption_index=0)
+            self.assertGreater(Image.open(a).convert("RGBA").getpixel((100, 230))[3], 150)
+            self.assertEqual(Image.open(b).convert("RGBA").getpixel((100, 230))[3], 0)
+            self.assertEqual(Image.open(c).convert("RGBA").getpixel((100, 230))[3], 0)
 
     def test_broll_selects_a_distinct_pexels_source_for_each_scene(self):
         candidates = [
@@ -133,3 +145,4 @@ class BrollPlanningTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
