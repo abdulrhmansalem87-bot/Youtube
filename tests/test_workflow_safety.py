@@ -52,10 +52,9 @@ class WorkflowSafetyTests(unittest.TestCase):
 
     def test_fact_check_prefers_groq_tavily_when_both_secrets_are_configured(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
-        self.assertIn(
-            "NEWSFLOW_FACT_CHECK_PROVIDER: ${{ vars.NEWSFLOW_FACT_CHECK_PROVIDER || (secrets.GROQ_API_KEY != '' && secrets.TAVILY_API_KEY != '' && 'groq_tavily') || 'openai' }}",
-            workflow,
-        )
+        self.assertIn("NEWSFLOW_FACT_CHECK_PROVIDER: groq_tavily", workflow)
+        self.assertNotIn("OPENAI_API_KEY", workflow)
+        self.assertNotIn("secrets.OPENAI_API_KEY", workflow)
     def test_scheduled_and_tagged_push_runs_are_validation_only(self):
         import yaml
 
@@ -95,9 +94,10 @@ class WorkflowSafetyTests(unittest.TestCase):
                 self.assertNotIn("schedule", env[name])
                 self.assertNotIn("[private-stage]", env[name])
 
-        for name in ("GROQ_API_KEY", "TAVILY_API_KEY", "OPENAI_API_KEY"):
+        for name in ("GROQ_API_KEY", "TAVILY_API_KEY"):
             self.assertIn("schedule", env[name])
             self.assertNotIn("[private-stage]", env[name])
+        self.assertNotIn("OPENAI_API_KEY", env)
 
         run = run_step["run"]
         self.assertIn("github.event_name", run)
@@ -154,7 +154,10 @@ class WorkflowSafetyTests(unittest.TestCase):
         self.assertEqual(render["env"]["YOUTUBE_PRIVACY_STATUS"], "private")
         self.assertEqual(render["env"]["NEWSFLOW_PRIVATE_STAGING"], "true")
         self.assertEqual(render["env"]["NEWSFLOW_FACT_CHECK_ENABLED"], "true")
-        self.assertIn("secrets.OPENAI_API_KEY", render["env"]["OPENAI_API_KEY"])
+        self.assertEqual(render["env"]["NEWSFLOW_FACT_CHECK_PROVIDER"], "groq_tavily")
+        self.assertIn("secrets.GROQ_API_KEY", render["env"]["GROQ_API_KEY"])
+        self.assertIn("secrets.TAVILY_API_KEY", render["env"]["TAVILY_API_KEY"])
+        self.assertNotIn("OPENAI_API_KEY", render["env"])
         self.assertEqual(render["env"]["YOUTUBE_UPLOAD_ENABLED"], "true")
         self.assertIn("secrets.FISH_AUDIO_API_KEY", render["env"]["FISH_AUDIO_API_KEY"])
         self.assertIn("secrets.FISH_AUDIO_REFERENCE_ID", render["env"]["FISH_AUDIO_REFERENCE_ID"])
