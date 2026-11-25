@@ -164,13 +164,11 @@ jobs:
           NEWSFLOW_MAX_STORIES: "4"
           NEWSFLOW_BROLL_CACHE_DIR: output/broll-cache
           NEWSFLOW_FACT_CHECK_ENABLED: "true"
-          # Keep the proven provider as default; switch only after both alternative secrets exist.
-          NEWSFLOW_FACT_CHECK_PROVIDER: ${{ vars.NEWSFLOW_FACT_CHECK_PROVIDER || (secrets.GROQ_API_KEY != '' && secrets.TAVILY_API_KEY != '' && 'groq_tavily') || 'openai' }}
-          NEWSFLOW_FACT_CHECK_MODEL: gpt-6-astra
+          # Free-only policy: never fall back to a paid OpenAI API provider.
+          NEWSFLOW_FACT_CHECK_PROVIDER: groq_tavily
           NEWSFLOW_GROQ_MODEL: openai/gpt-oss-120b
           GROQ_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.GROQ_API_KEY || '' }}
           TAVILY_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.TAVILY_API_KEY || '' }}
-          OPENAI_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.OPENAI_API_KEY || '' }}
           NEWSFLOW_LOOKBACK_HOURS: ${{ steps.cairo_schedule.outputs.lookback_hours || '72' }}
           NEWSFLOW_DEDUPE_HISTORY_ENABLED: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
           NEWSFLOW_RECORD_DRAFT_HISTORY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
@@ -250,8 +248,10 @@ jobs:
             qa_count=$((qa_count + 1))
           done
           echo "[PHONE_QA_COMPLETE] videos=$qa_count (main + available Shorts)"
+      # Avoid consuming artifact storage for pull-request test output. Manual owner-approved
+      # PRIVATE reviews and scheduled production runs retain their existing artifact behavior.
       - name: Upload generated files
-        if: always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
+        if: always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
         continue-on-error: true
         uses: actions/upload-artifact@v7.0.2
         with:
