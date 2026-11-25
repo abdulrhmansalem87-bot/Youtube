@@ -1,0 +1,198 @@
+{
+  "title": "Why a Higher Income Can Still Leave You Financially Stuck",
+  "video_type": "long",
+  "duration_seconds": 300,
+  "aspect_ratio": "16:9",
+  "resolution": "1920x1080",
+  "audio": {
+    "enabled": false,
+    "mode": "silent"
+  },
+  "book_reference": {
+    "title": "The Psychology of Money",
+    "author": "Morgan Housel",
+    "edition_or_url": "Conceptual reference only; verify edition and specific idea attribution before publication"
+  },
+  "scenes": [
+    {
+      "id": "l01",
+      "role": "hook",
+      "duration_seconds": 15,
+      "visual": "Open book with a dramatic push-in.",
+      "text_en": "Your income can rise while your wealth stays still.",
+      "translation_ar": "(ممكن دخلك يزيد، لكن ثروتك تفضل مكانها.)",
+      "source_note": "Original hook; no numerical claim."
+    },
+    {
+      "id": "l02",
+      "role": "problem",
+      "duration_seconds": 15,
+      "visual": "A page turn reveals a payday calendar.",
+      "text_en": "The missing piece is what happens after payday.",
+      "translation_ar": "(السؤال المهم: بيحصل إيه بعد يوم القبض؟)",
+      "source_note": "Original explanatory wording."
+    },
+    {
+      "id": "l03",
+      "role": "problem",
+      "duration_seconds": 15,
+      "visual": "Income and obligations appear on opposite pages.",
+      "text_en": "More income does not automatically mean more freedom.",
+      "translation_ar": "(الدخل الأعلى مش معناه تلقائيًا حرية مالية أكبر.)",
+      "source_note": "Original explanatory wording."
+    },
+    {
+      "id": "l04",
+      "role": "idea",
+      "duration_seconds": 15,
+      "visual": "Highlight two lines moving closer together.",
+      "text_en": "When spending expands with income, the gap disappears.",
+      "translation_ar": "(لما المصاريف تكبر مع الدخل، الفرق بيختفي.)",
+      "source_note": "Original explanatory wording."
+    },
+    {
+      "id": "l05",
+      "role": "idea",
+      "duration_seconds": 15,
+      "visual": "The blank space becomes a savings jar.",
+      "text_en": "That gap is where saving and investing begin.",
+      "translation_ar": "(المسافة دي هي بداية الادخار والاستثمار.)",
+      "source_note": "Original practical concept."
+    },
+    {
+      "id": "l06",
+      "role": "example",
+      "duration_seconds": 15,
+      "visual": "Two open pages represent two people.",
+      "text_en": "Imagine two people earning the same amount.",
+      "translation_ar": "(تخيل شخصين دخلهم واحد.)",
+      "source_note": "Hypothetical example, not real people or data."
+    },
+    {
+      "id": "l07",
+      "role": "example",
+      "duration_seconds": 15,
+      "visual": "Shopping icons accumulate beside the first page.",
+      "text_en": "One upgrades every expense after each raise.",
+      "translation_ar": "(الأول يرفع مصاريفه مع كل زيادة.)",
+      "source_note": "Hypothetical example."
+    },
+    {
+      "id": "l08",
+      "role": "example",
+      "duration_seconds": 15,
+      "visual": "Coins move from a spending column into savings.",
+      "text_en": "The other saves part of every increase.",
+      "translation_ar": "(والتاني يدخر جزء من كل زيادة.)",
+      "source_note": "Hypothetical example."
+    },
+    {
+      "id": "l09",
+      "role": "insight",
+      "duration_seconds": 15,
+      "visual": "Two paths branch toward different future pages.",
+      "text_en": "Their pay is equal; their future options are not.",
+      "translation_ar": "(دخلهم واحد، لكن اختياراتهم المستقبلية مختلفة.)",
+      "source_note": "Illustrative takeaway."
+    },
+    {
+      "id": "l10",
+      "role": "action",
+      "duration_seconds": 15,
+      "visual": "A clean three-number ledger opens on the desk.",
+      "text_en": "Start by tracking only three numbers each month.",
+      "translation_ar": "(ابدأ بمتابعة 3 أرقام بس كل شهر.)",
+      "source_note": "Original practical advice."
+    },
+    {
+      "id": "l11",
+      "role": "action",
+      "duration_seconds": 15,
+      "visual": "Highlight the income line in the ledger.",
+      "text_en": "Your take-home income after deductions.",
+      "translation_ar": "(أول رقم: دخلك الصافي بعد الخصومات.)",
+      "source_note": "Original practical advice."
+    },
+    {
+      "id": "l12",
+      "role": "action",
+      "duration_seconds": 15,
+      "visual": "Recurring expense lines slide onto the page.",
+      "text_en": "Your essential costs and recurring commitments.",
+      "translation_ar": "(تاني رقم: الأساسيات والالتزامات المتكررة.)",
+      "source_note": "Original practical advice."
+    },
+    {
+      "id": "l13",
+      "role": "action",
+      "duration_seconds": 15,
+      "visual": "A calculator reveals the amount remaining.",
+      "text_en": "The amount left before optional spending.",
+      "translation_ar": "(تالت رقم: اللي بيتبقى قبل الكماليات.)",
+      "source_note": "Original practical advice."
+    },
+    {
+      "id": "l14",
+      "role": "caveat",
+      "duration_seconds": 15,
+      "visual": "A page divides needs from wants.",
+      "text_en": "Do not confuse every expense with a bad decision.",
+      "translation_ar": "(مش كل مصروف زيادة يبقى قرار غلط.)",
+      "source_note": "Important qualification."
+    },
+    {
+      "id": "l15",
+      "role": "caveat",
+      "duration_seconds": 15,
+      "visual": "One meaningful purchase receives a gold underline.",
+      "text_en": "Spend on what matters, but choose it consciously.",
+      "translation_ar": "(اصرف على اللي يهمك، بس باختيار واعي.)",
+      "source_note": "Original practical advice."
+    },
+    {
+      "id": "l16",
+      "role": "action",
+      "duration_seconds": 15,
+      "visual": "A scheduled transfer arrow moves toward a savings jar.",
+      "text_en": "Automate a realistic saving amount on payday.",
+      "translation_ar": "(خلّي مبلغ ادخار واقعي يتحول أول ما تقبض.)",
+      "source_note": "Original practical advice."
+    },
+    {
+      "id": "l17",
+      "role": "action",
+      "duration_seconds": 15,
+      "visual": "A protective shield appears beside the ledger.",
+      "text_en": "Build a safety buffer before chasing high returns.",
+      "translation_ar": "(كوّن احتياطي أمان قبل مطاردة العوائد العالية.)",
+      "source_note": "General educational guidance, not a personal recommendation."
+    },
+    {
+      "id": "l18",
+      "role": "recap",
+      "duration_seconds": 15,
+      "visual": "The book pages close slowly around the key takeaway.",
+      "text_en": "A raise is an opportunity, not a spending instruction.",
+      "translation_ar": "(الزيادة فرصة، مش أمر إنك تصرف أكتر.)",
+      "source_note": "Original recap."
+    },
+    {
+      "id": "l19",
+      "role": "recap",
+      "duration_seconds": 15,
+      "visual": "A gold line connects savings to a future page.",
+      "text_en": "Protect the gap; give your future more choices.",
+      "translation_ar": "(احمِ الفرق، وادي مستقبلك اختيارات أكتر.)",
+      "source_note": "Original recap."
+    },
+    {
+      "id": "l20",
+      "role": "cta",
+      "duration_seconds": 15,
+      "visual": "Close the book and reveal a save prompt.",
+      "text_en": "Save this lesson and review your numbers this week.",
+      "translation_ar": "(احفظ الفكرة وراجع أرقامك الأسبوع ده.)",
+      "source_note": "Original CTA."
+    }
+  ]
+}
