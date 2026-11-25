@@ -222,53 +222,17 @@ def clean_visual_text(value: str) -> str:
 
 
 def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int = 0) -> None:
+    """Broadcast-style overlay: small brand mark, Arabic headline only at the start of a story,
+    big key number in the first seconds, and outlined captions with no boxed panel in mid-screen."""
     if not features.check("raqm"):
         raise RuntimeError("محرك تشكيل العربية RAQM غير متاح؛ أوقفنا إخراج النص.")
+    portrait = height > width
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    margin = int(width * 0.055)
-    captions = card.get("captions")
-    caption_only = isinstance(captions, list) and bool(captions)
-    # When only a short caption is displayed, keep the lower-third compact so
-    # it does not obscure a large part of the licensed footage on mobile.
-    panel_top = int(height * (0.76 if width > height else 0.82)) if caption_only else int(
-        height * (0.60 if width > height else 0.68)
-    )
-    panel_bottom = int(height * 0.94)
-    draw.rounded_rectangle(
-        (margin, panel_top, width - margin, panel_bottom),
-        radius=max(24, width // 45), fill=(5, 17, 31, 218),
-        outline=(52, 205, 190, 235), width=max(2, width // 600),
-    )
-    brand_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    if not Path(brand_path).is_file():
-        brand_path = _font(True)
-    brand_font = ImageFont.truetype(brand_path, max(26, int(width * 0.027)))
-    brand_x, brand_y = width // 2, int(height * 0.075)
-    brand_box = draw.textbbox((brand_x, brand_y), "WealthRadar", font=brand_font, anchor="mm")
-    brand_pad_x, brand_pad_y = max(14, width // 100), max(8, height // 180)
-    draw.rounded_rectangle(
-        (brand_box[0] - brand_pad_x, brand_box[1] - brand_pad_y,
-         brand_box[2] + brand_pad_x, brand_box[3] + brand_pad_y),
-        radius=max(10, width // 100), fill=(5, 17, 31, 205),
-        outline=(52, 205, 190, 220), width=max(1, width // 900),
-    )
-    draw.text((brand_x, brand_y), "WealthRadar", font=brand_font,
-              fill=(255, 255, 255, 255), anchor="mm")
-    if isinstance(captions, list) and captions:
-        title = clean_visual_text(captions[min(caption_index, len(captions) - 1)])[:90]
-        body = ""
-    else:
-        title = clean_visual_text(card.get("title"))[:125]
-        body = clean_visual_text(card.get("body"))[:180]
-    title_font = ImageFont.truetype(
-        _font_for_text(title, True),
-        max(34, int(width * (0.036 if width > height else 0.048))),
-    )
-    body_font = ImageFont.truetype(
-        _font_for_text(body, False),
-        max(23, int(width * (0.019 if width > height else 0.029))),
-    )
+    margin = int(width * 0.06)
+    max_width = width - margin * 2
+    teal = (52, 205, 190, 255)
+
     def lines_for(text: str, font: ImageFont.FreeTypeFont, limit: int) -> list[str]:
         rows, current = [], ""
         for word in text.split():
@@ -283,25 +247,72 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
         if current:
             rows.append(current)
         return rows
-    max_width = width - margin * 3
-    title_lines = lines_for(title, title_font, max_width)[:2]
-    body_lines = lines_for(body, body_font, max_width)[:2]
-    title_step = max(1, int(title_font.size * 1.3))
-    body_step = max(1, int(body_font.size * 1.35))
-    body_gap = int(body_font.size * 0.45) if body_lines else 0
-    text_block_height = len(title_lines) * title_step + body_gap + len(body_lines) * body_step
-    y = panel_top + max(0, (panel_bottom - panel_top - text_block_height) // 2)
-    y += title_step // 2
-    for line in title_lines:
-        draw.text((width // 2, y), line, font=title_font, fill=(255, 255, 255, 255),
-                  anchor="mm", direction="rtl", language="ar")
-        y += title_step
-    if body_lines:
-        y += body_gap - title_step // 2 + body_step // 2
-    for line in body_lines:
-        draw.text((width // 2, y), line, font=body_font, fill=(196, 222, 232, 255),
-                  anchor="mm", direction="rtl", language="ar")
-        y += body_step
+
+    # 1) Small brand mark, top centre (inside the platform-safe area).
+    brand_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    if not Path(brand_path).is_file():
+        brand_path = _font(True)
+    brand_font = ImageFont.truetype(brand_path, max(24, int(width * (0.034 if portrait else 0.015))))
+    brand_x, brand_y = width // 2, int(height * (0.05 if portrait else 0.06))
+    brand_box = draw.textbbox((brand_x, brand_y), "WealthRadar", font=brand_font, anchor="mm")
+    pad_x, pad_y = max(14, width // 90), max(8, height // 200)
+    draw.rounded_rectangle(
+        (brand_box[0] - pad_x, brand_box[1] - pad_y, brand_box[2] + pad_x, brand_box[3] + pad_y),
+        radius=max(10, width // 100), fill=(5, 17, 31, 190), outline=(52, 205, 190, 220),
+        width=max(1, width // 900),
+    )
+    draw.text((brand_x, brand_y), "WealthRadar", font=brand_font, fill=(255, 255, 255, 255), anchor="mm")
+    brand_bottom = brand_box[3] + pad_y
+
+    # 2) Arabic headline bar: only on the first shot of a story, and only if it is real Arabic.
+    headline = clean_visual_text(card.get("headline"))
+    arabic = len(re.findall(r"[\u0600-\u06FF]", headline))
+    latin = len(re.findall(r"[A-Za-z]", headline))
+    if headline and caption_index == 0 and arabic >= 3 and arabic > latin * 3:
+        h_font = ImageFont.truetype(_font(True), max(30, int(width * (0.046 if portrait else 0.024))))
+        h_lines = lines_for(headline[:90], h_font, max_width - 40)[:2]
+        step = int(h_font.size * 1.35)
+        top = brand_bottom + int(height * 0.02)
+        bottom = top + step * len(h_lines) + int(h_font.size * 0.5)
+        draw.rounded_rectangle((margin, top, width - margin, bottom), radius=12, fill=(5, 17, 31, 215))
+        draw.rectangle((width - margin - 10, top, width - margin, bottom), fill=teal)
+        y = top + int(h_font.size * 0.25) + step // 2
+        for line in h_lines:
+            draw.text(((margin + width - margin - 10) // 2, y), line, font=h_font, fill=(255, 255, 255, 255),
+                      anchor="mm", direction="rtl", language="ar")
+            y += step
+
+    # 3) Key number badge in the first ~5 seconds (the hook the viewer should see immediately).
+    key_number = clean_visual_text(card.get("key_number"))[:18]
+    if key_number and caption_index <= 1:
+        k_path = _font_for_text(key_number, True)
+        if not re.search(r"[\u0600-\u06FF]", key_number) and Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf").is_file():
+            k_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"  # has %, $, digits
+        k_font = ImageFont.truetype(k_path, int(width * (0.17 if portrait else 0.085)))
+        cx, cy = width // 2, int(height * (0.30 if portrait else 0.36))
+        draw.text((cx, cy), key_number, font=k_font, fill=(255, 255, 255, 255), anchor="mm",
+                  stroke_width=max(6, k_font.size // 14), stroke_fill=(5, 17, 31, 255),
+                  direction="rtl", language="ar")
+        box = draw.textbbox((cx, cy), key_number, font=k_font, anchor="mm")
+        draw.rectangle((box[0], box[3] + 10, box[2], box[3] + 18), fill=teal)
+
+    # 4) Outlined captions, lower-middle in portrait, lower third in landscape. No boxed panel.
+    captions = card.get("captions")
+    if isinstance(captions, list) and captions:
+        text = clean_visual_text(captions[min(caption_index, len(captions) - 1)])[:90]
+    else:
+        text = clean_visual_text(card.get("title"))[:90]
+    if text:
+        c_font = ImageFont.truetype(_font_for_text(text, True), max(36, int(width * (0.066 if portrait else 0.036))))
+        rows = lines_for(text, c_font, max_width)[:2]
+        step = int(c_font.size * 1.4)
+        center_y = int(height * (0.66 if portrait else 0.85))
+        y = center_y - (len(rows) - 1) * step // 2
+        for row in rows:
+            draw.text((width // 2, y), row, font=c_font, fill=(255, 255, 255, 255), anchor="mm",
+                      stroke_width=max(4, c_font.size // 9), stroke_fill=(0, 0, 0, 255),
+                      direction="rtl", language="ar")
+            y += step
     image.save(path)
 
 
@@ -519,3 +530,4 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
         f"orientation={manifest['orientation']}"
     )
     return output
+

@@ -25,6 +25,7 @@ from newsflow.history import filter_recent_repeats, load_story_history, record_s
 from newsflow.broll import render_broll_video
 from newsflow.source_evidence import collect_source_evidence
 from newsflow.fact_check import fact_check_stories
+from newsflow.scriptwriter import generate_plan, is_arabic_text
 from newsflow.discovery import attach_trend_signals, is_trend_source, parse_trend_signal
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,7 +42,7 @@ def config():
         return yaml.safe_load(f)
 
 
-MAX_BULLETIN_STORIES = 4
+MAX_BULLETIN_STORIES = 5
 LOCAL_GOLD_MARKET_NAMES = (
     "مصر", "السعودية", "الإمارات", "الأردن", "العراق", "الكويت",
     "قطر", "البحرين", "عمان", "المغرب", "لبنان",
@@ -63,9 +64,9 @@ def validate_audio_duration(duration: float, *, private_test: bool = False) -> f
     if not math.isfinite(value) or value <= 0:
         raise RuntimeError("مدة التعليق الصوتي غير صالحة؛ تم إيقاف بناء الفيديو.")
     minimum = 1 if private_test else 240
-    maximum = 300 if private_test else 480
+    maximum = 480
     if value < minimum or value > maximum:
-        target = "من 4 إلى 8 دقائق" if not private_test else "حتى 5 دقائق"
+        target = "من 4 إلى 8 دقائق" if not private_test else "من ثانية إلى 8 دقائق"
         raise RuntimeError(f"مدة الفيديو الرئيسي يجب أن تكون {target}؛ تم إيقاف الإنتاج.")
     return value
 
@@ -193,7 +194,7 @@ def collect(max_stories: int):
         stories, recent_repeats = filter_recent_repeats(stories, history, cooldown_hours=24 * 30)
     # Keep a small candidate buffer so an inaccessible or unsupported lead does
     # not consume the whole bulletin limit; final output is capped after fact-checking.
-    candidate_limit = min(clamp_max_stories(max_stories) + 2, MAX_BULLETIN_STORIES + 2)
+    candidate_limit = min(clamp_max_stories(max_stories) + 3, MAX_BULLETIN_STORIES + 3)
     selected, rejected = select_stories(stories, candidate_limit)
     rejected.extend(recent_repeats)
     for story in selected:
@@ -211,7 +212,35 @@ def make_opening_hook(stories):
     return f"{lead}. ما الذي حدث؟ ولماذا يهمك الخبر؟"
 
 
+ORDINALS = ("الأول", "الثاني", "الثالث", "الرابع", "الخامس", "السادس")
+
+
+def make_planned_script(stories):
+    """Natural Arabic bulletin from validated story plans: real numbers, one idea per story."""
+    count = len(stories)
+    first = stories[0]["plan"]
+    lead_number = f" وأولها: {first['headline_ar']}" if first.get("headline_ar") else ""
+    parts = [
+        f"أهلاً بكم في ويلث رادار. {count} أخبار اقتصادية تهمك اليوم{lead_number}."
+        if count > 1 else f"أهلاً بكم في ويلث رادار. خبر اقتصادي يهمك اليوم: {first['headline_ar']}."
+    ]
+    for index, story in enumerate(stories):
+        plan = story["plan"]
+        ordinal = ORDINALS[index] if index < len(ORDINALS) else str(index + 1)
+        parts.append(
+            f"الخبر {ordinal}: {plan['headline_ar']}. {plan['narration_ar']} "
+            f"ماذا يعني هذا لك؟ {plan['why_it_matters_ar']}"
+        )
+    parts.append(
+        "هذه أبرز أخبار اليوم. روابط المصادر الأصلية في وصف الفيديو، وهذا المحتوى للتوعية "
+        "وليس نصيحة استثمارية. اكتب في التعليقات أي خبر كان الأهم بالنسبة لك."
+    )
+    return "\n\n".join(parts)
+
+
 def make_script(stories):
+    if stories and all(isinstance(item.get("plan"), dict) for item in stories):
+        return make_planned_script(stories)
     parts = [
         "أهلاً بكم. إليكم أهم الأخبار الاقتصادية والمالية، ببساطة ووضوح.",
         make_opening_hook(stories),
@@ -276,6 +305,12 @@ def make_script(stories):
 
 def make_short_script(story):
     """Create a hook-first Arabic Short with a practical angle and engagement CTA."""
+    plan = story.get("plan")
+    if isinstance(plan, dict):
+        return (
+            f"{plan['short_hook_ar']} {plan['short_body_ar']} "
+            "تابع ويلث رادار لأخبار الاقتصاد كل يوم، وهذا المحتوى للتوعية وليس نصيحة استثمارية."
+        )
     title = clean_narration(str(story.get("title", "")).strip())
     summary = clean_narration(str(story.get("summary", "")).strip())
     if not title or not summary or len(summary) < 45:
@@ -295,96 +330,132 @@ def make_short_script(story):
     )
 
 
+TOPIC_HASHTAGS = (
+    (("الناتج المحلي", "gdp", "gross domestic"), "الناتج_المحلي"),
+    (("فائدة", "الفيدرالي", "federal reserve", "interest rate", "powell"), "الفائدة"),
+    (("تضخم", "inflation", "أسعار المستهلك", "cpi"), "التضخم"),
+    (("ذهب", "gold"), "الذهب"),
+    (("نفط", "oil", "crude", "برنت"), "النفط"),
+    (("دولار", "dollar", "currency", "عملة"), "الدولار"),
+    (("بيتكوين", "bitcoin", "crypto", "عملات مشفرة"), "بيتكوين"),
+    (("بورصة", "أسهم", "stocks", "wall street", "nasdaq", "s&p"), "الأسهم"),
+    (("إنفيديا", "nvidia", "chip", "رقائق", "ai ", "الذكاء الاصطناعي"), "الذكاء_الاصطناعي"),
+    (("وظائف", "بطالة", "jobs", "unemployment", "payroll"), "الوظائف"),
+    (("مصر", "egypt", "الجنيه"), "اقتصاد_مصر"),
+    (("بنك", "bank", "قرض"), "البنوك"),
+    (("تجارة", "تعرفة", "tariff", "trade"), "التجارة"),
+    (("عقارات", "real estate", "housing", "mortgage"), "العقارات"),
+)
+DEFAULT_TOPIC_TAGS = ("الاقتصاد", "الأسواق", "أخبار_المال")
+
+
+def topic_hashtags(stories, limit=3):
+    """Hashtags (without #) taken from the stories' own topics, never a fixed generic set."""
+    tags = []
+    for story in stories:
+        plan = story.get("plan") if isinstance(story.get("plan"), dict) else {}
+        for tag in plan.get("hashtags", []) or []:
+            if tag and tag not in tags:
+                tags.append(tag)
+    blob = " ".join(
+        f"{item.get('title', '')} {item.get('summary', '')}" for item in stories
+    ).casefold() + " "
+    for terms, tag in TOPIC_HASHTAGS:
+        if tag not in tags and any(term in blob for term in terms):
+            tags.append(tag)
+    for tag in DEFAULT_TOPIC_TAGS:
+        if tag not in tags:
+            tags.append(tag)
+    return tags[:limit]
+
+
+def original_link(story):
+    """Prefer the publisher's own page over an aggregator (Google News RSS) redirect."""
+    for key in ("source_url", "link"):
+        value = str(story.get(key) or "").strip()
+        host = (urlparse(value).hostname or "").lower()
+        if value.startswith("https://") and host and not host.endswith("news.google.com"):
+            return value
+    return str(story.get("link") or "").strip()
+
+
+def arabic_title_or_default(title, default):
+    title = str(title or "").strip()
+    return title if title and is_arabic_text(title, 0.6) else default
+
+
 def build_short_youtube_metadata(story, script):
     """Short-specific title, two-line benefit summary, numbered source and four hashtags."""
-    title_seed = clean_narration(story.get("title", "")).rstrip(" .،؛:؟!")
+    plan = story.get("plan") if isinstance(story.get("plan"), dict) else {}
+    seed = plan.get("headline_ar") or clean_narration(story.get("title", ""))
+    title_seed = arabic_title_or_default(seed, "خبر اقتصادي يهمك اليوم").rstrip(" .،؛:؟!")
     if len(title_seed) > 62:
         title_seed = title_seed[:59].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
     title = f"{title_seed} | #Shorts"
-    summary = clean_narration(story.get("summary", ""))[:220].rsplit(" ", 1)[0]
-    topic = "الاقتصاد"
-    second_topic = "الأسواق"
-    blob = f"{story.get('title', '')} {story.get('summary', '')}".casefold()
-    if "ذهب" in blob or "gold" in blob:
-        topic, second_topic = "الذهب", "أسعار_الذهب"
-    elif any(term in blob for term in ("دولار", "عملة", "عملات", "currency")):
-        topic, second_topic = "الدولار", "العملات"
-    elif any(term in blob for term in ("تضخم", "inflation", "أسعار المستهلك")):
-        topic, second_topic = "التضخم", "الأسعار"
-    elif any(term in blob for term in ("بورصة", "أسهم", "stocks", "market")):
-        topic, second_topic = "البورصة", "الأسهم"
-    elif any(term in blob for term in ("نفط", "طاقة", "oil")):
-        topic, second_topic = "النفط", "الطاقة"
+    if plan:
+        summary = plan.get("short_body_ar", "")[:260].rsplit(" ", 1)[0]
+        why = plan.get("why_it_matters_ar", "")
+    else:
+        summary = clean_narration(story.get("summary", ""))[:220].rsplit(" ", 1)[0]
+        why = ""
+    tag_a, tag_b = (topic_hashtags([story], 2) + list(DEFAULT_TOPIC_TAGS))[:2]
+    why_line = f"ماذا يعني لك؟ {why}\n\n" if why else ""
     description = (
-        f"في هذا الفيديو نفهم ببساطة: {title_seed}.\n"
-        f"ملخص الخبر: {summary}.\n\n"
-        f"المصادر:\n1. {story.get('source', 'المصدر الأصلي')}: {story.get('link', '')}\n\n"
-        "نحرص على تقديم المعلومة بوضوح، مع ذكر المصادر حتى تراجع التفاصيل بنفسك. شكرًا لمتابعتك.\n\n"
-        f"#shorts #WealthRadar #{topic.replace(' ', '_')} #{second_topic}"
+        f"{title_seed}.\n"
+        f"{summary}\n\n{why_line}"
+        f"المصدر:\n1. {story.get('source', 'المصدر الأصلي')}: {original_link(story)}\n\n"
+        "محتوى إخباري وتثقيفي، وليس نصيحة استثمارية. تحقق من المصدر الأصلي قبل أي قرار مالي.\n\n"
+        f"#shorts #WealthRadar #{tag_a} #{tag_b}"
     )
-    tags = ["WealthRadar", "Shorts", "أخبار اقتصادية", topic, second_topic]
+    tags = ["WealthRadar", "Shorts", "أخبار اقتصادية", tag_a.replace("_", " "), tag_b.replace("_", " ")]
     return title[:100], description[:5000], tags
 
 
 def build_youtube_metadata(stories, script):
     """Build a concise long-form description that preserves sources and all four hashtags."""
-    lead_title = clean_narration((stories or [{}])[0].get("title", ""))
+    first_plan = (stories or [{}])[0].get("plan") if stories else None
+    first_plan = first_plan if isinstance(first_plan, dict) else {}
+    lead_title = first_plan.get("headline_ar") or clean_narration((stories or [{}])[0].get("title", ""))
     lead_title = re.sub(r"^(عاجل|آخر الأخبار|أخبار اليوم)\s*[:：-]?\s*", "", lead_title, flags=re.I)
-    if lead_title:
+    lead_title = arabic_title_or_default(lead_title, "")
+    episode_title = str((stories or [{}])[0].get("episode_title_ar") or "").strip()
+    if episode_title and is_arabic_text(episode_title, 0.6):
+        title = episode_title[:100]
+    elif lead_title:
         lead_title = lead_title.rstrip(" .،؛:؟!")
         if len(lead_title) > 65:
             lead_title = lead_title[:62].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
-        title = f"{lead_title} | التفاصيل التي تهمك"
+        title = f"{lead_title} | وأهم أخبار المال اليوم" if len(stories) > 1 else f"{lead_title} | التفاصيل التي تهمك"
     else:
-        title = "أهم تطورات المال والأسواق اليوم"
+        title = "أهم أخبار المال والأسواق اليوم"
 
-    text_blob = " ".join(
-        f"{item.get('title', '')} {item.get('summary', '')} {item.get('category', '')}"
-        for item in stories
-    ).lower()
-    keyword_map = [
-        (("ذهب", "gold"), "الذهب"),
-        (("دولار", "عملة", "عملات", "currency"), "الدولار"),
-        (("بورصة", "أسهم", "سندات", "stocks", "market"), "البورصة"),
-        (("بنك", "مصارف", "فائدة", "interest"), "البنوك"),
-        (("نفط", "طاقة", "oil"), "النفط"),
-        (("مصر", "مصري", "egypt"), "اقتصاد مصر"),
-        (("استثمار", "invest"), "الاستثمار"),
-    ]
+    topics = topic_hashtags(stories, 3)
     tags = ["WealthRadar", "أخبار اقتصادية", "أخبار المال", "الاقتصاد", "الأسواق"]
-    for terms, tag in keyword_map:
-        if any(term in text_blob for term in terms):
-            tags.append(tag)
+    tags += [topic.replace("_", " ") for topic in topics]
     tags = list(dict.fromkeys(tags))[:15]
-
-    hashtags = ["#WealthRadar", "#أخبار_اقتصادية"]
-    if any(term in text_blob for term in ("ذهب", "gold")):
-        hashtags.append("#الذهب")
-    elif any(term in text_blob for term in ("دولار", "currency")):
-        hashtags.append("#الدولار")
-    elif any(term in text_blob for term in ("بورصة", "أسهم", "stocks")):
-        hashtags.append("#البورصة")
-    else:
-        hashtags.append("#الاقتصاد")
-    hashtags.append("#الأسواق")
+    hashtags = ["#WealthRadar"] + [f"#{topic}" for topic in topics]
 
     story_lines = []
     source_lines = []
     for index, item in enumerate(stories, start=1):
-        item_title = clean_narration(item.get("title", ""))[:160]
-        item_summary = clean_narration(item.get("summary", ""))
-        if len(item_summary) > 280:
-            item_summary = item_summary[:277].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
-        story_lines.append(f"{index}. {item_title}\n{item_summary}")
-        source_lines.append(f"{index}. {item.get('source', 'المصدر الأصلي')}: {item.get('link', '')}")
+        plan = item.get("plan") if isinstance(item.get("plan"), dict) else None
+        if plan:
+            number = f" ({plan['key_number_ar']})" if plan.get("key_number_ar") else ""
+            story_lines.append(f"{index}. {plan['headline_ar']}{number}\nماذا يعني لك؟ {plan['why_it_matters_ar']}")
+        else:
+            item_title = clean_narration(item.get("title", ""))[:160]
+            item_summary = clean_narration(item.get("summary", ""))
+            if len(item_summary) > 280:
+                item_summary = item_summary[:277].rsplit(" ", 1)[0].rstrip("،؛:") + "…"
+            story_lines.append(f"{index}. {item_title}\n{item_summary}")
+        source_lines.append(f"{index}. {item.get('source', 'المصدر الأصلي')}: {original_link(item)}")
 
     # Do not paste the entire narration into the description. That can push source
     # links and required hashtags beyond YouTube's 5,000-character limit.
     description = (
-        "أهم تطورات المال والاقتصاد والأسواق، مع ملخص واضح وروابط المصادر الأصلية.\n\n"
+        "أهم أخبار المال والاقتصاد والأسواق بالأرقام، مع شرح لما تعنيه لك وروابط المصادر الأصلية.\n\n"
         + "أبرز الأخبار:\n" + "\n\n".join(story_lines)
         + "\n\nمصادر الأخبار وروابطها:\n" + "\n".join(source_lines)
-        + "\n\nنحرص على تقديم المعلومة بوضوح، مع ذكر المصادر حتى تراجع التفاصيل بنفسك. شكرًا لمتابعتك."
         + "\n\nهذا المحتوى إخباري وتثقيفي، ولا يُعد توصية أو نصيحة استثمارية. "
         + "تحقق من المصدر الأصلي قبل اتخاذ أي قرار مالي."
         + "\n\n" + " ".join(hashtags)
@@ -408,7 +479,7 @@ def validate_youtube_metadata(title, description, *, short=False):
     hashtags = tag_line.split()
     if len(hashtags) != 4 or any(not tag.startswith("#") for tag in hashtags):
         raise RuntimeError("يجب أن ينتهي وصف الفيديو بأربعة هاشتاجات بالضبط؛ تم إيقاف الرفع.")
-    required = {"#WealthRadar", "#shorts"} if short else {"#WealthRadar", "#أخبار_اقتصادية"}
+    required = {"#WealthRadar", "#shorts"} if short else {"#WealthRadar"}
     if len(set(hashtags)) != 4 or not required.issubset(set(hashtags)):
         raise RuntimeError("هاشتاجات النشر غير مكتملة أو مكررة؛ تم إيقاف الرفع.")
     if not re.search(r"https://", description):
@@ -434,7 +505,71 @@ def clean_narration(value):
     return text.strip()
 
 
+EDGE_VOICE_DEFAULT = "ar-SA-HamedNeural"
+EDGE_VOICE_FALLBACKS = ("ar-AE-HamdanNeural",)
+
+
+def prepare_tts_text(value):
+    """Make written Arabic read naturally: spell out percent signs and drop symbols voices skip or mispronounce."""
+    text = clean_narration(value)
+    text = re.sub(r"(\d)\s*[%٪]", r"\1 في المئة", text)
+    text = text.replace("%", " في المئة").replace("&", " و ").replace("$", " دولار ")
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def master_audio(raw_path, path, label):
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        shutil.move(str(raw_path), str(path))
+        print(f"[VOICE_READY] {label} | mastering=skipped")
+        return
+    try:
+        subprocess.run(
+            [
+                ffmpeg, "-y", "-i", str(raw_path),
+                "-af",
+                "highpass=f=75,lowpass=f=12500,"
+                "acompressor=threshold=-18dB:ratio=2.2:attack=18:release=220,"
+                "loudnorm=I=-16:TP=-1.5:LRA=10",
+                "-codec:a", "libmp3lame", "-q:a", "2", str(path),
+            ],
+            check=True, capture_output=True,
+        )
+    finally:
+        raw_path.unlink(missing_ok=True)
+    print(f"[VOICE_READY] {label} | bytes={path.stat().st_size}")
+
+
+async def make_audio_edge(text, path):
+    """Free Microsoft neural Arabic voice (edge-tts). Hamed reads numbers and decimals correctly."""
+    voice = os.getenv("NEWSFLOW_TTS_VOICE", EDGE_VOICE_DEFAULT).strip() or EDGE_VOICE_DEFAULT
+    rate = os.getenv("NEWSFLOW_TTS_RATE", "+8%").strip() or "+8%"
+    clean_text = prepare_tts_text(text)
+    raw_path = path.with_name(path.stem + ".raw.mp3")
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    last_error = None
+    for candidate in dict.fromkeys((voice, *EDGE_VOICE_FALLBACKS)):
+        for attempt in range(3):
+            try:
+                await edge_tts.Communicate(clean_text, candidate, rate=rate).save(str(raw_path))
+                if raw_path.is_file() and raw_path.stat().st_size > 1000:
+                    master_audio(raw_path, path, f"Edge neural voice {candidate} rate={rate}")
+                    return
+            except Exception as exc:  # noqa: BLE001 - retry, then try the fallback voice
+                last_error = exc
+                await asyncio.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"فشل توليد الصوت المجاني (edge-tts): {type(last_error).__name__ if last_error else 'empty audio'}")
+
+
 async def make_audio(text, path):
+    """Default: free Edge neural voice. Fish Audio only when NEWSFLOW_TTS_PROVIDER=fish."""
+    if os.getenv("NEWSFLOW_TTS_PROVIDER", "edge").strip().lower() != "fish":
+        return await make_audio_edge(text, path)
+    return await make_audio_fish(text, path)
+
+
+async def make_audio_fish(text, path):
     """Generate the user's cloned WealthRadar voice through Fish Audio, then master it."""
     api_key = os.getenv("FISH_AUDIO_API_KEY", "").strip()
     reference_id = os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
@@ -549,7 +684,7 @@ def split_required_hashtags(description, *, short=False):
     hashtags = tag_line.split()
     if len(hashtags) != 4 or any(not tag.startswith("#") for tag in hashtags):
         raise RuntimeError("الوصف يجب أن ينتهي بأربعة هاشتاجات قبل إضافة بيانات الترخيص.")
-    required = {"#WealthRadar", "#shorts"} if short else {"#WealthRadar", "#أخبار_اقتصادية"}
+    required = {"#WealthRadar", "#shorts"} if short else {"#WealthRadar"}
     if len(set(hashtags)) != 4 or not required.issubset(set(hashtags)):
         raise RuntimeError("الهاشتاجات المطلوبة ناقصة أو مكررة.")
     return "\n".join(lines[:-1]).rstrip(), tag_line
@@ -602,6 +737,9 @@ def append_broll_attribution(description, video_path, *, short=False):
 
 def add_private_review_notice(description, *, short=False):
     """Mark a private review copy without dropping any source links or required hashtags."""
+    # The notice is opt-in: it must never leak into a description that goes public.
+    if os.getenv("NEWSFLOW_PRIVATE_REVIEW_NOTICE", "false").strip().lower() != "true":
+        return description
     notice = (
         "نسخة مراجعة خاصة — ليست معتمدة للنشر العام بعد. "
         "التحقق المستقل من الوقائع ومراجعة المصادر مطلوبان قبل إتاحتها للعامة."
@@ -611,6 +749,44 @@ def add_private_review_notice(description, *, short=False):
     if len(result) > 5000:
         raise RuntimeError("إضافة تنبيه المراجعة الخاصة تتجاوز حد يوتيوب؛ تم إيقاف الرفع.")
     return result
+
+
+def planned_cards(story_list, *, short=False):
+    """Scene cards for the planned Arabic script. Returns (cards, spoken_text_per_card) so timing follows speech length."""
+    if short:
+        story = story_list[0]
+        plan = story["plan"]
+        spoken = make_short_script(story)
+        card = {
+            "heading": "", "title": plan["headline_ar"], "body": "",
+            "headline": "", "key_number": plan.get("key_number_ar", ""),
+            "captions": caption_phrases(spoken, words_per_caption=6),
+        }
+        return [card], [spoken]
+    script = make_planned_script(story_list)
+    paragraphs = script.split("\n\n")
+    cards, spoken = [], []
+    intro_text = paragraphs[0]
+    cards.append({
+        "heading": "", "title": "", "body": "", "headline": "", "key_number": "",
+        "captions": caption_phrases(intro_text, words_per_caption=6),
+    })
+    spoken.append(intro_text)
+    for story, text in zip(story_list, paragraphs[1:1 + len(story_list)]):
+        plan = story["plan"]
+        cards.append({
+            "heading": "", "title": plan["headline_ar"], "body": "",
+            "headline": plan["headline_ar"], "key_number": plan.get("key_number_ar", ""),
+            "captions": caption_phrases(text, words_per_caption=6),
+        })
+        spoken.append(text)
+    outro_text = paragraphs[-1]
+    cards.append({
+        "heading": "", "title": "", "body": "", "headline": "", "key_number": "",
+        "captions": caption_phrases(outro_text, words_per_caption=6),
+    })
+    spoken.append(outro_text)
+    return cards, spoken
 
 
 def make_video(title, audio, output, short=False, stories=None, portrait=None):
@@ -626,6 +802,15 @@ def make_video(title, audio, output, short=False, stories=None, portrait=None):
     )
     total_duration = float(probe.stdout.strip())
     story_list = stories or []
+    if story_list and all(isinstance(item.get("plan"), dict) for item in story_list):
+        cards, spoken = planned_cards(story_list, short=short)
+        weights = [max(40, len(text)) for text in spoken]
+        weight_total = sum(weights)
+        durations = [total_duration * weight / weight_total for weight in weights]
+        durations[-1] += total_duration - sum(durations)
+        render_broll_video(cards, durations, audio, output, portrait=portrait)
+        print(f"[BROLL_RENDER_COMPLETE] cards={len(cards)} orientation={'portrait' if portrait else 'landscape'} layout=planned")
+        return
     opening = make_opening_hook(story_list)
     cards = [{
         "heading": "المقدمة",
@@ -1013,8 +1198,9 @@ def main():
     # is required for a narrated news video. Licensed B-roll is confirmed after rendering.
     voice_source = (
         "owner_voice_clone"
-        if os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
-        else "tts"
+        if os.getenv("NEWSFLOW_TTS_PROVIDER", "edge").strip().lower() == "fish"
+        and os.getenv("FISH_AUDIO_REFERENCE_ID", "").strip()
+        else "neural_tts"
     )
     editorial_report.update({
         "voice_source": voice_source,
@@ -1087,6 +1273,24 @@ def main():
         if args.render_only:
             raise RuntimeError(message)
         return
+    # Original publisher URL (final_url) replaces Google News / aggregator links in descriptions.
+    for story in stories:
+        evidence = evidence_by_story.get(str(story.get("id") or ""), {})
+        final_url = str(evidence.get("final_url") or "").strip()
+        if final_url.startswith("https://"):
+            story["source_url"] = final_url
+    # Arabic script with real numbers, a viewer-impact line and per-story hashtags (free Groq model).
+    script_plan = generate_plan(stories)
+    if script_plan:
+        for story in stories:
+            planned = script_plan["stories"].get(str(story.get("id")))
+            if planned:
+                story["plan"] = planned
+        if script_plan.get("episode_title_ar") and all(isinstance(s.get("plan"), dict) for s in stories):
+            stories[0]["episode_title_ar"] = script_plan["episode_title_ar"]
+        # Never fall back to an English headline inside an Arabic bulletin: unplanned stories are skipped.
+        stories = [item for item in stories if isinstance(item.get("plan"), dict)]
+        print(f"[BULLETIN_STORIES] planned={len(stories)}")
     for story in stories:
         folder = out / story["id"]
         folder.mkdir(exist_ok=True)
@@ -1260,3 +1464,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
