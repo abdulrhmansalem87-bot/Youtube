@@ -221,6 +221,47 @@ def clean_visual_text(value: str) -> str:
     return re.sub(r"\s+", " ", visible).strip()
 
 
+def _draw_receipt(draw, receipt: dict, width: int, height: int, top_limit: int, lines_for) -> None:
+    """Before/after card for a settled prediction: prediction, actual, difference, marker, hit-rate counter."""
+    portrait = height > width
+    hit = receipt.get("verdict") == "hit"
+    accent = (52, 205, 190, 255) if hit else (245, 166, 35, 255)
+    margin = int(width * (0.07 if portrait else 0.22))
+    top = max(top_limit + int(height * 0.03), int(height * (0.17 if portrait else 0.16)))
+    bottom = int(height * (0.78 if portrait else 0.88))
+    draw.rounded_rectangle((margin, top, width - margin, bottom), radius=24, fill=(5, 17, 31, 225))
+    draw.rectangle((margin, top, width - margin, top + 12), fill=accent)
+    unit = height if portrait else height * 1.5
+    cx = width // 2
+    rows = [
+        (receipt.get("title_ar", ""), 0.030, False, (255, 255, 255, 255)),
+        (receipt.get("speaker_ar", ""), 0.020, False, (190, 205, 220, 255)),
+        (receipt.get("before_ar", ""), 0.034, True, (255, 255, 255, 255)),
+        (receipt.get("after_ar", ""), 0.034, True, (255, 255, 255, 255)),
+        (receipt.get("diff_ar", ""), 0.030, False, accent),
+        (receipt.get("marker_ar", ""), 0.044, True, accent),
+        (receipt.get("counter_ar", ""), 0.026, False, (255, 255, 255, 255)),
+    ]
+    rows = [row for row in rows if row[0]]
+    weights = [size for _, size, _, _ in rows]
+    span = bottom - top - 40
+    y = top + 30
+    for (text, size, bold, color), weight in zip(rows, weights):
+        font_path = _font_for_text(text, bold)
+        dejavu = "/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf" % ("-Bold" if bold else "")
+        if re.search(r"[%+\-]", text) and Path(dejavu).is_file():
+            font_path = dejavu  # the Arabic font has no glyph for these signs
+        font = ImageFont.truetype(font_path, max(26, int(unit * size)))
+        slot = span * weight / sum(weights)
+        wrapped = lines_for(text, font, width - margin * 2 - 60)[:2]
+        line_step = int(font.size * 1.3)
+        yy = y + slot / 2 - (len(wrapped) - 1) * line_step / 2
+        for row in wrapped:
+            draw.text((cx, yy), row, font=font, fill=color, anchor="mm", direction="rtl", language="ar")
+            yy += line_step
+        y += slot
+
+
 def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int = 0) -> None:
     """Broadcast-style overlay: small brand mark, Arabic headline only at the start of a story,
     big key number in the first seconds, and outlined captions with no boxed panel in mid-screen."""
@@ -263,6 +304,12 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     )
     draw.text((brand_x, brand_y), "WealthRadar", font=brand_font, fill=(255, 255, 255, 255), anchor="mm")
     brand_bottom = brand_box[3] + pad_y
+
+    receipt = card.get("receipt")
+    if isinstance(receipt, dict):
+        _draw_receipt(draw, receipt, width, height, brand_bottom, lines_for)
+        image.save(path)
+        return
 
     # 2) Arabic headline bar: only on the first shot of a story, and only if it is real Arabic.
     headline = clean_visual_text(card.get("headline"))

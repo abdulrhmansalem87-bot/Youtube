@@ -137,7 +137,7 @@ def receipt_card(entry: dict, counter: dict) -> dict:
     result = entry["result"]
     asset = entry["asset"]
     info = ASSETS[asset]
-    marker = "✔ توقع صحيح" if result["verdict"] == "hit" else "✘ لم يتحقق"
+    marker = "توقع صحيح" if result["verdict"] == "hit" else "لم يتحقق"
     sign = "+" if result["diff"] >= 0 else "-"
     counter_text = (
         f"إجمالي الإصابات: {counter['hits']} من {counter['total']}" if counter["total"] else ""
@@ -150,7 +150,37 @@ def receipt_card(entry: dict, counter: dict) -> dict:
         "marker_ar": marker,
         "counter_ar": counter_text,
         "speaker_ar": f"قاله: {entry['speaker']} بتاريخ {entry['stated_on']}",
+        "verdict": result["verdict"],
     }
+
+
+def receipt_script(entry: dict, counter: dict) -> str:
+    """Neutral Arabic narration (about 35-50 words) for one settled prediction."""
+    card = receipt_card(entry, counter)
+    info = ASSETS[entry["asset"]]
+    outcome = "وجاء السعر الفعلي قريبا من الرقم المعلن" if entry["result"]["verdict"] == "hit" else "وجاء السعر الفعلي بعيدا عن الرقم المعلن"
+    parts = [
+        f"كشف حساب التوقعات: {info['label_ar']}.",
+        f"في {entry['stated_on']} نشر {entry['speaker']} توقعا بأن يبلغ {_num(float(entry['predicted_value']), entry['asset'])} {info['unit_ar']}.",
+        f"وفي {entry['due_date']} كان سعر السوق {_num(entry['result']['actual_value'], entry['asset'])} {info['unit_ar']}، {outcome}.",
+        card["diff_ar"] + ".",
+    ]
+    if counter["total"]:
+        parts.append(card["counter_ar"] + ".")
+    parts.append(DISCLAIMER_AR + ".")
+    return " ".join(parts)
+
+
+def video_card(entry: dict, counter: dict) -> dict:
+    """Scene card for the renderer: Arabic title (drives the b-roll query) plus the receipt payload."""
+    receipt = receipt_card(entry, counter)
+    return {"heading": "", "title": receipt["title_ar"], "body": "", "headline": "", "key_number": "",
+            "captions": [], "receipt": receipt}
+
+
+def pending_for_video(ledger: dict) -> list[dict]:
+    """Settled predictions that have not been turned into a video yet."""
+    return [e for e in ledger.get("predictions", []) if e.get("result") and not e.get("video_made")]
 
 
 def receipt_metadata(ledger: dict) -> dict:
@@ -162,7 +192,7 @@ def receipt_metadata(ledger: dict) -> dict:
         card = receipt_card(e, counter)
         lines += [
             f"- {ASSETS[e['asset']]['label_ar']}: {e['speaker']} توقع {_num(float(e['predicted_value']), e['asset'])} "
-            f"بتاريخ {e['stated_on']}، والفعلي {_num(e['result']['actual_value'], e['asset'])} "
+            f"بتاريخ {e['stated_on']}، والفعلي (سعر السوق) {_num(e['result']['actual_value'], e['asset'])} "
             f"({card['marker_ar']}).",
             f"  المصدر الأصلي للتوقع: {e['source_url']}",
             f"  مصدر القيمة الفعلية: {e.get('actual_source_url', '')}",
