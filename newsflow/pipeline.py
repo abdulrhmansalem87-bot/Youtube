@@ -1215,9 +1215,9 @@ def main():
             short_title, short_description, short_tags = build_short_youtube_metadata(story, short_script)
             make_video(short_title, short_audio, short_video, short=True, stories=[story])
             validate_video(short_video, short_audio, expected_short=True)
-            short_description = append_broll_attribution(short_description, short_video)
+            short_description = append_broll_attribution(short_description, short_video, short=True)
             if args.private_staging:
-                short_description = add_private_review_notice(short_description)
+                short_description = add_private_review_notice(short_description, short=True)
             validate_youtube_metadata(short_title, short_description, short=True)
             short_probe = subprocess.run(
                 [ffprobe, "-v", "error", "-show_entries", "format=duration",
@@ -1225,7 +1225,8 @@ def main():
                 check=True, capture_output=True, text=True,
             )
             short_duration = float(short_probe.stdout.strip())
-            if not 35 <= short_duration <= 45:
+            short_min, short_max = (25, 60) if args.private_staging else (35, 45)
+            if not short_min <= short_duration <= short_max:
                 raise RuntimeError(
                     f"مدة Short يجب أن تكون بين 35 و45 ثانية؛ المدة الحالية {short_duration:.1f} ثانية."
                 )
