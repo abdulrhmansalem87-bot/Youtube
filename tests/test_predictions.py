@@ -67,3 +67,42 @@ class PredictionsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReceiptRenderTests(unittest.TestCase):
+    def _settled(self, egp):
+        ledger = {"predictions": [entry()]}
+        p.settle_due(ledger, date(2026, 11, 26), lambda u: {"usd": {"egp": egp}})
+        return ledger
+
+    def test_script_neutral_with_disclaimer_and_market_rate(self):
+        ledger = self._settled(55.5)
+        text = p.receipt_script(ledger["predictions"][0], p.hit_rate(ledger))
+        self.assertIn(p.DISCLAIMER_AR, text)
+        self.assertIn("سعر السوق", text)
+        self.assertIn("55.50", text)
+        self.assertIn("سعر السوق", p.receipt_metadata(ledger)["description"])
+
+    def test_pending_and_video_card(self):
+        ledger = self._settled(51)
+        self.assertEqual(len(p.pending_for_video(ledger)), 1)
+        card = p.video_card(ledger["predictions"][0], p.hit_rate(ledger))
+        self.assertEqual(card["receipt"]["verdict"], "hit")
+        self.assertIn("دولار", card["title"])
+        ledger["predictions"][0]["video_made"] = True
+        self.assertEqual(p.pending_for_video(ledger), [])
+
+    def test_receipt_overlay_draws_pixels(self):
+        from PIL import Image
+        import tempfile
+        from pathlib import Path
+        from newsflow import broll
+        for egp, size in ((55.5, (1080, 1920)), (51, (1920, 1080))):
+            ledger = self._settled(egp)
+            card = p.video_card(ledger["predictions"][0], p.hit_rate(ledger))
+            with tempfile.TemporaryDirectory() as d:
+                out = Path(d) / "o.png"
+                broll._overlay(card, out, *size)
+                img = Image.open(out)
+                self.assertEqual(img.size, size)
+                self.assertIsNotNone(img.getchannel("A").getbbox())
