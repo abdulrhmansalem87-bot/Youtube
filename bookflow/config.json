@@ -1,0 +1,41 @@
+{
+  "project": "BookFlow",
+  "mode": "silent_kinetic_book_pages",
+  "default_language": "en",
+  "translation_language": "ar",
+  "visual_change_seconds": [2, 3],
+  "visual_beat_duration_seconds": [2, 3],
+  "animation": {
+    "camera": "slow_cinematic_push_in",
+    "frame_rate": 24,
+    "page_highlight": "alternates_between_pages",
+    "motifs": ["coins", "financial_chart", "page_turn_arrow"],
+    "scene_cache": "fingerprint_and_ffprobe_verified"
+  },
+  "visual_identity": {
+    "background": "warm_dark_wood",
+    "book_pages": "warm_ivory",
+    "primary_ink": "deep_charcoal",
+    "accent": "antique_gold",
+    "secondary": "muted_emerald",
+    "style": "premium_editorial_cinematic",
+    "avoid": ["black_slides", "tiny_text", "static_repeated_pages", "busy_backgrounds"]
+  },
+  "short": {
+    "aspect_ratio": "9:16",
+    "resolution": "1080x1920",
+    "scene_count": [6, 8],
+    "scene_duration_seconds": [6, 10],
+    "total_duration_seconds": [48, 80]
+  },
+  "long": {
+    "aspect_ratio": "16:9",
+    "resolution": "1920x1080",
+    "minimum_duration_seconds": 300,
+    "maximum_duration_seconds": 480,
+    "minimum_scene_count": 20,
+    "maximum_scene_duration_seconds": 15
+  },
+  "audio": {"enabled": false, "mode": "silent"},
+  "publishing": {"enabled": false, "platforms": []}
+}
