@@ -17,6 +17,8 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, features
 
+from newsflow.rendering import _SYSTEM_BOLD, _SYSTEM_REGULAR, _first_existing, _thread_args
+
 PEXELS_API = "https://api.pexels.com/v1/videos/search"
 # Pacing rule (owner requirement): a new shot or visible motion roughly every 2 seconds,
 # never a static shot longer than 2.5 s. Every shot also gets a gentle zoom or pan.
@@ -192,28 +194,20 @@ def _download(url: str, destination: Path) -> None:
 
 
 def _font(bold: bool = False) -> str:
-    candidates = (
-        ["/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
-         "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
-         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
-        if bold else
-        ["/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
-         "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
-    )
-    for path in candidates:
-        if Path(path).is_file():
-            return path
+    names = (("NotoNaskhArabic-Bold.ttf", "NotoSansArabic-Bold.ttf") if bold
+             else ("NotoNaskhArabic-Regular.ttf", "NotoSansArabic-Regular.ttf"))
+    found = _first_existing(names, _SYSTEM_BOLD if bold else _SYSTEM_REGULAR)
+    if found:
+        return found
     raise RuntimeError("لم يتم العثور على خط عربي مناسب للكتابة فوق لقطات B-roll.")
+
 
 def _font_for_text(value: str, bold: bool = False) -> str:
     """Choose a font with Latin glyph coverage for mixed Arabic/Latin captions."""
     if re.search(r"[A-Za-z]", str(value or "")):
-        latin_path = (
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-            if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-        )
-        if Path(latin_path).is_file():
+        latin_path = _first_existing(("DejaVuSans-Bold.ttf",) if bold else ("DejaVuSans.ttf",),
+                                     _SYSTEM_BOLD if bold else _SYSTEM_REGULAR)
+        if latin_path:
             return latin_path
     return _font(bold)
 
@@ -236,22 +230,19 @@ MISS_CLAY = (222, 128, 108, 255)   # semantic only: verdict miss (not gold, not 
 WHITE = (255, 255, 255, 255)
 SOFT = (224, 231, 240, 235)
 FAINT = (190, 201, 214, 220)
-DEJAVU = "/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf"
 BAND_MAX_ALPHA = 222
 
 
 def _brand_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     """One typeface for every overlay element (DejaVu Sans covers Arabic, Latin digits, % and +)."""
-    path = DEJAVU % ("-Bold" if bold else "")
-    if not Path(path).is_file():
-        path = _font(bold)
+    path = _first_existing(("DejaVuSans-Bold.ttf",) if bold else ("DejaVuSans.ttf",),
+                           _SYSTEM_BOLD if bold else _SYSTEM_REGULAR) or _font(bold)
     return ImageFont.truetype(path, size)
 
 
-HEAVY_ARABIC = (
-    "/usr/share/fonts/truetype/noto/NotoSansArabic-Black.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansArabic-ExtraBold.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+HEAVY_ARABIC_NAMES = ("NotoSansArabic-Black.ttf", "NotoSansArabic-ExtraBold.ttf", "NotoSansArabic-Bold.ttf")
+HEAVY_ARABIC = tuple(
+    path for path in (_first_existing((name,), ()) for name in HEAVY_ARABIC_NAMES) if path
 )
 
 
@@ -603,7 +594,7 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                 "-map", "[outv]",
                 "-t", f"{loop_duration:.3f}",
                 "-an", "-r", "30", "-c:v", "libx264",
-                "-preset", "veryfast", "-crf", "22",
+                "-preset", "veryfast", "-crf", "22", *_thread_args(),
                 "-pix_fmt", "yuv420p", "-movflags", "+faststart",
                 str(loop),
             ])
@@ -647,7 +638,7 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                 "[base][caption]overlay=0:0:format=auto:shortest=1[v]",
                 "-map", "[v]", "-t", f"{card_shots_duration:.3f}",
                 "-an", "-r", "30", "-c:v", "libx264", "-preset", "veryfast",
-                "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                "-crf", "22", *_thread_args(), "-pix_fmt", "yuv420p", "-movflags", "+faststart",
                 str(segment),
             ]
             try:
