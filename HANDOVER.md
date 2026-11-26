@@ -140,20 +140,20 @@ Goal: he records once, the pipeline narrates in his cloned voice. Free, local, c
 
 ## 13. Local render engine (second engine) for the owner's PC
 
-Status 2026-11-26: built, NOT yet run on his PC. Target machine, final answer from the owner (corrects an earlier wrong Ryzen 7 note): HP ProBook 650 G4, Intel Core i3-8130U (2 cores / 4 threads, up to 3.4 GHz), 8 GB DDR4, 128 GB SSD + 500 GB HDD, Intel UHD 620 (no usable GPU encoding), Windows 11.
+Status 2026-11-26: built, NOT yet run on his PC. Target machine, final answer from the owner (corrects an earlier wrong Ryzen 7 note): HP ProBook 650 G4, Intel Core i3-8130U (2 cores / 4 threads, up to 3.4 GHz), 16 GB RAM (8 GB + 8 GB, upgraded; owner's update 2026-11-26), one SSD + one HDD (sizes not confirmed after the change), Intel UHD 620 (no usable GPU encoding), Windows 11.
 
 What it is: the same `python -m newsflow --render-only` pipeline that Actions runs (same episode data, same renderer) plus `local/run_local.py` (preflight, low-memory settings, timing log). Uploads are forced off and privacy stays private; nothing is published from his PC.
 
 Code changes that make it portable (Linux/Actions behaviour unchanged; the 215-test suite gives identical results before and after):
 - Font lookup searches `NEWSFLOW_FONT_DIR`, then `./fonts`, then Linux paths, then Windows system fonts (Segoe UI, Arial, Tahoma).
-- `NEWSFLOW_FFMPEG_THREADS` caps x264 threads (run_local.py sets 2). The renderer already encodes one scene at a time, so memory stays small on 8 GB.
+- `NEWSFLOW_FFMPEG_THREADS` caps x264 threads (run_local.py sets 2). The renderer already encodes one scene at a time, so memory stays small on 16 GB. The thread cap of 2 stays because the i3 is CPU-bound, not RAM-bound.
 
 ### Render time and care for this laptop (ESTIMATES, not measured on his machine)
 Basis: on a single Xeon vCPU in my sandbox, FFmpeg at the pipeline's settings (veryfast, crf 22, 1 thread) encoded a 1080p zoompan clip at about 0.9x real time and a b-roll style scale+crop clip at about 0.45x real time. The i3-8130U with 2 encoder threads should be somewhat faster than that single vCPU, but plan for the same order of speed. Encoding is not the whole job: Arabic caption frames, clip downloads and the final mux add time I did not measure.
 - Short (about 45 s, 9:16): plan 5 to 15 minutes.
 - Long video (about 10 min, 16:9): plan 30 to 90 minutes. Do not use the laptop for anything else during that time.
 - These are guesses to plan with. The first real run writes the true minutes to `output/local_render_log.json`; replace these ranges with that number.
-Care while rendering: plug in the charger (on battery the CPU slows down), set Windows power mode to Best performance, close the browser and other apps (8 GB is enough only if little else is open), keep at least 10 GB free on the SSD (C:), and do not close the lid or let it sleep. If it overheats or freezes, lower threads: set `NEWSFLOW_FFMPEG_THREADS=1` in `.env`. Keep the project on the SSD, not the HDD.
+Care while rendering: plug in the charger (on battery the CPU slows down), set Windows power mode to Best performance, close the browser and other apps (16 GB is plenty, but a free CPU renders faster), keep at least 10 GB free on the SSD (C:), and do not close the lid or let it sleep. If it overheats or freezes, lower threads: set `NEWSFLOW_FFMPEG_THREADS=1` in `.env`. Keep the project on the SSD, not the HDD.
 
 ### Install on Windows 11 (numbered, in order; about 15 minutes)
 Do these once. Open "Terminal" or "PowerShell" from the Start menu (normal window, not admin) unless a step says otherwise.
@@ -176,7 +176,7 @@ The renderer refuses to run without proper Arabic shaping, by design. Linux insi
 5. Put the `.env` file in `~/newsflow` (copy it: `cp /mnt/c/newsflow/.env ~/newsflow/.env`).
 6. `python local/run_local.py --check`, then `python local/run_local.py`.
 7. Results are in `~/newsflow/output`. To see them in Windows, open File Explorer and go to `\\wsl$\Ubuntu\home\<username>\newsflow\output`.
-WSL2 needs about 1 to 2 GB of the 8 GB RAM while running; close the browser during renders. Never run both engines for the same episode.
+WSL2 needs about 1 to 2 GB of the 16 GB RAM while running; close the browser during renders. Never run both engines for the same episode.
 
 Not verified: everything above on his actual laptop (an i3 is slower than the first Ryzen 7 assumption; times above are for the i3). The preflight, font lookup and thread cap were tested on Linux only. The winget package IDs (Python.Python.3.11, Gyan.FFmpeg) and WSL commands are from memory of how those tools work and were not run here. If any step fails, copy the error text to the engineer, never any key.
 
