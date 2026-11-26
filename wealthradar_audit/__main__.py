@@ -2,10 +2,7 @@
 from __future__ import annotations
 
 import argparse
-import json
-from pathlib import Path
-
-from . import charts, calculator, description, episode
+from . import hook
 
 
 def main(argv=None) -> int:
@@ -15,20 +12,16 @@ def main(argv=None) -> int:
     ap.add_argument("--end", type=int, default=2025)
     ap.add_argument("--out", default="output/episode3")
     a = ap.parse_args(argv)
-    out = Path(a.out)
-    out.mkdir(parents=True, exist_ok=True)
-    brief = episode.build_brief(a.amount, a.start, a.end)
-    (out / "brief.json").write_text(json.dumps(brief, ensure_ascii=False, indent=2), encoding="utf-8")
-    results = calculator.run_scenarios(a.amount, a.start, a.end)
-    paths = charts.scenario_charts(results, out, a.start, a.end)
-    desc = description.render_description(brief["question_ar"], brief["chapters"])
-    for note in brief["on_screen_required"]:
+    res = hook.prepare_episode(a.out, a.amount, a.start, a.end)
+    brief = res["brief"]
+    for note in res["on_screen_required"]:
         print(f"[AUDIT] on-screen note required: {note}")
-    (out / "description.txt").write_text(desc, encoding="utf-8")
-    print(f"[AUDIT] brief + {len(paths)} charts written to {out}; publishable={brief['publishable']}")
-    for b in brief["blockers"]:
+    print(f"[AUDIT] brief + {len(res['charts'])} charts written to {res['out']}; publishable={brief['publishable']} upload_allowed={res['upload_allowed']}")
+    for w in res["warnings"]:
+        print(f"[AUDIT] WARNING: {w}")
+    for b in res["blockers"]:
         print(f"[AUDIT] BLOCKER: {b}")
-    return 0 if brief["publishable"] else 2
+    return 0 if res["upload_allowed"] else 2
 
 
 if __name__ == "__main__":
