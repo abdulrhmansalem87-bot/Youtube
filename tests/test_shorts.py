@@ -59,3 +59,16 @@ class ShortScriptTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class TeaserShortTests(unittest.TestCase):
+    def test_teaser_ends_with_a_hook_to_the_full_video_and_keeps_the_disclaimer(self):
+        story = {"title": "البنك المركزي يثبت أسعار الفائدة",
+                 "summary": "قرر البنك تثبيت أسعار الفائدة مع استمرار متابعة التضخم وتطورات الأسواق.",
+                 "source": "وكالة الأنباء"}
+        script = make_short_script(story, teaser=True)
+        self.assertIn("الفيديو الكامل على قناة ويلث رادار", script)
+        self.assertIn("ليس نصيحة استثمارية", script)
+        self.assertNotIn("ابعت الفيديو", script)
+        self.assertTrue(script.rstrip().endswith("ليس نصيحة استثمارية."))
+        self.assertNotIn("الفيديو الكامل", make_short_script(story))  # default Short is unchanged
