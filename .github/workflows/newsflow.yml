@@ -181,7 +181,7 @@ jobs:
           FISH_AUDIO_REFERENCE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.FISH_AUDIO_REFERENCE_ID || '' }}
           # Free Microsoft neural Arabic voice (no key). Set NEWSFLOW_TTS_PROVIDER=fish to go back to Fish Audio.
           NEWSFLOW_TTS_PROVIDER: edge
-          NEWSFLOW_TTS_VOICE: ar-SA-HamedNeural
+          NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
           NEWSFLOW_TTS_RATE: "+8%"
           FISH_AUDIO_MODEL: s2.1-pro-free
           PEXELS_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.PEXELS_API_KEY || '' }}
