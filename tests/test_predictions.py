@@ -109,8 +109,8 @@ class ReceiptRenderTests(unittest.TestCase):
 
 
 class KeyNumberDirectionTests(unittest.TestCase):
-    def test_latin_key_number_is_drawn_ltr(self):
-        import inspect
+    def test_latin_numbers_are_ltr_and_arabic_text_is_rtl(self):
         from newsflow import broll
-        source = inspect.getsource(broll._overlay)
-        self.assertIn('k_direction = "rtl" if re.search', source)
+        self.assertEqual(broll._text_direction("+1.8%"), "ltr")
+        self.assertEqual(broll._text_direction("+11.66%"), "ltr")
+        self.assertEqual(broll._text_direction("50.00 جنيه"), "rtl")
