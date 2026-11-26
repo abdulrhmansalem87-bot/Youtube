@@ -96,7 +96,8 @@ def fetch_signals(api_key: str | None = None, post=None) -> list[dict]:
 
 
 # ---- radar signals that match no collected story become candidate topics -------------------
-# Channel rule (owner, 2026-11-26): the format is "what did it cost people", not plain news.
+# Editorial rule, from the owner's own 2026-11-26 messages about instant topics such as a fire (relayed
+# by the main agent; no separate written approval of this feature is recorded): the format is "what did it cost people", not plain news.
 # A candidate needs a clear money angle on top of the normal editorial finance check, and it
 # then goes through exactly the same gates as any RSS story: relevance, original-source
 # extraction, fact check. The radar only supplies a lead and a real article URL.
