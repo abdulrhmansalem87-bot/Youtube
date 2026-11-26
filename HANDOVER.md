@@ -181,3 +181,19 @@ WSL2 needs about 1 to 2 GB of the 16 GB RAM while running; close the browser dur
 Not verified: everything above on his actual laptop (an i3 is slower than the first Ryzen 7 assumption; times above are for the i3). The preflight, font lookup and thread cap were tested on Linux only. The winget package IDs (Python.Python.3.11, Gyan.FFmpeg) and WSL commands are from memory of how those tools work and were not run here. If any step fails, copy the error text to the engineer, never any key.
 
 Not done: measured render minutes on his PC; narration is still the owner's recording; Pexels key status (see section 9).
+
+## 14. LLM fallback chain and Tavily trend radar (added 2026-11-26)
+
+Status: built and unit tested; NOT yet run against the live Groq, Tavily or fallback providers (those keys exist only as repo Secrets, and Actions minutes are used up until Dec 1).
+
+LLM chain (`newsflow/llm.py`, used by the fact checker and the script writer):
+- Order: Groq primary model (`NEWSFLOW_GROQ_MODEL`, default `openai/gpt-oss-120b`), then Groq `NEWSFLOW_GROQ_FALLBACK_MODELS` (default `openai/gpt-oss-20b`), then optional providers that have a key: `CEREBRAS_API_KEY` (model `gpt-oss-120b`), `GEMINI_API_KEY` (`gemini-2.5-flash`), `OPENROUTER_API_KEY` (`openai/gpt-oss-120b:free`). Override a model with `NEWSFLOW_CEREBRAS_MODEL`, `NEWSFLOW_GEMINI_MODEL`, `NEWSFLOW_OPENROUTER_MODEL`. Force an order with `NEWSFLOW_LLM_PROVIDERS` (for example `cerebras,groq`).
+- A candidate is skipped on any error (rate limit, quota, 5xx, timeout, empty answer) and the next one is tried. A strict-JSON failure on the first fact-check call still gets the existing compact retry first.
+- Fallback models get plain JSON mode instead of strict json_schema and no `tool_choice`. The local evidence validators and number checks are unchanged, so a weaker model cannot pass a story the gates reject. The fact-check record's `model` field names the model that actually answered.
+- Today only Groq models are active (no new accounts were created). That covers a model-level limit but NOT a full Groq outage. To cover an outage the owner approves one free account (Cerebras free tier is the first choice; Google AI Studio Gemini is the second) and its key goes into the matching repo Secret. The workflow already passes the three optional keys (empty until a Secret exists).
+- Endpoints checked against the providers' docs on 2026-11-26: https://inference-docs.cerebras.ai/resources/openai and https://aistudio.google.com/docs/openai. Model ids are from the docs and not live-tested.
+
+Trend radar (`newsflow/trend_radar.py`, called from `collect()` in pipeline.py):
+- Up to 3 Tavily news searches per run (basic depth, last day; 1 credit each), `NEWSFLOW_TREND_RADAR_QUERIES=0` turns it off. Results become trend signals in the same shape as the Google Trends ones, so `attach_trend_signals()` boosts matching stories in the ranking. A signal is never a story and never a fact; fact checking is unchanged.
+- Fail-soft: no key or any Tavily error returns no signals and the run continues.
+- Tavily parameters checked against https://docs.tavily.com/documentation/api-reference/endpoint/search.
