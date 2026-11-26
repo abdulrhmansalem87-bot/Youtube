@@ -99,7 +99,7 @@ Untested: the repo's 228 tests and Actions on the new code, real upload path, an
 ## 9. Open items
 - Owner approval of the 9-Short matrix and topic swaps; channel name answer.
 - Narration: the owner's own recording (see section 12 for the voice-cloning research).
-- Pexels key not verified (secret exists, value not readable). Fish Audio secrets exist but the plan is not to use TTS.
+- Pexels key not verified (repo secret exists, value not readable; GitHub secrets are write-only). Pexels' API page said on 2026-11-26 "New API key issuance is currently paused and cannot be requested" (www.pexels.com/developer/api/), so a lost or rejected key may not be replaceable: the Pixabay adapter is higher priority than listed. Fish Audio secrets exist but the plan is not to use TTS.
 - Commit access: the coding agent has read-only GitHub API access; commits go through the browser editor.
 - Fast lane watch wiring (section 11), provider-fallback adapters (section 10), possible licensing check for Egypt/Saudi finance content.
 
@@ -139,22 +139,37 @@ Goal: he records once, the pipeline narrates in his cloned voice. Free, local, c
 
 ## 13. Local render engine (second engine) for the owner's PC
 
-Status 2026-11-26: built, NOT yet run on his PC. Targets: Ryzen 7, 8 GB RAM, no GPU mentioned, OS assumed Windows (unconfirmed).
+Status 2026-11-26: built, NOT yet run on his PC. Target machine confirmed by the owner: HP laptop, Windows 11, AMD Ryzen 7, 8 GB RAM (no GPU mentioned).
 
-What it is: the same `python -m newsflow --render-only` pipeline that Actions runs, plus `local/run_local.py` (preflight, low-memory settings, timing log). Same episode data, same renderer, same output folder. Uploads are forced off and privacy stays private; nothing is published from his PC.
+What it is: the same `python -m newsflow --render-only` pipeline that Actions runs (same episode data, same renderer) plus `local/run_local.py` (preflight, low-memory settings, timing log). Uploads are forced off and privacy stays private; nothing is published from his PC.
 
-Code changes that make it portable (Linux/Actions behaviour is unchanged; the 215-test suite gives identical results before and after, 3 pre-existing errors in my partial checkout in both):
-- Font lookup now searches `NEWSFLOW_FONT_DIR`, then `./fonts`, then the Linux paths, then Windows system fonts (Segoe UI, Arial, Tahoma) and macOS Arial. Previously Linux-only. Font paths on Linux resolve to the same files as before (checked).
-- `NEWSFLOW_FFMPEG_THREADS` caps x264 threads (run_local.py sets 2 by default). Rendering is already one scene at a time (frame, then segment, then concat), so peak memory stays small.
+Code changes that make it portable (Linux/Actions behaviour unchanged; the 215-test suite gives identical results before and after):
+- Font lookup searches `NEWSFLOW_FONT_DIR`, then `./fonts`, then Linux paths, then Windows system fonts (Segoe UI, Arial, Tahoma).
+- `NEWSFLOW_FFMPEG_THREADS` caps x264 threads (run_local.py sets 2). The renderer already encodes one scene at a time, so memory stays small on 8 GB.
 
-Setup on Windows (about 10 minutes):
-1. Install Python 3.11+ (python.org, tick "Add to PATH") and FFmpeg (`winget install Gyan.FFmpeg`), then reopen the terminal.
-2. Get the repo as a ZIP from GitHub (private repo: the owner downloads it while signed in), unzip, open a terminal in the folder.
-3. `pip install -r requirements.txt`
-4. Create `.env` in the repo root with `PEXELS_API_KEY=`, `GROQ_API_KEY=`, `TAVILY_API_KEY=` (values come from his vault links; never paste them in chat or commit `.env`).
-5. `python local/run_local.py --check`, then `python local/run_local.py`. Result in `output/`, minutes per run in `output/local_render_log.json`.
-Optional: put NotoSansArabic-Regular.ttf and -Bold.ttf in a `fonts` folder for the same look as Actions; without them Segoe UI/Arial are used (Arabic shows, glyph look differs slightly).
+### Install on Windows 11 (numbered, in order; about 15 minutes)
+Do these once. Open "Terminal" or "PowerShell" from the Start menu (normal window, not admin) unless a step says otherwise.
+1. Install Python: `winget install Python.Python.3.11`. Close the window and open a new one.
+2. Install FFmpeg: `winget install Gyan.FFmpeg`. Close the window and open a new one.
+3. Check both: `python --version` (shows 3.11) and `ffmpeg -version` (shows a version). If either says "not recognized", restart the laptop and try again.
+4. Download the project: open the repo page on GitHub while signed in, choose Code, Download ZIP, unzip it to `C:\newsflow`. Open the terminal in that folder (in the folder, right-click, Open in Terminal).
+5. Install the libraries: `pip install -r requirements.txt`
+6. Create the keys file: in the folder, create a text file named `.env` with three lines: `PEXELS_API_KEY=`, `GROQ_API_KEY=`, `TAVILY_API_KEY=` followed by each key. The keys come from his secure vault links, never from chat. Never share or upload this file.
+7. Check the machine: `python local/run_local.py --check`. It must print `[LOCAL_PREFLIGHT_OK]`.
+8. Render: `python local/run_local.py`. Results are in the `output` folder; the minutes taken are saved in `output/local_render_log.json`.
+Optional, same look as Actions: put NotoSansArabic-Regular.ttf and NotoSansArabic-Bold.ttf in a folder named `fonts` next to `local`. Without them Windows fonts (Segoe UI, Arial) are used; Arabic shows, the letter shapes differ slightly.
 
-Known risk (unverified): Pillow on Windows needs the RAQM/fribidi component for Arabic shaping. If preflight says RAQM is missing, the renderer refuses to run (by design, no broken Arabic). Fallback: WSL2 Ubuntu or Docker, where it behaves exactly like Actions. Not tested on Windows; the preflight and font lookup were tested on Linux only.
+### If step 7 says RAQM / Arabic shaping is missing: WSL2 fallback (Ubuntu inside Windows)
+The renderer refuses to run without proper Arabic shaping, by design. Linux inside Windows behaves exactly like Actions.
+1. Open PowerShell as administrator (right-click Start, Terminal (Admin)) and run `wsl --install -d Ubuntu`. Restart the laptop when asked, then open "Ubuntu" from the Start menu and create a username and password.
+2. In Ubuntu: `sudo apt update && sudo apt install -y python3-pip python3-venv ffmpeg fonts-dejavu-core fonts-noto-core unzip`
+3. Copy the project in: `cp -r /mnt/c/newsflow ~/newsflow && cd ~/newsflow` (the unzipped folder from step 4 above).
+4. `python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt`
+5. Put the `.env` file in `~/newsflow` (copy it: `cp /mnt/c/newsflow/.env ~/newsflow/.env`).
+6. `python local/run_local.py --check`, then `python local/run_local.py`.
+7. Results are in `~/newsflow/output`. To see them in Windows, open File Explorer and go to `\\wsl$\Ubuntu\home\<username>\newsflow\output`.
+WSL2 needs about 1 to 2 GB of the 8 GB RAM while running; close the browser during renders. Never run both engines for the same episode.
 
-Not done: measured render minutes on his PC; a Windows `.bat` launcher; narration is still the owner's recording.
+Not verified: everything above on his actual laptop. The preflight, font lookup and thread cap were tested on Linux only. The winget package IDs (Python.Python.3.11, Gyan.FFmpeg) and WSL commands are from memory of how those tools work and were not run here. If any step fails, copy the error text to the engineer, never any key.
+
+Not done: measured render minutes on his PC; narration is still the owner's recording; Pexels key status (see section 9).
