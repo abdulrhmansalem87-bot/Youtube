@@ -5,7 +5,7 @@ The brief contains only numbers produced by the calculator. The Arabic narration
 """
 from __future__ import annotations
 
-from . import calculator, data
+from . import calculator, data, receipts
 
 # (key, Arabic title, seconds, purpose)
 SEGMENTS = [
@@ -22,36 +22,44 @@ MIN_SECONDS, MAX_SECONDS = 9 * 60, 11 * 60
 WORDS_PER_SECOND = 2.3  # conversational Arabic voice-over budget
 
 
-def total_seconds() -> int:
-    return sum(s[2] for s in SEGMENTS)
+def active_segments(receipt_ok: bool = True) -> list:
+    """The receipt segment is dropped when the ledger has no settled, sourced prediction."""
+    return [s for s in SEGMENTS if receipt_ok or s[0] != "receipt"]
 
 
-def validate_structure() -> None:
-    t = total_seconds()
+def total_seconds(receipt_ok: bool = True) -> int:
+    return sum(s[2] for s in active_segments(receipt_ok))
+
+
+def validate_structure(receipt_ok: bool = True) -> None:
+    t = total_seconds(receipt_ok)
     if not MIN_SECONDS <= t <= MAX_SECONDS:
         raise ValueError(f"episode length {t}s outside 9-11 minutes")
-    keys = [s[0] for s in SEGMENTS]
+    keys = [s[0] for s in active_segments(receipt_ok)]
     if len(set(keys)) != len(keys) or keys[0] != "hook" or keys[-1] != "takeaways":
         raise ValueError("segment order or keys invalid")
 
 
-def chapters() -> list[tuple[str, str]]:
+def chapters(receipt_ok: bool = True) -> list[tuple[str, str]]:
     out, t = [], 0
-    for _, title, secs, _ in SEGMENTS:
+    for _, title, secs, _ in active_segments(receipt_ok):
         out.append((f"{t // 60}:{t % 60:02d}", title))
         t += secs
     return out
 
 
-def build_brief(amount: float, start_year: int, end_year: int, certificate_rates: dict | None = None) -> dict:
-    validate_structure()
+def build_brief(amount: float, start_year: int, end_year: int, certificate_rates: dict | None = None,
+                ledger: dict | None = None) -> dict:
+    receipt = receipts.receipt_segment(ledger)
+    receipt_ok = receipt["status"] == "ok"
+    validate_structure(receipt_ok)
     results = calculator.run_scenarios(amount, start_year, end_year, certificate_rates)
     ok, problems = calculator.publishable(results)
     infl = calculator.cumulative_inflation(start_year, end_year)
     gold = data.series("gold")
     gulf_gold_multiple = gold[end_year] / gold[start_year]
     segments, t = [], 0
-    for key, title, secs, purpose in SEGMENTS:
+    for key, title, secs, purpose in active_segments(receipt_ok):
         segments.append({"key": key, "title_ar": title, "start_s": t, "seconds": secs,
                          "voiceover_word_budget": int(secs * WORDS_PER_SECOND), "purpose_ar": purpose})
         t += secs
@@ -60,11 +68,17 @@ def build_brief(amount: float, start_year: int, end_year: int, certificate_rates
         "amount": amount, "start_year": start_year, "end_year": end_year,
         "cumulative_inflation_multiple": infl,
         "gulf_gold_multiple_usd_terms": gulf_gold_multiple,
-        "gulf_note": "الريال والدرهم مربوطان بالدولار، فالذهب بنفس مضاعف الدولار في السعودية والإمارات. تضخم الخليج غير مضاف بعد (غير موثق).",
+        "gulf": calculator.gulf_view(start_year, end_year),
+        "gulf_note": "الريال والدرهم مربوطان بالدولار، فالذهب بنفس مضاعف الدولار في السعودية والإمارات، والتضخم من البنك الدولي لكل دولة.",
+        "receipt": receipt,
+        "certificate_method_ar": calculator.CERTIFICATE_METHOD_AR,
+        "on_screen_required": [calculator.CERTIFICATE_METHOD_AR, "حساب تقريبي على متوسط السنة"],
+        "on_air_points": [calculator.CERTIFICATE_ON_AIR_AR, calculator.CAVEATS[1]],
+        "certificate_gaps": data.CERTIFICATE_RATE["gaps"],
         "results": [r.as_dict() for r in results],
         "publishable": ok, "blockers": problems,
-        "segments": segments, "total_seconds": total_seconds(),
-        "chapters": chapters(), "caveats": calculator.CAVEATS,
+        "segments": segments, "total_seconds": total_seconds(receipt_ok),
+        "chapters": chapters(receipt_ok), "caveats": calculator.CAVEATS,
         "sources": data.source_lines(),
         "rules": ["لا مصادر على الشاشة، المصادر في الوصف", "كل رقم من المحسوب فقط", "لا توصيات شراء أو بيع"],
     }
