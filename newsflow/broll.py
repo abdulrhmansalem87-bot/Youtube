@@ -513,10 +513,40 @@ def shot_filter(index: int, seconds: float, width: int, height: int, round_index
     return ",".join(chain)
 
 
+def _search_with_fallback(query: str, pexels_key: str, pixabay_key: str, portrait: bool) -> list[dict]:
+    """Pexels first (unless NEWSFLOW_BROLL_PROVIDER=pixabay); Pixabay is the licensed fallback when its key is set."""
+    prefer_pixabay = os.getenv("NEWSFLOW_BROLL_PROVIDER", "pexels").strip().lower() == "pixabay"
+    order = []
+    if pexels_key and not (prefer_pixabay and pixabay_key):
+        order.append("pexels")
+    if pixabay_key:
+        order.append("pixabay")
+    if prefer_pixabay and pexels_key and "pexels" not in order:
+        order.append("pexels")
+    last_error = None
+    for provider in order:
+        try:
+            if provider == "pexels":
+                found = _search_videos(query, pexels_key, portrait)
+                for item in found:
+                    item.setdefault("provider", "Pexels")
+                return found
+            from newsflow import pixabay
+            return pixabay.search_videos(query, pixabay_key, portrait)
+        except RuntimeError as exc:
+            last_error = exc
+            print(f"[BROLL_PROVIDER_FALLBACK] {provider} failed for query; trying the next licensed source.")
+    raise last_error or RuntimeError("لا يوجد مفتاح B-roll صالح.")
+
+
 def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                        output: Path, portrait: bool = False) -> Path:
-    """Render licensed Pexels footage with a new moving scene and Arabic caption every 2.5s."""
-    api_key = require_api_key(os.getenv("PEXELS_API_KEY"))
+    """Render licensed Pexels (or Pixabay fallback) footage with a new moving scene and Arabic caption every 2.5s."""
+    pixabay_key = os.getenv("PIXABAY_API_KEY", "").strip()
+    pexels_key = str(os.getenv("PEXELS_API_KEY") or "").strip()
+    if not pexels_key and not pixabay_key:
+        require_api_key(None)  # raises the standard fail-closed error
+    api_key = pexels_key
     if not cards or len(cards) != len(durations):
         raise ValueError("يجب توفير مشهد ومدة مستقلة لكل جزء من التعليق الصوتي.")
     if not audio.is_file():
@@ -541,7 +571,7 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
         for card_index in sorted({index for index, _ in scene_plan}):
             card = cards[card_index]
             query = _english_query(card)
-            candidates = _search_videos(query, api_key, portrait)
+            candidates = _search_with_fallback(query, pexels_key, pixabay_key, portrait)
             card_shots = [
                 (shot_index, seconds)
                 for shot_index, (idx, seconds) in enumerate(scene_plan)
@@ -562,6 +592,7 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                     "scene_index": clip_index + 1,
                     "query": query,
                     "video_id": candidate.get("id"),
+                    "provider": candidate.get("provider", "Pexels"),
                     "photographer": candidate.get("photographer"),
                     "source_page": candidate.get("page"),
                 })
@@ -692,6 +723,10 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
             temporary.unlink(missing_ok=True)
             raise RuntimeError("فشل فحص فيديو B-roll النهائي: الأبعاد أو الصوت أو المدة غير مطابقة.")
         os.replace(temporary, output)
+    providers = sorted({src.get("provider", "Pexels") for src in manifest["sources"]}) or ["Pexels"]
+    licenses = {"Pexels": "Pexels License", "Pixabay": "Pixabay Content License"}
+    manifest["provider"] = "+".join(providers)
+    manifest["license"] = " + ".join(licenses[name] for name in providers)
     manifest["scene_count"] = len(scene_plan)
     manifest["unique_source_count"] = len(used_video_ids)
     manifest["output"] = output.name
