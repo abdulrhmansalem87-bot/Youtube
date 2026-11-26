@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from wealthradar_audit import calculator, charts, data, description, episode, receipts
+from wealthradar_audit import calculator, charts, data, description, episode, hook, receipts
 
 
 class CalculatorTests(unittest.TestCase):
@@ -145,3 +145,21 @@ class ChartTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HookTests(unittest.TestCase):
+    def test_prepare_blocks_upload_with_placeholders_and_writes_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            res = hook.prepare_episode(tmp, ledger={"predictions": []})
+            self.assertFalse(res["upload_allowed"])
+            self.assertTrue(any("placeholders" in b for b in res["blockers"]))
+            self.assertTrue(any("narration" in b for b in res["blockers"]))
+            self.assertTrue(res["warnings"])
+            for name in ("brief.json", "description.txt"):
+                self.assertTrue((Path(tmp) / name).exists())
+            self.assertTrue(all(Path(p).exists() for p in res["charts"]))
+
+    def test_cli_exit_code_nonzero_while_blocked(self):
+        from wealthradar_audit.__main__ import main
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(main(["--out", tmp]), 2)
