@@ -650,19 +650,12 @@ async def make_audio_fish(text, path):
 
 
 def find_font(bold=False):
-    candidates = (
-        [
-            "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        ] if bold else [
-            "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
-    )
-    for item in candidates:
-        if Path(item).exists():
-            return item
-    return None
+    from newsflow.rendering import _font_path
+
+    try:
+        return _font_path(bold)
+    except RuntimeError:
+        return None
 
 
 SOURCE_DISPLAY_NAMES = {
