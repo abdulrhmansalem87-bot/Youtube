@@ -138,13 +138,12 @@ def build_prompt(stories: list[dict]) -> str:
 
 
 def generate_plan(stories: list[dict]) -> dict | None:
-    """Ask Groq for an Arabic plan. Returns {'episode_title_ar', 'stories': {id: plan}} or None."""
-    api_key = os.getenv("GROQ_API_KEY", "").strip()
-    if not api_key or not stories:
-        print("[SCRIPTWRITER] skipped: no GROQ_API_KEY or no stories; using template script")
+    """Ask the LLM chain (Groq first, then free fallbacks) for an Arabic plan. Returns {'episode_title_ar', 'stories': {id: plan}} or None."""
+    from newsflow import llm
+    if not stories or not llm.available():
+        print("[SCRIPTWRITER] skipped: no LLM key (GROQ_API_KEY or a fallback) or no stories; using template script")
         return None
-    from newsflow.fact_check import GROQ_CHAT_URL, DEFAULT_GROQ_MODEL, _post_json
-    model = os.getenv("NEWSFLOW_GROQ_MODEL", DEFAULT_GROQ_MODEL).strip() or DEFAULT_GROQ_MODEL
+    model = os.getenv("NEWSFLOW_GROQ_MODEL", llm.DEFAULT_GROQ_MODEL).strip() or llm.DEFAULT_GROQ_MODEL
     payload = {
         "model": model,
         "temperature": 0.4,
@@ -157,7 +156,7 @@ def generate_plan(stories: list[dict]) -> dict | None:
         ],
     }
     try:
-        response = _post_json(GROQ_CHAT_URL, payload, api_key, "Groq scriptwriter")
+        response, model = llm.chat(payload, "Scriptwriter")
         content = response["choices"][0]["message"]["content"]
         data = json.loads(content)
     except Exception as exc:  # noqa: BLE001 - any failure falls back to the template
