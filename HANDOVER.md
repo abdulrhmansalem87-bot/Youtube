@@ -162,10 +162,30 @@ Do these once. Open "Terminal" or "PowerShell" from the Start menu (normal windo
 3. Check both: `python --version` (shows 3.11) and `ffmpeg -version` (shows a version). If either says "not recognized", restart the laptop and try again.
 4. Download the project: open the repo page on GitHub while signed in, choose Code, Download ZIP, unzip it to `C:\newsflow`. Open the terminal in that folder (in the folder, right-click, Open in Terminal).
 5. Install the libraries: `pip install -r requirements.txt`
-6. Create the keys file: in the folder, create a text file named `.env` with three lines: `PEXELS_API_KEY=`, `GROQ_API_KEY=`, `TAVILY_API_KEY=` followed by each key. The keys come from his secure vault links, never from chat. Never share or upload this file.
+6. Create the keys file: in the folder, create a text file named `.env` (Notepad: Save as, type `.env`, file type All files) with these lines, each followed by its value: `GROQ_API_KEY=`, `TAVILY_API_KEY=`, `PIXABAY_API_KEY=` (Pexels is optional and unverified), and the voice line `NEWSFLOW_TTS_VOICE=ar-EG-ShakirNeural` (default; change only to his pick: `ar-EG-SalmaNeural` or `ar-SA-HamedNeural`). Keys: saved vault and repo-Secret values cannot be read back by anyone, so the laptop needs its own free keys: sign in to console.groq.com, app.tavily.com and pixabay.com/api/docs with the project Google account and create one key each (about 2 minutes each, free). Paste them only into `.env`, never into chat. Never share or upload this file. Do NOT put YouTube OAuth values in it: the first video is uploaded by hand (see below).
 7. Check the machine: `python local/run_local.py --check`. It must print `[LOCAL_PREFLIGHT_OK]`.
 8. Render: `python local/run_local.py`. Results are in the `output` folder; the minutes taken are saved in `output/local_render_log.json`.
 Optional, same look as Actions: put NotoSansArabic-Regular.ttf and NotoSansArabic-Bold.ttf in a folder named `fonts` next to `local`. Without them Windows fonts (Segoe UI, Arial) are used; Arabic shows, the letter shapes differ slightly.
+
+### What the first local video does, end to end (built, UNTESTED on his laptop)
+`python local/run_local.py` runs `python -m newsflow --render-only`:
+1. Topic: RSS sources in `config/sources.yml` plus Tavily trend-radar candidates (money angle only), freshness filter, then the editorial gate. He does not pick the topic; the pipeline takes the top story that passes every gate. If none passes it stops with `[BLOCKED]` and renders nothing.
+2. Evidence and fact check: fetches the original publisher page, checks numbers against the source text, writes `output/fact_check/`. A story that fails is dropped.
+3. Script: Groq model (fallback chain, section 14) writes the Arabic plan; hook rule rejects openings with a greeting. Written to `output/bulletin/script.txt`.
+4. Narration: edge-tts with `NEWSFLOW_TTS_VOICE` (Shakir unless he chose another). Needs internet; the voice is Microsoft's online service, unofficial. Output `voice.mp3`.
+5. B-roll: Pixabay (or Pexels) clips downloaded and cached, attribution kept.
+6. Render: FFmpeg, 2 threads, to `output/bulletin/long.mp4` plus companion Shorts in `output/bulletin/shorts/`. Video QA checks audio and video length match.
+7. `output/bulletin/upload_kit.txt` (new): title, description with sources and B-roll attribution, tags, and the two Studio settings to set.
+8. Private upload BY HAND: Studio, Create, Upload videos, pick `long.mp4`, paste from `upload_kit.txt`, Visibility Private, Altered content Yes. Nothing is public until he clicks publish. Thumbnails come from the audit-package path (`thumb_A.jpg`, `thumb_B.jpg`), not from this run; make or upload the thumbnail in Studio.
+Voice: his pick from the 3 samples is pending. If he has not answered by render time, run with Shakir and tell him which voice it was.
+Windows portability: `newsflow/broll.py` and `newsflow/rendering.py` use the portable font lookup (./fonts, then Windows fonts). Not verified on a real Windows machine.
+
+### Needs Actions (cannot be done from the laptop path)
+- Scheduled and automatic runs (cron, private staging, automatic upload): upload needs YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN, which exist only as write-only repo Secrets and may be stale. Manual dispatch of `newsflow.yml` (private_test) and the full-automation date Dec 1 depend on Actions minutes resetting.
+- `quality.yml` test run, and render-minute measurement on a GitHub runner.
+- `comment-desk.yml` (needs the refresh token with the readonly scope).
+- Test & Compare thumbnails, the scorecard and Altered-content check are Studio, by hand either way.
+- Self-hosted runner on the laptop is the other free route (section 10), not set up.
 
 ### If step 7 says RAQM / Arabic shaping is missing: WSL2 fallback (Ubuntu inside Windows)
 The renderer refuses to run without proper Arabic shaping, by design. Linux inside Windows behaves exactly like Actions.
