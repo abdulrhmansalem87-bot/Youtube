@@ -182,6 +182,7 @@ jobs:
           NEWSFLOW_TTS_RATE: "+8%"
           FISH_AUDIO_MODEL: s2.1-pro-free
           PEXELS_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.PEXELS_API_KEY || '' }}
+          PIXABAY_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.PIXABAY_API_KEY || '' }}
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
           NEWSFLOW_VISUAL_QA_APPROVED: "false"
@@ -263,4 +264,3 @@ jobs:
           path: output/
           if-no-files-found: warn
           retention-days: 14
-
