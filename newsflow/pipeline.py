@@ -1432,6 +1432,10 @@ def main():
         description = add_private_review_notice(description)
         editorial_report["publication_review"] = "private_owner_review_pending"
     validate_youtube_metadata(video_title, description, short=False)
+    if args.render_only:  # copy-paste kit for a manual private upload in Studio
+        (bulletin / "upload_kit.txt").write_text(
+            "TITLE:\n" + video_title + "\n\nDESCRIPTION:\n" + description + "\n\nTAGS:\n" + ", ".join(tags)
+            + "\n\nSTUDIO: Visibility = Private. Altered content = Yes (synthetic voice).\n", encoding="utf-8")
     (out / "editorial_review.json").write_text(
         json.dumps(editorial_report, ensure_ascii=False, indent=2), encoding="utf-8"
     )
