@@ -26,7 +26,7 @@ from newsflow.broll import render_broll_video
 from newsflow.source_evidence import collect_source_evidence
 from newsflow.fact_check import fact_check_stories
 from newsflow.scriptwriter import generate_plan, is_arabic_text
-from newsflow.trend_radar import fetch_signals as fetch_radar_signals
+from newsflow.trend_radar import fetch_signals as fetch_radar_signals, radar_candidates
 from newsflow.discovery import attach_trend_signals, is_trend_source, parse_trend_signal
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -166,8 +166,11 @@ def collect(max_stories: int):
         except Exception as exc:
             print(f"[WARN] تعذر جلب {source.get('name')}: {exc}")
     # Tavily radar: extra ranking signals only, fail-soft, never a fact source.
-    trend_signals.extend(fetch_radar_signals())
+    radar_signals = fetch_radar_signals()
+    trend_signals.extend(radar_signals)
     stories = attach_trend_signals(stories, trend_signals)
+    # Unmatched radar signals with a clear money angle join as ordinary candidates and face every gate.
+    stories.extend(radar_candidates(radar_signals, stories))
     now_ts = datetime.now(timezone.utc).timestamp()
     try:
         lookback_hours = float(os.getenv("NEWSFLOW_LOOKBACK_HOURS", "72"))
