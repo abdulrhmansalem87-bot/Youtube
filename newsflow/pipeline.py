@@ -720,22 +720,32 @@ def append_broll_attribution(description, video_path, *, short=False):
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         raise RuntimeError("ملف توثيق لقطات Pexels غير صالح؛ أوقفنا تجهيز وصف النشر.") from None
-    if manifest.get("provider") != "Pexels" or manifest.get("license") != "Pexels License":
+    allowed = {
+        "Pexels": "Pexels License",
+        "Pixabay": "Pixabay Content License",
+        "Pexels+Pixabay": "Pexels License + Pixabay Content License",
+    }
+    if allowed.get(manifest.get("provider")) != manifest.get("license"):
         raise RuntimeError("بيانات ترخيص B-roll غير مطابقة؛ أوقفنا تجهيز وصف النشر.")
-    credits, seen = [], set()
+    page_prefix = {"Pexels": "https://www.pexels.com/", "Pixabay": "https://pixabay.com/"}
+    credits, seen, used = [], set(), []
     for source in manifest.get("sources", []):
         page = str(source.get("source_page") or "").strip()
-        photographer = str(source.get("photographer") or "مصور Pexels").strip()
-        if not page.startswith("https://www.pexels.com/") or page in seen:
+        name = str(source.get("provider") or "Pexels")
+        photographer = str(source.get("photographer") or f"مصور {name}").strip()
+        if name not in page_prefix or not page.startswith(page_prefix[name]) or page in seen:
             continue
         seen.add(page)
-        credits.append(f"- {photographer} / Pexels: {page}")
+        if name not in used:
+            used.append(name)
+        credits.append(f"- {photographer} / {name}: {page}")
         if len(credits) >= 12:
             break
     if not credits:
         raise RuntimeError("لا توجد روابط إسناد صالحة لمقاطع Pexels؛ أوقفنا تجهيز وصف النشر.")
     body, hashtag_line = split_required_hashtags(description, short=short)
-    attribution = "لقطات الفيديو المتحركة المرخّصة من Pexels (Pexels License):\n" + "\n".join(credits)
+    label = " + ".join(f"{name} ({'Pexels License' if name == 'Pexels' else 'Pixabay Content License'})" for name in used)
+    attribution = f"لقطات الفيديو المتحركة المرخّصة من {label}:\n" + "\n".join(credits)
     result = body + "\n\n" + attribution + "\n\n" + hashtag_line
     if len(result) > 5000:
         raise RuntimeError("إضافة إسناد لقطات Pexels تتجاوز حد يوتيوب؛ تم إيقاف الرفع بدلاً من حذف الروابط أو الهاشتاجات.")
@@ -1065,8 +1075,8 @@ def main():
     upload_enabled = os.getenv("YOUTUBE_UPLOAD_ENABLED", "false").lower() == "true"
     if args.render_only and upload_enabled:
         parser.error("--render-only refuses to run while YouTube uploads are enabled.")
-    if args.render_only and not os.getenv("PEXELS_API_KEY", "").strip():
-        parser.error("--render-only requires PEXELS_API_KEY; no static-card fallback is allowed.")
+    if args.render_only and not (os.getenv("PEXELS_API_KEY", "").strip() or os.getenv("PIXABAY_API_KEY", "").strip()):
+        parser.error("--render-only requires PEXELS_API_KEY or PIXABAY_API_KEY; no static-card fallback is allowed.")
     editorial_approved = os.getenv("NEWSFLOW_EDITORIAL_APPROVED", "false").lower() == "true"
     private_staging = os.getenv("NEWSFLOW_PRIVATE_STAGING", "false").lower() == "true"
     visual_qa_approved = os.getenv("NEWSFLOW_VISUAL_QA_APPROVED", "false").lower() == "true"
