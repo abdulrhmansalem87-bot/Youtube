@@ -337,9 +337,11 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
             k_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"  # has %, $, digits
         k_font = ImageFont.truetype(k_path, int(width * (0.17 if portrait else 0.085)))
         cx, cy = width // 2, int(height * (0.30 if portrait else 0.36))
+        # Pure Latin/digit numbers such as "+1.8%" must stay left-to-right or the sign flips to the end.
+        k_direction = "rtl" if re.search(r"[\u0600-\u06FF]", key_number) else "ltr"
         draw.text((cx, cy), key_number, font=k_font, fill=(255, 255, 255, 255), anchor="mm",
                   stroke_width=max(6, k_font.size // 14), stroke_fill=(5, 17, 31, 255),
-                  direction="rtl", language="ar")
+                  direction=k_direction, language="ar" if k_direction == "rtl" else "en")
         box = draw.textbbox((cx, cy), key_number, font=k_font, anchor="mm")
         draw.rectangle((box[0], box[3] + 10, box[2], box[3] + 18), fill=teal)
 
