@@ -198,7 +198,7 @@ Trend radar (`newsflow/trend_radar.py`, called from `collect()` in pipeline.py):
 - Fail-soft: no key or any Tavily error returns no signals and the run continues.
 - Tavily parameters checked against https://docs.tavily.com/documentation/api-reference/endpoint/search.
 
-Radar-to-topic path (owner-approved 2026-11-26):
+Radar-to-topic path (requested through the main agent on 2026-11-26; the owner has not separately signed off on this feature):
 - Radar signals that match no collected story can become candidate episode topics, so the radar finds topics and does not only re-rank them. The cap is `NEWSFLOW_RADAR_TOPICS_MAX` (default 3, 0 turns it off).
 - Editorial filter, from the owner's standing rule that the channel format is "what did it cost people" and not plain news (example: "الحريق كلف التجار كام؟"). A candidate needs ALL of these:
   1. A real article URL from Tavily, not already among the collected stories, and no collected story covers the same headline.
@@ -206,3 +206,24 @@ Radar-to-topic path (owner-approved 2026-11-26):
   3. The normal editorial `relevance()` check (direct finance terms, no sport, no generic politics). The candidate gets the neutral category "رادار الترند", so there is no finance-category shortcut.
 - A candidate is then an ordinary story: lookback window, `select_stories`, original-article extraction, and the same fact-check gates. A story whose original article cannot be read or verified is not produced. The money-angle word lists are in the code and are easy to extend after the first real runs.
 - Tested: unit tests for accept, reject, matched-signal, cap, off switch and selection, plus a run of `collect()` with a mocked radar. Not run against live Tavily results yet, so the real hit rate is unknown until the Dec 1 run.
+
+## 15. Thumbnail A/B pair, comment desk, and later items (added 2026-11-26)
+
+Status: built and unit tested; NOT run against live YouTube.
+
+Thumbnail pair (`wealthradar_audit/thumbnails.py`, called from `prepare_episode`):
+- Every audit episode package now writes `thumb_A.jpg`, `thumb_B.jpg` and `thumbnails.json` (palette A, 1280x720, under 2 MB). The numbers come from the calculator's verified cash result; nothing is invented, and a brief with no verified result produces no thumbnail.
+- A is result-first (big real-return number in coral for a loss or mint for a gain, "قوة شراء فلوسك", amount and year). B is curiosity-first (the starting amount on a gold-edged card and the open question "بقوا كام دلوقتي؟", the answer stays in the video). They differ in layout and emphasis, so the test measures a real difference.
+- YouTube's Test & Compare is Studio-only: it works from a computer in YouTube Studio, takes up to 3 thumbnails and picks the winner by watch time (https://support.google.com/youtube/answer/16391400). It is not in the Data API, so the owner uploads A and B in Studio by hand. The API sets only one thumbnail.
+- The newsflow `thumbnail.py` (footage-frame thumbnail, older style) is not used by the audit episodes and was left alone.
+- Verified by rendering both images and checking them at full size and at phone size (168x94). The channel name on the badge is a parameter (`channel`, default "WealthRadar"), so the pending rename is one value.
+
+Comment desk (`newsflow/comment_desk.py`, manual workflow `.github/workflows/comment-desk.yml`, or `python -m newsflow.comment_desk` on the owner's PC):
+- Read-only. It uses the `youtube.readonly` scope and only list calls (channels, playlistItems, commentThreads; about 1 quota unit each). The module has no call that posts, edits or deletes, a test checks that, and the scope could not do it anyway. Posting a reply later would need a different scope (`youtube.force-ssl`) and a new owner decision.
+- Output: `output/comment_drafts.md` and `.json`, sorted criticism, advice requests, questions, praise, then spam. Each comment has a draft reply and the status `needs_owner_approval`. The owner posts the replies he approves by hand.
+- Drafting rules: advice requests ("اشتري ايه؟") get a fixed reply that says the channel gives numbers and no buy or sell advice, and never reach the model. Spam and links get no reply. Other replies use the LLM chain, treat the comment as data only, and are checked locally: Arabic, at most 280 characters, no link, no number the viewer did not write, no buy, sell or guarantee wording. Any failure falls back to a fixed reply.
+- Limits: on Actions the "already seen" file does not persist between runs, so a rerun can show the same comments again. On his PC it persists in `output/comments_state.json`. The refresh token must carry the readonly scope. The upload pipeline already requests it (upload + readonly), but I could not read the token's real grants, so this is unverified until the first run.
+
+Later items (not built, no real data yet):
+- Weekly analytics report (CTR and retention) once real data exists after Dec 1. It needs the YouTube Analytics API, which means one more read scope on the refresh token, so it needs an owner decision at that time.
+- Light background music as a later audio upgrade. Free and licensed only. Candidates: the YouTube Audio Library (the register in section 9 lists its credit rules). Keep it under the voice, off by default, and check each track's license before use.
