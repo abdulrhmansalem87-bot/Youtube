@@ -136,3 +136,25 @@ Goal: he records once, the pipeline narrates in his cloned voice. Free, local, c
 - Alternative: Chatterbox Multilingual V3 (MIT, includes Arabic but not Egyptian-specific, 500M parameters, archived as of Aug 2026).
 - Hardware if local: Cairo-TTS runs on a normal laptop CPU; GPU not needed. Unknown: his PC specs.
 - YouTube's rules on disclosing realistic synthetic audio were not checked here; check before the first upload.
+
+## 13. Local render engine (second engine) for the owner's PC
+
+Status 2026-11-26: built, NOT yet run on his PC. Targets: Ryzen 7, 8 GB RAM, no GPU mentioned, OS assumed Windows (unconfirmed).
+
+What it is: the same `python -m newsflow --render-only` pipeline that Actions runs, plus `local/run_local.py` (preflight, low-memory settings, timing log). Same episode data, same renderer, same output folder. Uploads are forced off and privacy stays private; nothing is published from his PC.
+
+Code changes that make it portable (Linux/Actions behaviour is unchanged; the 215-test suite gives identical results before and after, 3 pre-existing errors in my partial checkout in both):
+- Font lookup now searches `NEWSFLOW_FONT_DIR`, then `./fonts`, then the Linux paths, then Windows system fonts (Segoe UI, Arial, Tahoma) and macOS Arial. Previously Linux-only. Font paths on Linux resolve to the same files as before (checked).
+- `NEWSFLOW_FFMPEG_THREADS` caps x264 threads (run_local.py sets 2 by default). Rendering is already one scene at a time (frame, then segment, then concat), so peak memory stays small.
+
+Setup on Windows (about 10 minutes):
+1. Install Python 3.11+ (python.org, tick "Add to PATH") and FFmpeg (`winget install Gyan.FFmpeg`), then reopen the terminal.
+2. Get the repo as a ZIP from GitHub (private repo: the owner downloads it while signed in), unzip, open a terminal in the folder.
+3. `pip install -r requirements.txt`
+4. Create `.env` in the repo root with `PEXELS_API_KEY=`, `GROQ_API_KEY=`, `TAVILY_API_KEY=` (values come from his vault links; never paste them in chat or commit `.env`).
+5. `python local/run_local.py --check`, then `python local/run_local.py`. Result in `output/`, minutes per run in `output/local_render_log.json`.
+Optional: put NotoSansArabic-Regular.ttf and -Bold.ttf in a `fonts` folder for the same look as Actions; without them Segoe UI/Arial are used (Arabic shows, glyph look differs slightly).
+
+Known risk (unverified): Pillow on Windows needs the RAQM/fribidi component for Arabic shaping. If preflight says RAQM is missing, the renderer refuses to run (by design, no broken Arabic). Fallback: WSL2 Ubuntu or Docker, where it behaves exactly like Actions. Not tested on Windows; the preflight and font lookup were tested on Linux only.
+
+Not done: measured render minutes on his PC; a Windows `.bat` launcher; narration is still the owner's recording.
