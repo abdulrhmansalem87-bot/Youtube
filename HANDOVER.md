@@ -197,3 +197,12 @@ Trend radar (`newsflow/trend_radar.py`, called from `collect()` in pipeline.py):
 - Up to 3 Tavily news searches per run (basic depth, last day; 1 credit each), `NEWSFLOW_TREND_RADAR_QUERIES=0` turns it off. Results become trend signals in the same shape as the Google Trends ones, so `attach_trend_signals()` boosts matching stories in the ranking. A signal is never a story and never a fact; fact checking is unchanged.
 - Fail-soft: no key or any Tavily error returns no signals and the run continues.
 - Tavily parameters checked against https://docs.tavily.com/documentation/api-reference/endpoint/search.
+
+Radar-to-topic path (owner-approved 2026-11-26):
+- Radar signals that match no collected story can become candidate episode topics, so the radar finds topics and does not only re-rank them. The cap is `NEWSFLOW_RADAR_TOPICS_MAX` (default 3, 0 turns it off).
+- Editorial filter, from the owner's standing rule that the channel format is "what did it cost people" and not plain news (example: "الحريق كلف التجار كام؟"). A candidate needs ALL of these:
+  1. A real article URL from Tavily, not already among the collected stories, and no collected story covers the same headline.
+  2. A clear money angle (`money_angle()` in `newsflow/trend_radar.py`): an explicit amount with a currency or billion/million in the title; or a cost, loss, price, tax, fee, wage, tariff or similar term in the title; or an amount in the snippet together with an economy or market headline. A headline like a fire, a match or a speech with no money in it is dropped.
+  3. The normal editorial `relevance()` check (direct finance terms, no sport, no generic politics). The candidate gets the neutral category "رادار الترند", so there is no finance-category shortcut.
+- A candidate is then an ordinary story: lookback window, `select_stories`, original-article extraction, and the same fact-check gates. A story whose original article cannot be read or verified is not produced. The money-angle word lists are in the code and are easy to extend after the first real runs.
+- Tested: unit tests for accept, reject, matched-signal, cap, off switch and selection, plus a run of `collect()` with a mocked radar. Not run against live Tavily results yet, so the real hit rate is unknown until the Dec 1 run.
