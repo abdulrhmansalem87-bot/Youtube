@@ -12,22 +12,53 @@ from typing import Callable
 from PIL import Image, ImageDraw, ImageFont, features
 
 RENDERER_VERSION = "wealthradar-mobile-safe-v3"
-ARABIC_REGULAR = (
-    "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Regular.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+_LINUX_FONTS = "/usr/share/fonts/truetype"
+_WIN_FONTS = os.path.join(os.environ.get("WINDIR", "C:/Windows"), "Fonts")
+# Search order: owner-provided folder (NEWSFLOW_FONT_DIR or ./fonts), Linux (Actions), Windows, macOS.
+_ARABIC_REGULAR_NAMES = ("NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf")
+_ARABIC_BOLD_NAMES = ("NotoSansArabic-Bold.ttf", "NotoNaskhArabic-Bold.ttf")
+_LATIN_REGULAR_NAMES = ("DejaVuSans.ttf",)
+_LATIN_BOLD_NAMES = ("DejaVuSans-Bold.ttf",)
+# System fallbacks that contain both Arabic and Latin glyphs (Windows ships these).
+_SYSTEM_REGULAR = (
+    f"{_LINUX_FONTS}/dejavu/DejaVuSans.ttf",
+    f"{_WIN_FONTS}/segoeui.ttf", f"{_WIN_FONTS}/arial.ttf", f"{_WIN_FONTS}/tahoma.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
 )
-ARABIC_BOLD = (
-    "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
-    "/usr/share/fonts/truetype/noto/NotoNaskhArabic-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+_SYSTEM_BOLD = (
+    f"{_LINUX_FONTS}/dejavu/DejaVuSans-Bold.ttf",
+    f"{_WIN_FONTS}/segoeuib.ttf", f"{_WIN_FONTS}/arialbd.ttf", f"{_WIN_FONTS}/tahomabd.ttf",
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
 )
+
+
+def _font_dirs() -> list[str]:
+    dirs = []
+    custom = os.getenv("NEWSFLOW_FONT_DIR", "").strip()
+    if custom:
+        dirs.append(custom)
+    dirs.append(str(Path(__file__).resolve().parent.parent / "fonts"))
+    dirs += [f"{_LINUX_FONTS}/noto", f"{_LINUX_FONTS}/dejavu"]
+    return dirs
+
+
+def _first_existing(names, system) -> str | None:
+    for folder in _font_dirs():
+        for name in names:
+            candidate = os.path.join(folder, name)
+            if os.path.isfile(candidate):
+                return candidate
+    for candidate in system:
+        if os.path.isfile(candidate):
+            return candidate
+    return None
 
 
 def _font_path(bold: bool = False) -> str:
-    for candidate in (ARABIC_BOLD if bold else ARABIC_REGULAR):
-        if Path(candidate).is_file():
-            return candidate
+    found = _first_existing(_ARABIC_BOLD_NAMES if bold else _ARABIC_REGULAR_NAMES,
+                            _SYSTEM_BOLD if bold else _SYSTEM_REGULAR)
+    if found:
+        return found
     raise RuntimeError("لم يتم العثور على خط عربي مناسب؛ أوقفنا الإنتاج حتى لا تظهر حروف مكسورة.")
 
 
@@ -35,12 +66,10 @@ def _font_path_for_text(text: str, bold: bool = False) -> str:
     # Noto Sans Arabic is excellent for Arabic but does not include Latin letters.
     # Use DejaVu for mixed Arabic/Latin strings to prevent missing-glyph squares.
     if re.search(r"[A-Za-z…]", str(text or "")):
-        candidate = (
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-            if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-        )
-        if Path(candidate).is_file():
-            return candidate
+        found = _first_existing(_LATIN_BOLD_NAMES if bold else _LATIN_REGULAR_NAMES,
+                                _SYSTEM_BOLD if bold else _SYSTEM_REGULAR)
+        if found:
+            return found
     return _font_path(bold)
 
 
@@ -295,6 +324,12 @@ def _probe_final_video(path: Path, duration: float, width: int, height: int, ffp
     )
 
 
+def _thread_args() -> list[str]:
+    """Optional cap on x264 threads (NEWSFLOW_FFMPEG_THREADS) for small machines; unset keeps the default."""
+    value = os.getenv("NEWSFLOW_FFMPEG_THREADS", "").strip()
+    return ["-threads", value] if value.isdigit() and int(value) > 0 else []
+
+
 def _render_segment(frame: Path, output: Path, duration: float, width: int, height: int, ffmpeg: str) -> None:
     temporary = output.with_name(output.stem + ".partial.mp4")
     temporary.unlink(missing_ok=True)
@@ -304,7 +339,7 @@ def _render_segment(frame: Path, output: Path, duration: float, width: int, heig
         "-t", f"{duration:.3f}", "-vf",
         f"zoompan=z='{zoom}':d=1:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps=30,format=yuv420p",
         "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
-        "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(temporary),
+        *_thread_args(), "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(temporary),
     ]
     try:
         subprocess.run(command, check=True, capture_output=True, text=True, timeout=600)
