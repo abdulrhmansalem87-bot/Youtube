@@ -163,7 +163,7 @@ class TrendRadarTests(Base):
     def test_parse_results_filters_and_shapes_like_google_trends_signals(self):
         signals = trend_radar.parse_results(self.RESPONSE, "Global")
         self.assertEqual(len(signals), 3)  # duplicates are removed later in fetch_signals
-        self.assertEqual(set(signals[0]), {"query", "country", "source", "url", "approx_traffic"})
+        self.assertEqual(set(signals[0]), {"query", "country", "source", "url", "approx_traffic", "snippet", "published"})
         self.assertIn("reuters.com", signals[0]["source"])
         self.assertNotIn("www.", signals[0]["source"])
 
@@ -207,6 +207,61 @@ class TrendRadarTests(Base):
     def test_radar_never_leaks_non_public_text(self):
         for query, _country in trend_radar.DEFAULT_QUERIES:
             self.assertNotRegex(query, r"(?i)key|token|secret|@")
+
+
+class RadarTopicTests(Base):
+    def sig(self, title, snippet="", url="https://example.com/a", published="Tue, 24 Nov 2026 10:00:00 GMT"):
+        return {"query": title, "country": "Egypt", "source": "Tavily Trend Radar (example.com)", "url": url,
+                "approx_traffic": "", "snippet": snippet, "published": published}
+
+    def test_money_angle_accepts_cost_loss_price_and_amounts(self):
+        for title in ("الحريق كلف التجار 40 مليون جنيه", "خسائر البورصة المصرية اليوم",
+                      "Gold prices jump after Fed decision", "Company fined $50 million over tax case",
+                      "ارتفاع أسعار الوقود في مصر"):
+            self.assertTrue(trend_radar.money_angle(title), title)
+
+    def test_money_angle_rejects_plain_news(self):
+        for title in ("حريق في سوق العتبة", "Football club wins league title", "الرئيس يستقبل وفد الاتحاد الأوروبي",
+                      "Taxiway closed at airport"):
+            self.assertEqual(trend_radar.money_angle(title), "", title)
+
+    def test_unmatched_money_signal_becomes_candidate_story(self):
+        signals = [self.sig("أسعار الذهب ترتفع والجنيه المصري يتراجع أمام الدولار", "ارتفع سعر الذهب 50 جنيهاً اليوم في السوق المحلي")]
+        out = trend_radar.radar_candidates(signals, [{"id": "x", "title": "Local football news", "summary": "", "link": "https://z.com"}])
+        self.assertEqual(len(out), 1)
+        story = out[0]
+        self.assertEqual(story["origin"], "trend_radar")
+        self.assertEqual(story["link"], "https://example.com/a")
+        self.assertEqual(len(story["id"]), 12)
+        self.assertGreater(story["published_ts"], 0)
+        self.assertTrue(story["money_angle"])
+        self.assertNotIn("اقتصاد", story["category"])  # no finance-category shortcut
+
+    def test_matched_signal_is_not_a_new_topic(self):
+        title = "Gold prices climb as dollar slips on Fed hopes"
+        stories = [{"id": "1", "title": title, "summary": "", "link": "https://other.com/1"}]
+        self.assertEqual(trend_radar.radar_candidates([self.sig(title)], stories), [])
+
+    def test_no_money_angle_or_no_finance_relevance_is_dropped(self):
+        for title in ("حريق في سوق العتبة", "Celebrity wins $2 million lottery prize in Texas town"):
+            self.assertEqual(trend_radar.radar_candidates([self.sig(title)], []), [], title)
+
+    def test_known_links_cap_and_off_switch(self):
+        signals = [self.sig(f"ارتفاع أسعار الذهب في مصر {i} جنيه", url=f"https://example.com/{i}") for i in range(6)]
+        self.assertEqual(len(trend_radar.radar_candidates(signals, [])), 3)
+        os.environ["NEWSFLOW_RADAR_TOPICS_MAX"] = "0"
+        self.assertEqual(trend_radar.radar_candidates(signals, []), [])
+        os.environ.pop("NEWSFLOW_RADAR_TOPICS_MAX")
+        known = [{"id": "k", "title": "something else", "summary": "", "link": "https://example.com/0"}]
+        urls = [c["link"] for c in trend_radar.radar_candidates(signals, known)]
+        self.assertNotIn("https://example.com/0", urls)
+
+    def test_candidate_passes_the_same_selection_gates_as_rss_stories(self):
+        from newsflow import pipeline
+        signals = [self.sig("ارتفاع أسعار الذهب في مصر جنيه اليوم", "ارتفع الذهب 40 جنيهاً")]
+        cand = trend_radar.radar_candidates(signals, [])
+        selected, rejected = pipeline.select_stories(cand, 3)
+        self.assertEqual([c["id"] for c in selected], [c["id"] for c in cand])
 
 
 if __name__ == "__main__":
