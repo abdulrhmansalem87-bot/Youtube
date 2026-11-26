@@ -78,13 +78,13 @@ class BrollPlanningTests(unittest.TestCase):
             self.assertGreater(image.getpixel((1079, 1910))[3], 200)
             self.assertLess(image.getpixel((20, 1150))[3], image.getpixel((20, 1450))[3])
             self.assertLessEqual(image.getpixel((20, 1150))[3], 120)   # soft fade, not a hard edge
-            # Quiet tags flush to the top corners, translucent rather than solid.
-            for x in (2, 1077):
-                alpha = image.getpixel((x, 110))[3]
-                self.assertTrue(100 <= alpha <= 200, alpha)
+            # Channel bug top-left is a solid gold plate; stat chip top-right stays translucent.
+            self.assertEqual(image.getpixel((2, 110))[3], 255)
+            self.assertEqual(image.getpixel((2, 110))[:3], (212, 175, 98))
+            self.assertTrue(100 <= image.getpixel((1077, 110))[3] <= 200)
 
     @unittest.skipUnless(features.check("raqm"), "Arabic RAQM shaping is unavailable")
-    def test_band_keeps_its_bottom_and_headline_only_on_first_shot(self):
+    def test_headline_strap_is_fixed_for_the_whole_story(self):
         with tempfile.TemporaryDirectory() as directory:
             a, b, c = (Path(directory) / n for n in ("a.png", "b.png", "c.png"))
             ar = {"captions": ["نص", "نص", "نص"], "headline": "عنوان عربي واضح للخبر", "key_number": "+1.8%"}
@@ -96,8 +96,11 @@ class BrollPlanningTests(unittest.TestCase):
 
             def band_top(image):
                 return next(y for y in range(400, 1900) if image.getpixel((20, y))[3] > 20)
-            self.assertLess(band_top(ia), band_top(ib))   # headline makes the first-shot band taller
-            self.assertEqual(band_top(ib), band_top(ic))  # English headline is never drawn
+            self.assertEqual(band_top(ia), band_top(ib))  # strap stays put on every shot of the story
+            self.assertLess(band_top(ia), band_top(ic))   # English headline is never drawn: no strap, shorter band
+            strap_y = next(y for y in range(1000, 1900) if ia.getpixel((20, y))[:4] == (212, 175, 98, 255))
+            self.assertEqual(ib.getpixel((20, strap_y))[:4], (212, 175, 98, 255))
+            self.assertNotEqual(ic.getpixel((20, strap_y))[:4], (212, 175, 98, 255))
             for image in (ia, ib, ic):
                 self.assertGreater(image.getpixel((540, 1900))[3], 200)  # same flush bottom every shot
             self.assertGreater(ia.getpixel((1077, 110))[3], 100)  # stat chip on the first shot
