@@ -106,3 +106,11 @@ class ReceiptRenderTests(unittest.TestCase):
                 img = Image.open(out)
                 self.assertEqual(img.size, size)
                 self.assertIsNotNone(img.getchannel("A").getbbox())
+
+
+class KeyNumberDirectionTests(unittest.TestCase):
+    def test_latin_key_number_is_drawn_ltr(self):
+        import inspect
+        from newsflow import broll
+        source = inspect.getsource(broll._overlay)
+        self.assertIn('k_direction = "rtl" if re.search', source)
