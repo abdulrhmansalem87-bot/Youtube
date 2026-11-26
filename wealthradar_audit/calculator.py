@@ -17,6 +17,11 @@ CAVEATS = [
     "هذه مقارنة تاريخية وليست توصية أو توقعا",
 ]
 
+CERTIFICATE_METHOD_AR = ("الشهادة هنا: كل يناير بنحط المبلغ كله في أعلى عائد متاح في البنك الأهلي في الشهر ده ونكسب عائده سنة، "
+                         "من غير حساب فترات الطرح المحدودة ولا حدود الشراء ولا الضرائب")
+CERTIFICATE_ON_AIR_AR = ("شهادة الـ18% كانت متاحة من 21 مارس إلى 30 مايو 2022 فقط، وشهادة الـ25% من 4 إلى 31 يناير 2023 فقط. "
+                         "اللي فاته الطرح ماخدش العائد ده")
+
 
 @dataclass
 class Result:
@@ -101,3 +106,19 @@ def publishable(results: list[Result]) -> tuple[bool, list[str]]:
         elif not r.verified:
             problems.append(f"{r.key} uses unverified data")
     return (not problems, problems)
+
+
+def gulf_view(start_year: int, end_year: int) -> dict:
+    """Gold held by a Saudi/UAE resident: SAR and AED are pegged to the USD, so gold moves with its USD price.
+    Real multiple = USD gold multiple divided by that country's cumulative inflation."""
+    gold = data.series("gold")
+    miss = _need(gold, [start_year, end_year], "gold")
+    if miss:
+        raise ValueError("missing gold data: " + ", ".join(miss))
+    mult = gold[end_year] / gold[start_year]
+    out = {"gold_multiple_usd_terms": mult, "pegs": data.GULF_PEGS, "countries": {}}
+    for code, name in (("SAU", "السعودية"), ("ARE", "الإمارات")):
+        cpi = data.GULF_INFLATION[code]["values"]
+        infl = cumulative_inflation(start_year, end_year, cpi)
+        out["countries"][code] = {"name_ar": name, "cumulative_inflation_multiple": infl, "gold_real_multiple": mult / infl}
+    return out
