@@ -79,7 +79,11 @@ Status at last update: Groq and Tavily keys are still to be supplied by the owne
 YouTube OAuth needs scopes youtube.upload and youtube.readonly; re-authorize if the refresh token is old.
 
 ## 7. Publishing schedule
-Pipeline checks: 3 pm, 7 pm, 10 pm Cairo. Shorts batch: one per day, same slot (owner to choose time). Long video weekly. All uploads PRIVATE until the owner reviews and publishes.
+Pipeline checks: 3 pm, 7 pm, 10 pm Cairo. Shorts batch: one per day, same slot (owner to choose time).
+Long video (owner decision 2026-11-26): 2 per week as the base, scaling up (up to one a day) only when the material, length and information justify it. Quality before volume; the owner's recording time is the limit.
+Fast lane (section 11): a Short within hours for a breaking Egyptian event with a money angle, outside the fixed schedule.
+All uploads PRIVATE until the owner reviews and publishes.
+Episode roadmap: ep 1-2 as planned in section 2; ep 3 the 100k EGP comparison (data ready, render waits on narration); then 2 per week, one of them a "كشف حساب" audit and one a follow-up or receipts/predictions episode when the ledger has settled, sourced predictions.
 
 ## 8. Status: implemented vs not
 Implemented (on branch): news pipeline, fact-check gate, scriptwriter, prediction receipts, teaser-Short wiring, quality upgrades (tests passing at last report).
@@ -88,12 +92,47 @@ New package `wealthradar_audit/` (own 20 tests pass: `python -m unittest discove
 - Certificate method (owner decision): each January roll the whole amount into the best NBE certificate rate available that month, sourced rates only: 2021 11, 2022 11, 2023 25, 2024 27, 2025 30 (percent). Compounded 2022-2025 multiple about 2.29 vs inflation 2.23, real about +2.7 percent. Must be stated on screen and in the script (`brief.on_screen_required`). On-air point: the 18 percent certificate ran only 21 Mar to 30 May 2022 and the 25 percent one only 4 to 31 Jan 2023, so a January-only rule misses windows. Not modelled: caps, new-money limits, tax, monthly payout (22.5 vs 25). 2024 tenor not confirmed; 2025 is the year-one rate of a 3-year stepped certificate.
 - Official vs parallel USD/EGP differed in 2022 to early 2024: say so on air.
 - The receipt segment is dropped when `config/predictions_ledger.json` has no settled, sourced prediction (currently empty).
+Fast lane: `wealthradar_audit/fastlane.py` (money-angle detection, sensitive-event gate, two-source gate, title and hashtag builder, Short brief) with 5 tests. The live watch is not wired yet.
 Not built yet: pipeline wiring (`newsflow/pipeline.py` does not call `wealthradar_audit`), narration, render of episode 3, Shorts matrix config, tracking sheet file.
 Untested: the repo's 228 tests and Actions on the new code, real upload path, anything needing Groq/Tavily/Fish keys.
 
 ## 9. Open items
-- Owner approval of the 9-Short matrix and topic swaps.
-- Groq and Tavily keys.
+- Owner approval of the 9-Short matrix and topic swaps; channel name answer.
+- Narration: the owner's own recording (see section 12 for the voice-cloning research).
+- Pexels key not verified (secret exists, value not readable). Fish Audio secrets exist but the plan is not to use TTS.
 - Commit access: the coding agent has read-only GitHub API access; commits go through the browser editor.
-- Possible licensing check for Egypt/Saudi finance content.
-- Episode 3 render after keys.
+- Fast lane watch wiring (section 11), provider-fallback adapters (section 10), possible licensing check for Egypt/Saudi finance content.
+
+## 10. Alternatives register (خزينة البدائل)
+Standing rule from the owner: no single dependency may stall the channel. Each row: primary, ready fallback, limits, and the trigger to switch. "Tested" means a real call or run; everything else is read from the source named.
+
+| Component | Primary | Fallback (ready to use) | Limits to know | Switch when |
+| --- | --- | --- | --- | --- |
+| Rendering | GitHub Actions (manual dispatch) | 1) Local render on the owner's PC: Python 3.11, FFmpeg, `pip install -r requirements.txt`, `python -m newsflow --render-only`. 2) Flip the repo to public (Actions on standard runners is free for public repos, docs.github.com/en/actions/concepts/billing-and-usage). 3) Self-hosted runner on his PC (also free per the same page). | GitHub's table (docs.github.com/en/billing/reference/product-usage-included, read 2026-11-26) lists the Free plan as $12 USD of included Actions compute per month, not a fixed 2,000 minutes: check Settings > Billing for the real remaining figure before planning. The private repo's minutes reset Dec 1. | Billing shows under 20 percent left, a run is refused for budget, or GitHub is down. Public flip exposes code and this file (secrets stay encrypted, but check history for keys first); do it only on the owner's word. |
+| LLM (script, fact-check) | Groq `openai/gpt-oss-120b`, free tier (key tested 2026-11-26: models list and a chat call returned 200) | 1) Same Groq org: `openai/gpt-oss-20b`, `qwen/qwen3.8-27b`. 2) Cerebras free tier, same `gpt-oss-120b` model (inference-docs.cerebras.ai). 3) Gemini API free tier (aistudio.google.com/docs/pricing; the free tier lets Google use content to improve products, fine for public news only). 4) OpenRouter `:free` models. | Groq free per model: 30 requests/min, 1,000/day, 8,000 tokens/min, 200,000 tokens/day (console.groq.com/docs/rate-limits as quoted by third-party checks dated 10-23 Nov 2026). Gemini free about 15 req/min, 500/day. OpenRouter free: 20/min, 50/day. | HTTP 429 that retries do not clear, a model removed from the free list (Groq removed Llama 3.1 8B and 3.3 70B on 2026-08-16), or a key revoked. Switch via `NEWSFLOW_GROQ_MODEL` first. Provider fallbacks 2-4 need a small adapter in `fact_check.py` and `scriptwriter.py` that is NOT written yet; not tested (no keys). |
+| Web search for fact-check | Tavily free "Researcher" plan, 1,000 credits/month (323 used on 2026-11-26; key tested: search returned 200) | Publisher-page fetch already in `source_evidence.py` (no key); RSS summaries | Credits are monthly | Under 10 percent of credits left: fact-check falls back to original-page evidence only and the story stays unverified unless two readable sources agree. |
+| Stock footage | Pexels API (secret exists; free; not verified) | Pixabay API (Content License; free key; 100 requests per 60 s; responses cached 24 h; no permanent hotlinking, download first; show attribution where results are displayed: pixabay.com/api/docs, pixabay.com/service/license-summary) | Pixabay license forbids trademarks/logos in commercial use | Pexels key rejected or empty results. A Pixabay adapter in `broll.py` is NOT written yet; the pipeline forbids static-card fallback, so write it before it is needed. |
+| Music | YouTube Audio Library (monetization allowed, some tracks need a credit line; support.google.com/youtube/answer/3376882) | No music at all (voice and captions only) is zero risk. Pixabay music is a candidate; its license page was not checked for music, verify before use. | Audio Library downloads are manual from YouTube Studio | A track gets a claim or the library is unavailable: ship without music. |
+| Voice | The owner's own recorded narration | Cloned voice from his recording, see section 12 | | He cannot record in time. |
+| Repo hosting | GitHub private repo | Local clone on the owner's PC plus public flip (see Rendering). A second remote (GitLab or Codeberg) is an idea, not checked. | | GitHub unreachable for more than a few hours: render locally from the clone. |
+| Credentials | Vault entries "Groq API key (newsflow-pipeline)" and "Tavily API key (newsflow-pipeline)"; GitHub repo secrets | Regenerate a key in the provider console (accounts are under the owner's Gmail via Google sign-in) | | A key leaks or is revoked. |
+
+## 11. Fast lane: breaking Egyptian moments with a money angle
+Owner example (2026-11-26): the fire at Nazlet el-Kobba / Boulaq the day before. A Short like "الحريق كلف التجار كام؟" with a trending title and hashtags would have ridden the moment.
+Flow (target: hours, not days):
+1. Watch (needs the Groq and Tavily keys, now in Secrets): the scheduled `newsflow.yml` collects Egyptian news RSS; `fastlane.money_angles()` flags items with a loss, compensation, traders, prices, markets or policy angle. Tavily search then gathers figures and trending terms. Not wired yet.
+2. Gate (built, tested): `fastlane.build_short_brief()` blocks unless every figure has an https source, there are at least two independent source domains, and the event has a money angle. Events with deaths or injuries are flagged sensitive: economic fallout only, no victim names, no blame, owner review before publishing.
+3. Title and hashtags (built, tested): question-style Arabic title from the angle (at most 70 characters), hashtags from the trending terms first, then #كشف_حساب, #Shorts, #اقتصاد_مصر (at most 8; YouTube shows the first three).
+4. Render: the v3 Short renderer (palette A, 720x1280, 35-45 s, final numbers only, sources in the description). That script lives in the author's workspace and is NOT committed yet; commit it before wiring the lane.
+5. Narration: the owner's recording or the cloned voice (section 12). This is the step that decides whether "hours" is real: a fast Short needs a voice within hours.
+6. Upload PRIVATE for the owner's one-tap approval, then publish.
+Rules: never state a number that is not in a source; never guess a cause or blame; the owner approves the first fast-lane Short before the lane runs unattended.
+
+## 12. Voice cloning research (2026-11-26), for the owner's own voice
+Goal: he records once, the pipeline narrates in his cloned voice. Free, local, commercial use on monetized YouTube. Nothing is built or promised yet.
+- Recommended to test first: Cairo-TTS (Egyptian Arabic, code and model on Hugging Face mohammedaly22/Cairo-TTS, pip package cairo-tts). Egyptian dialect, about 100M parameters, runs on a laptop CPU (the project reports about 2.6x real time on an i7-10750H), zero-shot cloning from a 5-10 s clean recording. Code is MIT. Weights are fine-tuned from Kyutai Pocket TTS and "follow the Pocket TTS terms"; the Pocket TTS card on Hugging Face declares CC-BY-4.0 (commercial use allowed with attribution) plus a prohibited-use clause against deception. Open points: the Cairo-TTS weights license is stated only by reference (its NOTICE.md could not be fetched); it was trained on about 747 hours of Egyptian podcast speech whose rights are not stated; its model card asks creators to disclose synthetic audio. Quality for his voice is UNTESTED (no run was possible: the sandbox has 1 CPU and 1 GB RAM). Needs his 38-second sample to judge.
+- Not safe: Coqui XTTS-v2 (license text: "allows only non-commercial use of a machine learning model and its outputs"); F5-TTS pretrained models (README: CC-BY-NC because of the Emilia data); ElevenLabs free plan (docs: no commercial license); Fish Audio free plan (the plan page lists commercial use but the site FAQ says the free plan is for personal use only, and the free API window is announced only through 2026-11-30: contradictory, do not rely on it).
+- Unresolved: Habibi-TTS EGY (SWivid/Habibi-TTS): Apache 2.0 label, strong Egyptian metrics in the paper, but the paper says it was initialized from F5-TTS weights, which the F5-TTS README licenses CC-BY-NC, and trained on datasets with their own terms. The Apache label may not hold; do not use for monetized video without clearing this. Needs a GPU in practice.
+- Alternative: Chatterbox Multilingual V3 (MIT, includes Arabic but not Egyptian-specific, 500M parameters, archived as of Aug 2026).
+- Hardware if local: Cairo-TTS runs on a normal laptop CPU; GPU not needed. Unknown: his PC specs.
+- YouTube's rules on disclosing realistic synthetic audio were not checked here; check before the first upload.
