@@ -74,7 +74,7 @@ LLM: Groq free tier. Default model `openai/gpt-oss-120b` (set in `newsflow/fact_
 - Actions: `newsflow.yml` runs 3x daily Cairo time (3 pm, 7 pm, 10 pm), editorial checks only (no render or upload). Full episode needs manual `workflow_dispatch` with `private_test=true` and `dry_run=false`. `wealthradar-shorts.yml` is manual only. `quality.yml` runs checks on push/PR.
 
 ## 6. Credentials (names only, never values)
-GitHub repo secrets: GROQ_API_KEY, TAVILY_API_KEY, FISH_AUDIO_API_KEY, FISH_AUDIO_REFERENCE_ID, PEXELS_API_KEY, YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN.
+GitHub repo secrets: GROQ_API_KEY, TAVILY_API_KEY, FISH_AUDIO_API_KEY, FISH_AUDIO_REFERENCE_ID, PEXELS_API_KEY, PIXABAY_API_KEY, YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN.
 Status at last update: Groq and Tavily keys are still to be supplied by the owner through a secure link. Rendering is blocked until then.
 YouTube OAuth needs scopes youtube.upload and youtube.readonly; re-authorize if the refresh token is old.
 
@@ -100,6 +100,7 @@ Untested: the repo's 228 tests and Actions on the new code, real upload path, an
 - Owner approval of the 9-Short matrix and topic swaps; channel name answer.
 - Narration: the owner's own recording (see section 12 for the voice-cloning research).
 - Pexels key not verified (repo secret exists, value not readable; GitHub secrets are write-only). Pexels' API page said on 2026-11-26 "New API key issuance is currently paused and cannot be requested" (www.pexels.com/developer/api/), so a lost or rejected key may not be replaceable: the Pixabay adapter (now written, see section 10) is the insurance. Fish Audio secrets exist but the plan is not to use TTS.
+- Pixabay: free account (site pixabay.com, signup email abdulrhmansalem87@gmail.com, key name newsflow-pipeline, created 2026-11-26). Key is in the repo secret PIXABAY_API_KEY and in the vault. Live API search verified 2026-11-26 (3 queries, 15 clips each). Clip download from cdn.pixabay.com returned HTTP 429 from Cloudflare in my tests (default, referer and browser User-Agent), so end-to-end download is NOT verified. Retest later; the adapter falls back cleanly if download fails.
 - Commit access: the coding agent has read-only GitHub API access; commits go through the browser editor.
 - Fast lane watch wiring (section 11), provider-fallback adapters (section 10), possible licensing check for Egypt/Saudi finance content.
 
