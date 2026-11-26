@@ -1,4 +1,6 @@
 import unittest
+import shutil
+import subprocess
 import tempfile
 from unittest.mock import patch
 from io import BytesIO
@@ -63,23 +65,26 @@ class BrollPlanningTests(unittest.TestCase):
             self.assertNotEqual(first.read_bytes(), second.read_bytes())
 
     @unittest.skipUnless(features.check("raqm"), "Arabic RAQM shaping is unavailable")
-    def test_portrait_overlay_is_a_lower_third_with_clear_midscreen(self):
+    def test_portrait_overlay_is_a_flush_gradient_band_with_clear_midscreen(self):
         card = {"captions": ["حركة الأسواق اليوم"], "headline": "عنوان عربي واضح للخبر", "key_number": "4.3%"}
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "portrait.png"
             _overlay(card, target, 1080, 1920)
             image = Image.open(target).convert("RGBA")
-            # Mid-screen stays completely clear; the lower third sits above the Shorts controls.
-            for y in (700, 1000, 1200):
-                self.assertEqual(image.getpixel((540, y))[3], 0)
-            self.assertGreater(image.getpixel((100, 1400))[3], 150)
-            self.assertEqual(image.getpixel((100, 1600))[3], 0)  # nothing below the 80% baseline
-            # Brand bug top-left, stat chip top-right, both small.
-            self.assertGreater(image.getpixel((70, 100))[3], 150)
-            self.assertGreater(image.getpixel((1000, 100))[3], 150)
+            for y in (500, 800, 1000):
+                self.assertEqual(image.getpixel((540, y))[3], 0)      # footage stays untouched mid-screen
+            # Band is flush to the screen edges and darkest at the bottom.
+            self.assertGreater(image.getpixel((0, 1910))[3], 200)
+            self.assertGreater(image.getpixel((1079, 1910))[3], 200)
+            self.assertLess(image.getpixel((20, 1150))[3], image.getpixel((20, 1450))[3])
+            self.assertLessEqual(image.getpixel((20, 1150))[3], 120)   # soft fade, not a hard edge
+            # Quiet tags flush to the top corners, translucent rather than solid.
+            for x in (2, 1077):
+                alpha = image.getpixel((x, 110))[3]
+                self.assertTrue(100 <= alpha <= 200, alpha)
 
     @unittest.skipUnless(features.check("raqm"), "Arabic RAQM shaping is unavailable")
-    def test_lower_third_keeps_its_baseline_and_headline_only_on_first_shot(self):
+    def test_band_keeps_its_bottom_and_headline_only_on_first_shot(self):
         with tempfile.TemporaryDirectory() as directory:
             a, b, c = (Path(directory) / n for n in ("a.png", "b.png", "c.png"))
             ar = {"captions": ["نص", "نص", "نص"], "headline": "عنوان عربي واضح للخبر", "key_number": "+1.8%"}
@@ -89,20 +94,58 @@ class BrollPlanningTests(unittest.TestCase):
             _overlay(en, c, 1080, 1920, caption_index=0)
             ia, ib, ic = (Image.open(x).convert("RGBA") for x in (a, b, c))
 
-            def panel_top(image):
-                for y in range(1100, 1540):
-                    if image.getpixel((100, y))[3] > 150:
-                        return y
-                return None
+            def band_top(image):
+                return next(y for y in range(400, 1900) if image.getpixel((20, y))[3] > 20)
+            self.assertLess(band_top(ia), band_top(ib))   # headline makes the first-shot band taller
+            self.assertEqual(band_top(ib), band_top(ic))  # English headline is never drawn
+            for image in (ia, ib, ic):
+                self.assertGreater(image.getpixel((540, 1900))[3], 200)  # same flush bottom every shot
+            self.assertGreater(ia.getpixel((1077, 110))[3], 100)  # stat chip on the first shot
+            self.assertEqual(ib.getpixel((1077, 110))[3], 0)      # and gone later
 
-            def panel_bottom(image):
-                return max(y for y in range(1100, 1700) if image.getpixel((100, y))[3] > 150)
-            self.assertLess(panel_top(ia), panel_top(ib))        # headline makes the first-shot panel taller
-            self.assertEqual(panel_bottom(ia), panel_bottom(ib))  # same baseline on every shot
-            self.assertEqual(panel_bottom(ia), panel_bottom(ic))
-            self.assertEqual(panel_top(ib), panel_top(ic))        # English headline is never drawn
-            self.assertGreater(ia.getpixel((1000, 100))[3], 150)  # stat chip on the first shot
-            self.assertEqual(ib.getpixel((1000, 100))[3], 0)      # and gone later
+    def test_scene_pacing_targets_two_seconds_and_never_exceeds_two_and_a_half(self):
+        from newsflow.broll import MIN_SCENE_SECONDS, TARGET_SCENE_SECONDS
+        for total in (2.0, 2.6, 4.4, 7.0, 12.0, 19.7, 45.0):
+            shots = [seconds for _, seconds in split_scene_durations([total])]
+            self.assertAlmostEqual(sum(shots), total, places=3)
+            self.assertLessEqual(max(shots), MAX_SCENE_SECONDS + 0.001)
+            if total >= 4:
+                self.assertGreaterEqual(min(shots), MIN_SCENE_SECONDS - 0.2, (total, shots))
+                self.assertLessEqual(sum(shots) / len(shots), 2.5)
+        shots = [seconds for _, seconds in split_scene_durations([10.0])]
+        self.assertEqual(len(shots), 5)  # about 2 s per shot
+
+    def test_every_shot_gets_a_different_gentle_motion(self):
+        from newsflow.broll import MOTION_STYLES, shot_filter, shot_motion_filter
+        self.assertGreaterEqual(len(set(MOTION_STYLES)), 5)
+        chains = [shot_filter(i, 2.2, 1080, 1920) for i in range(8)]
+        self.assertTrue(all("zoom" not in c or "scale=w=" in c for c in chains))
+        self.assertGreaterEqual(len({shot_motion_filter(s, 1080, 1920, 2.2) for s in MOTION_STYLES}), 5)
+        for chain in chains:
+            self.assertIn("tpad=stop_mode=clone", chain)  # short clips are held, never short-changed
+            self.assertTrue(chain.endswith("setsar=1,format=yuv420p"))
+        self.assertIn("hflip", shot_filter(0, 2.2, 1080, 1920, round_index=1))
+        with self.assertRaises(ValueError):
+            shot_motion_filter("spin", 1080, 1920, 2.2)
+
+    @unittest.skipUnless(shutil.which("ffmpeg"), "ffmpeg is unavailable")
+    def test_motion_chain_renders_concatenates_and_actually_moves(self):
+        from newsflow.broll import shot_filter
+        durations = [2.2, 2.0, 2.4, 2.2]
+        with tempfile.TemporaryDirectory() as directory:
+            src, out = Path(directory) / "src.mp4", Path(directory) / "out.mp4"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+                            "testsrc2=size=640x360:rate=30:duration=3", "-pix_fmt", "yuv420p", str(src)], check=True)
+            command, graph = ["ffmpeg", "-y", "-loglevel", "error"], []
+            for i, seconds in enumerate(durations):
+                command += ["-t", f"{seconds + 0.5:.3f}", "-i", str(src)]
+                graph.append(f"[{i}:v]{shot_filter(i, seconds, 360, 640, i // 2)}[v{i}]")
+            graph.append("".join(f"[v{i}]" for i in range(len(durations))) + f"concat=n={len(durations)}:v=1:a=0[o]")
+            command += ["-filter_complex", ";".join(graph), "-map", "[o]", "-r", "30", "-pix_fmt", "yuv420p", str(out)]
+            subprocess.run(command, check=True)
+            probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
+                                    "default=nw=1:nk=1", str(out)], capture_output=True, text=True, check=True)
+            self.assertAlmostEqual(float(probe.stdout), sum(durations), delta=0.15)
 
     def test_broll_selects_a_distinct_pexels_source_for_each_scene(self):
         candidates = [
