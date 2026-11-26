@@ -964,6 +964,14 @@ def validate_youtube_auth():
     return creds
 
 
+def upload_status_body(privacy: str) -> dict:
+    """The status block for videos.insert. Realistic synthetic narration is disclosed (owner rule 2026-11-26)."""
+    body = {"privacyStatus": privacy, "selfDeclaredMadeForKids": False}
+    if os.getenv("NEWSFLOW_DECLARE_SYNTHETIC", "true").strip().lower() not in {"0", "false", "no"}:
+        body["containsSyntheticMedia"] = True  # status.containsSyntheticMedia, Data API since 2024-10-30
+    return body
+
+
 def resolve_upload_privacy(privacy_override: str | None = None) -> str:
     status = str(
         privacy_override or os.getenv("YOUTUBE_PRIVACY_STATUS", "private")
@@ -1017,7 +1025,7 @@ def youtube_upload(
         "snippet": {"title": title[:100], "description": description[:5000], "tags": tags,
                     "categoryId": os.getenv("YOUTUBE_CATEGORY_ID", "25"),
                     "defaultLanguage": "ar", "defaultAudioLanguage": "ar"},
-        "status": {"privacyStatus": status, "selfDeclaredMadeForKids": False},
+        "status": upload_status_body(status),
     }
     request = youtube.videos().insert(
         part="snippet,status", body=body,
