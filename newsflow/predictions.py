@@ -151,6 +151,11 @@ def receipt_card(entry: dict, counter: dict) -> dict:
         "counter_ar": counter_text,
         "speaker_ar": f"قاله: {entry['speaker']} بتاريخ {entry['stated_on']}",
         "verdict": result["verdict"],
+        "rows": [
+            ("التوقع", f"{_num(float(entry['predicted_value']), asset)} {info['unit_ar']}"),
+            ("الفعلي (سعر السوق)", f"{_num(result['actual_value'], asset)} {info['unit_ar']}"),
+            ("الفرق", f"{sign}{abs(result['diff_pct'])}%"),
+        ],
     }
 
 

@@ -221,147 +221,197 @@ def clean_visual_text(value: str) -> str:
     return re.sub(r"\s+", " ", visible).strip()
 
 
-def _draw_receipt(draw, receipt: dict, width: int, height: int, top_limit: int, lines_for) -> None:
-    """Before/after card for a settled prediction: prediction, actual, difference, marker, hit-rate counter."""
+NAVY = (5, 17, 31, 236)
+TEAL = (52, 205, 190, 255)
+AMBER = (232, 170, 60, 255)
+WHITE = (255, 255, 255, 255)
+SOFT = (214, 224, 236, 255)
+DEJAVU = "/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf"
+
+
+def _brand_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+    """One typeface for every overlay element (DejaVu Sans covers Arabic, Latin digits, % and +)."""
+    path = DEJAVU % ("-Bold" if bold else "")
+    if not Path(path).is_file():
+        path = _font(bold)
+    return ImageFont.truetype(path, size)
+
+
+def _wrap(draw, text: str, font, limit: int) -> list[str]:
+    rows, current = [], ""
+    for word in text.split():
+        trial = f"{current} {word}".strip()
+        box = draw.textbbox((0, 0), trial, font=font, direction="rtl", language="ar")
+        if box[2] - box[0] <= limit:
+            current = trial
+        else:
+            if current:
+                rows.append(current)
+            current = word
+    if current:
+        rows.append(current)
+    return rows
+
+
+def _layout(width: int, height: int) -> dict:
+    """Fixed broadcast grid shared by every frame: bug and stat chip on the top row, lower third at a constant baseline."""
     portrait = height > width
+    margin = int(width * (0.05 if portrait else 0.04))
+    return {
+        "portrait": portrait,
+        "margin": margin,
+        "top": int(height * (0.045 if portrait else 0.05)),
+        # The lower-third bottom edge stays above the Shorts player controls (bottom ~20%).
+        "bottom": int(height * (0.80 if portrait else 0.92)),
+        "head": int(width * (0.040 if portrait else 0.021)),
+        "body": int(width * (0.036 if portrait else 0.019)),
+        "small": int(width * (0.026 if portrait else 0.014)),
+        "pad": int(width * (0.03 if portrait else 0.015)),
+        "bar": max(8, int(width * 0.008)),
+    }
+
+
+def _panel(draw, left: int, top: int, right: int, bottom: int, bar: int, accent=TEAL) -> None:
+    draw.rectangle((left, top, right, bottom), fill=NAVY)
+    draw.rectangle((right - bar, top, right, bottom), fill=accent)  # accent edge on the reading side (RTL)
+
+
+def _draw_bug(draw, grid: dict) -> None:
+    font = _brand_font(int(grid["small"] * 1.15), True)
+    box = draw.textbbox((0, 0), "WealthRadar", font=font)
+    pad = int(grid["small"] * 0.6)
+    left, top = grid["margin"], grid["top"]
+    right, bottom = left + (box[2] - box[0]) + pad * 2 + grid["bar"], top + (box[3] - box[1]) + pad * 2
+    _panel(draw, left, top, right, bottom, grid["bar"])
+    draw.text((left + pad, top + pad - box[1]), "WealthRadar", font=font, fill=WHITE)
+
+
+def _draw_stat_chip(draw, text: str, width: int, grid: dict) -> None:
+    font = _brand_font(int(grid["body"] * 1.1), True)
+    box = draw.textbbox((0, 0), text, font=font)
+    pad = int(grid["small"] * 0.6)
+    right = width - grid["margin"]
+    left = right - (box[2] - box[0]) - pad * 2 - grid["bar"]
+    top = grid["top"]
+    bottom = top + (box[3] - box[1]) + pad * 2
+    _panel(draw, left, top, right, bottom, grid["bar"])
+    draw.text((left + pad, top + pad - box[1]), text, font=font, fill=WHITE,
+              direction=_text_direction(text), language="ar")
+
+
+def _text_direction(value: str) -> str:
+    """Numbers like "+11.66%" must stay left-to-right; anything with Arabic letters shapes right-to-left."""
+    return "rtl" if re.search(r"[\u0600-\u06FF]", value) else "ltr"
+
+
+def _draw_receipt(draw, receipt: dict, width: int, height: int, grid: dict) -> None:
+    """Predictions receipt in the same lower-third system: title, before/after rows, verdict tag, hit-rate footer."""
     hit = receipt.get("verdict") == "hit"
-    accent = (52, 205, 190, 255) if hit else (245, 166, 35, 255)
-    margin = int(width * (0.07 if portrait else 0.22))
-    top = max(top_limit + int(height * 0.03), int(height * (0.17 if portrait else 0.16)))
-    bottom = int(height * (0.78 if portrait else 0.88))
-    draw.rounded_rectangle((margin, top, width - margin, bottom), radius=24, fill=(5, 17, 31, 225))
-    draw.rectangle((margin, top, width - margin, top + 12), fill=accent)
-    unit = height if portrait else height * 1.5
-    cx = width // 2
-    rows = [
-        (receipt.get("title_ar", ""), 0.030, False, (255, 255, 255, 255)),
-        (receipt.get("speaker_ar", ""), 0.020, False, (190, 205, 220, 255)),
-        (receipt.get("before_ar", ""), 0.034, True, (255, 255, 255, 255)),
-        (receipt.get("after_ar", ""), 0.034, True, (255, 255, 255, 255)),
-        (receipt.get("diff_ar", ""), 0.030, False, accent),
-        (receipt.get("marker_ar", ""), 0.044, True, accent),
-        (receipt.get("counter_ar", ""), 0.026, False, (255, 255, 255, 255)),
-    ]
-    rows = [row for row in rows if row[0]]
-    weights = [size for _, size, _, _ in rows]
-    span = bottom - top - 40
-    y = top + 30
-    for (text, size, bold, color), weight in zip(rows, weights):
-        font_path = _font_for_text(text, bold)
-        dejavu = "/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf" % ("-Bold" if bold else "")
-        if re.search(r"[%+\-]", text) and Path(dejavu).is_file():
-            font_path = dejavu  # the Arabic font has no glyph for these signs
-        font = ImageFont.truetype(font_path, max(26, int(unit * size)))
-        slot = span * weight / sum(weights)
-        wrapped = lines_for(text, font, width - margin * 2 - 60)[:2]
-        line_step = int(font.size * 1.3)
-        yy = y + slot / 2 - (len(wrapped) - 1) * line_step / 2
-        for row in wrapped:
-            draw.text((cx, yy), row, font=font, fill=color, anchor="mm", direction="rtl", language="ar")
-            yy += line_step
-        y += slot
+    accent = TEAL if hit else AMBER
+    left, right = grid["margin"], width - grid["margin"]
+    pad, bar = grid["pad"], grid["bar"]
+    inner_right, inner_left = right - bar - pad, left + pad
+    title = receipt.get("title_ar", "")
+    title_size = int(grid["body"] * 1.1)
+    title_font = _brand_font(title_size, True)
+    while title_size > 18:
+        box = draw.textbbox((0, 0), title, font=title_font, direction="rtl", language="ar")
+        if box[2] - box[0] <= inner_right - inner_left:
+            break
+        title_size -= 2
+        title_font = _brand_font(title_size, True)
+    row_font = _brand_font(grid["body"])
+    value_font = _brand_font(grid["body"], True)
+    small_font = _brand_font(grid["small"])
+    rows = receipt.get("rows") or []
+    line = int(grid["body"] * 1.75)
+    small_line = int(grid["small"] * 1.7)
+    title_h = int(title_size * 1.9)
+    panel_h = pad + title_h + line * len(rows) + line + small_line * 2 + pad
+    bottom = grid["bottom"]
+    top = bottom - panel_h
+    _panel(draw, left, top, right, bottom, bar, accent)
+    y = top + pad
+    draw.text((inner_right, y), title, font=title_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
+    rule = y + int(title_size * 1.55)
+    draw.line((inner_left, rule, inner_right, rule), fill=(52, 205, 190, 110), width=2)
+    y += title_h
+    for label, value in rows:
+        draw.text((inner_right, y), label, font=row_font, fill=SOFT, anchor="ra", direction="rtl", language="ar")
+        draw.text((inner_left, y), value, font=value_font, fill=WHITE, anchor="la",
+                  direction=_text_direction(value), language="ar")
+        y += line
+    tag = receipt.get("marker_ar", "")
+    tag_box = draw.textbbox((0, 0), tag, font=value_font, direction="rtl", language="ar")
+    tag_w = tag_box[2] - tag_box[0]
+    draw.rectangle((inner_right - tag_w - pad, y, inner_right, y + line - 4), fill=accent)
+    draw.text((inner_right - pad // 2, y + (line - 4) // 2), tag, font=value_font, fill=(5, 17, 31, 255), anchor="rm",
+              direction="rtl", language="ar")
+    y += line + int(grid["small"] * 0.3)
+    draw.text((inner_right, y), receipt.get("counter_ar", ""), font=small_font, fill=WHITE, anchor="ra",
+              direction="rtl", language="ar")
+    y += small_line
+    draw.text((inner_right, y), receipt.get("speaker_ar", ""), font=small_font, fill=SOFT, anchor="ra",
+              direction="rtl", language="ar")
 
 
 def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int = 0) -> None:
-    """Broadcast-style overlay: small brand mark, Arabic headline only at the start of a story,
-    big key number in the first seconds, and outlined captions with no boxed panel in mid-screen."""
+    """Broadcast-style overlay on a fixed grid: small brand bug (top-left), stat chip (top-right, first seconds only),
+    and a lower-third panel holding the Arabic headline (first shot of a story) above the caption."""
     if not features.check("raqm"):
         raise RuntimeError("محرك تشكيل العربية RAQM غير متاح؛ أوقفنا إخراج النص.")
-    portrait = height > width
+    grid = _layout(width, height)
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    margin = int(width * 0.06)
-    max_width = width - margin * 2
-    teal = (52, 205, 190, 255)
-
-    def lines_for(text: str, font: ImageFont.FreeTypeFont, limit: int) -> list[str]:
-        rows, current = [], ""
-        for word in text.split():
-            trial = f"{current} {word}".strip()
-            box = draw.textbbox((0, 0), trial, font=font, direction="rtl", language="ar")
-            if box[2] - box[0] <= limit:
-                current = trial
-            else:
-                if current:
-                    rows.append(current)
-                current = word
-        if current:
-            rows.append(current)
-        return rows
-
-    # 1) Small brand mark, top centre (inside the platform-safe area).
-    brand_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-    if not Path(brand_path).is_file():
-        brand_path = _font(True)
-    brand_font = ImageFont.truetype(brand_path, max(24, int(width * (0.034 if portrait else 0.015))))
-    brand_x, brand_y = width // 2, int(height * (0.05 if portrait else 0.06))
-    brand_box = draw.textbbox((brand_x, brand_y), "WealthRadar", font=brand_font, anchor="mm")
-    pad_x, pad_y = max(14, width // 90), max(8, height // 200)
-    draw.rounded_rectangle(
-        (brand_box[0] - pad_x, brand_box[1] - pad_y, brand_box[2] + pad_x, brand_box[3] + pad_y),
-        radius=max(10, width // 100), fill=(5, 17, 31, 190), outline=(52, 205, 190, 220),
-        width=max(1, width // 900),
-    )
-    draw.text((brand_x, brand_y), "WealthRadar", font=brand_font, fill=(255, 255, 255, 255), anchor="mm")
-    brand_bottom = brand_box[3] + pad_y
+    _draw_bug(draw, grid)
 
     receipt = card.get("receipt")
     if isinstance(receipt, dict):
-        _draw_receipt(draw, receipt, width, height, brand_bottom, lines_for)
+        _draw_receipt(draw, receipt, width, height, grid)
         image.save(path)
         return
 
-    # 2) Arabic headline bar: only on the first shot of a story, and only if it is real Arabic.
+    key_number = clean_visual_text(card.get("key_number"))[:14]
+    if key_number and caption_index <= 1:
+        _draw_stat_chip(draw, key_number, width, grid)
+
     headline = clean_visual_text(card.get("headline"))
     arabic = len(re.findall(r"[\u0600-\u06FF]", headline))
     latin = len(re.findall(r"[A-Za-z]", headline))
-    if headline and caption_index == 0 and arabic >= 3 and arabic > latin * 3:
-        h_font = ImageFont.truetype(_font(True), max(30, int(width * (0.046 if portrait else 0.024))))
-        h_lines = lines_for(headline[:90], h_font, max_width - 40)[:2]
-        step = int(h_font.size * 1.35)
-        top = brand_bottom + int(height * 0.02)
-        bottom = top + step * len(h_lines) + int(h_font.size * 0.5)
-        draw.rounded_rectangle((margin, top, width - margin, bottom), radius=12, fill=(5, 17, 31, 215))
-        draw.rectangle((width - margin - 10, top, width - margin, bottom), fill=teal)
-        y = top + int(h_font.size * 0.25) + step // 2
-        for line in h_lines:
-            draw.text(((margin + width - margin - 10) // 2, y), line, font=h_font, fill=(255, 255, 255, 255),
-                      anchor="mm", direction="rtl", language="ar")
-            y += step
-
-    # 3) Key number badge in the first ~5 seconds (the hook the viewer should see immediately).
-    key_number = clean_visual_text(card.get("key_number"))[:18]
-    if key_number and caption_index <= 1:
-        k_path = _font_for_text(key_number, True)
-        if not re.search(r"[\u0600-\u06FF]", key_number) and Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf").is_file():
-            k_path = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"  # has %, $, digits
-        k_font = ImageFont.truetype(k_path, int(width * (0.17 if portrait else 0.085)))
-        cx, cy = width // 2, int(height * (0.30 if portrait else 0.36))
-        # Pure Latin/digit numbers such as "+1.8%" must stay left-to-right or the sign flips to the end.
-        k_direction = "rtl" if re.search(r"[\u0600-\u06FF]", key_number) else "ltr"
-        draw.text((cx, cy), key_number, font=k_font, fill=(255, 255, 255, 255), anchor="mm",
-                  stroke_width=max(6, k_font.size // 14), stroke_fill=(5, 17, 31, 255),
-                  direction=k_direction, language="ar" if k_direction == "rtl" else "en")
-        box = draw.textbbox((cx, cy), key_number, font=k_font, anchor="mm")
-        draw.rectangle((box[0], box[3] + 10, box[2], box[3] + 18), fill=teal)
-
-    # 4) Outlined captions, lower-middle in portrait, lower third in landscape. No boxed panel.
+    show_headline = bool(headline) and caption_index == 0 and arabic >= 3 and arabic > latin * 3
     captions = card.get("captions")
     if isinstance(captions, list) and captions:
-        text = clean_visual_text(captions[min(caption_index, len(captions) - 1)])[:90]
+        text = clean_visual_text(captions[min(caption_index, len(captions) - 1)])[:100]
     else:
-        text = clean_visual_text(card.get("title"))[:90]
-    if text:
-        c_font = ImageFont.truetype(_font_for_text(text, True), max(36, int(width * (0.066 if portrait else 0.036))))
-        rows = lines_for(text, c_font, max_width)[:2]
-        step = int(c_font.size * 1.4)
-        center_y = int(height * (0.66 if portrait else 0.85))
-        y = center_y - (len(rows) - 1) * step // 2
-        for row in rows:
-            draw.text((width // 2, y), row, font=c_font, fill=(255, 255, 255, 255), anchor="mm",
-                      stroke_width=max(4, c_font.size // 9), stroke_fill=(0, 0, 0, 255),
-                      direction="rtl", language="ar")
-            y += step
+        text = clean_visual_text(card.get("title"))[:100]
+
+    left, right = grid["margin"], width - grid["margin"]
+    pad, bar = grid["pad"], grid["bar"]
+    limit = right - left - bar - pad * 2
+    head_font = _brand_font(grid["head"], True)
+    body_font = _brand_font(grid["body"])
+    head_rows = _wrap(draw, headline[:90], head_font, limit)[:2] if show_headline else []
+    body_rows = _wrap(draw, text, body_font, limit)[:2] if text else []
+    if not head_rows and not body_rows:
+        image.save(path)
+        return
+    head_step, body_step = int(grid["head"] * 1.45), int(grid["body"] * 1.5)
+    gap = int(grid["small"] * 0.9) if head_rows and body_rows else 0
+    panel_h = pad * 2 + head_step * len(head_rows) + gap + body_step * len(body_rows)
+    bottom = grid["bottom"]
+    top = bottom - panel_h
+    _panel(draw, left, top, right, bottom, bar)
+    x = right - bar - pad
+    y = top + pad
+    for row in head_rows:
+        draw.text((x, y), row, font=head_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
+        y += head_step
+    if head_rows and body_rows:
+        draw.line((left + pad, y + gap // 2, x, y + gap // 2), fill=(52, 205, 190, 110), width=2)
+    y += gap
+    for row in body_rows:
+        draw.text((x, y), row, font=body_font, fill=SOFT if head_rows else WHITE, anchor="ra", direction="rtl", language="ar")
+        y += body_step
     image.save(path)
 
 
