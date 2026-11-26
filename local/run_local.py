@@ -68,8 +68,8 @@ def preflight() -> list[str]:
         rendering._font_path(True)
     except Exception as exc:  # noqa: BLE001 - report any import or font problem plainly
         problems.append(f"Arabic font check failed: {exc}")
-    if not (os.getenv("PEXELS_API_KEY") or _env_has("PEXELS_API_KEY")):
-        problems.append("PEXELS_API_KEY missing (put it in .env; --render-only needs it for B-roll).")
+    if not any(os.getenv(k) or _env_has(k) for k in ("PEXELS_API_KEY", "PIXABAY_API_KEY")):
+        problems.append("PEXELS_API_KEY or PIXABAY_API_KEY missing (put one in .env; --render-only needs a B-roll key).")
     ram = _ram_gb()
     if ram is not None and ram < 2.5:
         problems.append(f"Only {ram:.1f} GB RAM free; close browsers and other apps before rendering.")
