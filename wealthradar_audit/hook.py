@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import calculator, charts, description, episode, thumbnails
+from . import calculator, charts, description, episode, packaging, thumbnails
 
 
 def prepare_episode(out_dir, amount: float = 100000, start: int = 2021, end: int = 2025,
@@ -20,6 +20,8 @@ def prepare_episode(out_dir, amount: float = 100000, start: int = 2021, end: int
     results = calculator.run_scenarios(amount, start, end)
     chart_paths = charts.scenario_charts(results, out, start, end)
     thumbs = thumbnails.make_pair(brief, out)  # A/B pair for YouTube Test & Compare
+    (out / "launch_checklist.md").write_text(packaging.launch_checklist(brief), encoding="utf-8")
+    (out / "scorecard.csv").write_text(packaging.scorecard_csv(), encoding="utf-8")
     review_text = description.render_description(brief["question_ar"], brief["chapters"], links)
     (out / "description.txt").write_text(review_text, encoding="utf-8")
     blockers = list(brief["blockers"])
