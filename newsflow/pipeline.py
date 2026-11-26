@@ -525,8 +525,10 @@ def clean_narration(value):
     return text.strip()
 
 
-EDGE_VOICE_DEFAULT = "ar-SA-HamedNeural"
-EDGE_VOICE_FALLBACKS = ("ar-AE-HamdanNeural",)
+# Egyptian voice first (the channel speaks to Egypt), then the Egyptian female voice, then the old Saudi voice
+# as a last resort so a voice outage never stalls the channel. Chosen 2026-11-26 on dialect fit; not yet judged by ear.
+EDGE_VOICE_DEFAULT = "ar-EG-ShakirNeural"
+EDGE_VOICE_FALLBACKS = ("ar-EG-SalmaNeural", "ar-SA-HamedNeural")
 
 
 def prepare_tts_text(value):
