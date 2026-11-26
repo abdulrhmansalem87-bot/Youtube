@@ -22,6 +22,8 @@ def main(argv=None) -> int:
     results = calculator.run_scenarios(a.amount, a.start, a.end)
     paths = charts.scenario_charts(results, out, a.start, a.end)
     desc = description.render_description(brief["question_ar"], brief["chapters"])
+    for note in brief["on_screen_required"]:
+        print(f"[AUDIT] on-screen note required: {note}")
     (out / "description.txt").write_text(desc, encoding="utf-8")
     print(f"[AUDIT] brief + {len(paths)} charts written to {out}; publishable={brief['publishable']}")
     for b in brief["blockers"]:
