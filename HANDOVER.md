@@ -1,6 +1,6 @@
 # HANDOVER: WealthRadar YouTube automation
 
-Last updated: 2026-11-26 (Cairo). Keep this file current with every change. Any assistant should be able to continue from here.
+Last updated: 2026-11-26 13:15 Cairo. Keep this file current with every change. Any assistant should be able to continue from here.
 
 ## 1. Overview
 - Owner: Abdulrhman Salem. Channel: WealthRadar (Arabic money and economy, audience Egypt + Gulf).
@@ -22,6 +22,15 @@ Weekly cadence, plus a teaser Short for each long video.
 First long episode: episode 3, the 100k comparison.
 Description template has an affiliate-links placeholder section (to build; see section 8).
 Monetization order: affiliate from day 1, sponsorships after ~10k subs, a digital guide later, ads as the last layer.
+
+## 2b. Standing rules from the owner (permanent)
+- Present ONE strongest final decision, never option menus. The owner decides only on money and his own brand/name.
+- Every recommendation goes through: research, decision, self-evaluation, revision; only the final result is shown.
+- Zero-cost constraint: replace every paid item with a free alternative. His own voice recording is the planned voice (free, clear rights, builds trust). No TTS in finished videos.
+- Sources are NOT shown on screen. They go in the video description (Da7ee7 style). Source block template (Arabic): "المصادر: ... الحساب تقريبي على متوسط السنة وليس لشهر بعينه."
+- Visual standard (palette A, approved 2026-11-26): navy gradient background (14,20,58)->(5,8,26), vivid gold accent (255,196,31), coral red for losses (255,92,92), mint green (46,222,150) for good, white text, card (24,32,82). Fonts: Noto Kufi Arabic; DejaVu Sans Bold for text containing . , % : (Kufi lacks those glyphs). Keep the bottom ~25% of Shorts free (YouTube UI).
+- Channel rename to "كشف حساب": proposed, awaiting the owner's yes/no. The show name is one variable (SHOW_NAME) in the sample renderer; change it and the channel tag together.
+- Sample Short (matrix #1, 38 s, silent, palette A) was rendered by a standalone script, not by the repo renderer; the script is not committed yet.
 
 ## 3. Launch plan: 9 distinct Shorts (experiment matrix) - PENDING OWNER APPROVAL
 3 topic groups x 3 title formulas; hook and narration rotated (Latin square). 9 videos give a directional signal only; confirm the winner on a second batch before locking style for 3 months.
