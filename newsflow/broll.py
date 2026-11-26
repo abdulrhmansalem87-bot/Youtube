@@ -248,6 +248,25 @@ def _brand_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(path, size)
 
 
+HEAVY_ARABIC = (
+    "/usr/share/fonts/truetype/noto/NotoSansArabic-Black.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansArabic-ExtraBold.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
+)
+
+
+def _heavy_font(size: int, text: str = "") -> ImageFont.FreeTypeFont:
+    """Headline-strap face: Noto Sans Arabic Black (broadcast-weight), but only if it has every glyph in `text`;
+    otherwise fall back to the single brand face so a % or + never renders as a box."""
+    for path in HEAVY_ARABIC:
+        if Path(path).is_file():
+            font = ImageFont.truetype(path, size)
+            if all(ch.isspace() or font.getmask(ch).getbbox() is not None for ch in text):
+                return font
+            break
+    return _brand_font(size, True)
+
+
 def _wrap(draw, text: str, font, limit: int) -> list[str]:
     rows, current = [], ""
     for word in text.split():
@@ -304,18 +323,23 @@ def _band(image: Image.Image, text_top: int, grid: dict) -> None:
     image.alpha_composite(layer, (0, band_top))
 
 
-def _corner_tag(image: Image.Image, draw, text: str, font, side: str, grid: dict) -> None:
-    """Quiet, thin tag flush to a top corner: translucent ink, white text, a 2 px gold underline."""
+def _corner_tag(image: Image.Image, draw, text: str, font, side: str, grid: dict, solid: bool = False) -> None:
+    """Flush corner tag. solid=True is the channel bug: a solid gold plate with ink text (the broadcast logo box);
+    otherwise a quiet translucent chip with white text and a 2 px gold underline."""
     box = draw.textbbox((0, 0), text, font=font, direction=_text_direction(text), language="ar")
     text_w, text_h = box[2] - box[0], box[3] - box[1]
     pad_x, pad_y = int(grid["small"] * 0.9), int(grid["small"] * 0.5)
     tag_w, tag_h = text_w + pad_x * 2, text_h + pad_y * 2
     left = 0 if side == "left" else image.size[0] - tag_w
     top = grid["top"]
-    layer = Image.new("RGBA", (tag_w, tag_h), INK + (140,))
-    image.alpha_composite(layer, (left, top))
-    draw.rectangle((left, top + tag_h - 2, left + tag_w, top + tag_h), fill=GOLD[:3] + (170,))
-    draw.text((left + pad_x - box[0], top + pad_y - box[1]), text, font=font, fill=WHITE,
+    if solid:
+        image.alpha_composite(Image.new("RGBA", (tag_w, tag_h), GOLD), (left, top))
+        ink = INK + (255,)
+    else:
+        image.alpha_composite(Image.new("RGBA", (tag_w, tag_h), INK + (140,)), (left, top))
+        draw.rectangle((left, top + tag_h - 2, left + tag_w, top + tag_h), fill=GOLD[:3] + (170,))
+        ink = WHITE
+    draw.text((left + pad_x - box[0], top + pad_y - box[1]), text, font=font, fill=ink,
               direction=_text_direction(text), language="ar")
 
 
@@ -376,7 +400,7 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     grid = _layout(width, height)
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    _corner_tag(image, draw, "WealthRadar", _brand_font(grid["small"], True), "left", grid)
+    _corner_tag(image, draw, "WealthRadar", _brand_font(grid["small"], True), "left", grid, solid=True)
 
     receipt = card.get("receipt")
     if isinstance(receipt, dict):
@@ -391,7 +415,7 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     headline = clean_visual_text(card.get("headline"))
     arabic = len(re.findall(r"[\u0600-\u06FF]", headline))
     latin = len(re.findall(r"[A-Za-z]", headline))
-    show_headline = bool(headline) and caption_index == 0 and arabic >= 3 and arabic > latin * 3
+    show_headline = bool(headline) and arabic >= 3 and arabic > latin * 3  # strap stays for the whole story
     captions = card.get("captions")
     if isinstance(captions, list) and captions:
         text = clean_visual_text(captions[min(caption_index, len(captions) - 1)])[:100]
@@ -400,30 +424,34 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
 
     margin = grid["margin"]
     right, limit = width - margin, width - margin * 2
-    head_font = _brand_font(grid["head"], True)
+    head_font = _heavy_font(int(grid["head"] * (0.98 if grid["portrait"] else 1.12)), headline[:90])
     body_font = _brand_font(grid["body"])
     head_rows = _wrap(draw, headline[:90], head_font, limit)[:2] if show_headline else []
     body_rows = _wrap(draw, text, body_font, limit)[:2] if text else []
     if not head_rows and not body_rows:
         image.save(path)
         return
-    head_step, body_step = int(grid["head"] * 1.5), int(grid["body"] * 1.55)
-    rule_h = int(grid["small"] * 1.1) if head_rows else 0
-    gap = int(grid["small"] * 0.8) if head_rows and body_rows else 0
-    block_h = rule_h + head_step * len(head_rows) + gap + body_step * len(body_rows)
+    head_size = head_font.size
+    head_step, body_step = int(head_size * 1.42), int(grid["body"] * 1.55)
+    strap_pad = int(head_size * 0.42)
+    strap_h = head_step * len(head_rows) + strap_pad * 2 if head_rows else 0
+    body_h = body_step * 2  # always reserve two caption rows so the strap never moves between shots
+    body_gap = int(grid["small"] * 0.7) if head_rows and body_rows else 0
+    body_gap = int(grid["small"] * 0.7) if head_rows else 0
+    block_h = strap_h + body_gap + body_h
     top = grid["text_bottom"] - block_h
     _band(image, top, grid)
     y = top
     if head_rows:
-        draw.rectangle((right - int(width * 0.09), y + 2, right, y + 4), fill=GOLD)  # small accent mark
-        y += rule_h
-    for row in head_rows:
-        draw.text((right, y), row, font=head_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
-        y += head_step
-    y += gap
+        # Headline strap: solid gold plate, full bleed, heavy ink text (the broadcast headline bar).
+        image.alpha_composite(Image.new("RGBA", (width, strap_h), GOLD), (0, y))
+        ty = y + strap_pad
+        for row in head_rows:
+            draw.text((right, ty), row, font=head_font, fill=INK + (255,), anchor="ra", direction="rtl", language="ar")
+            ty += head_step
+        y += strap_h + body_gap
     for row in body_rows:
-        draw.text((right, y), row, font=body_font, fill=SOFT if head_rows else WHITE, anchor="ra",
-                  direction="rtl", language="ar")
+        draw.text((right, y), row, font=body_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
         y += body_step
     image.save(path)
 
