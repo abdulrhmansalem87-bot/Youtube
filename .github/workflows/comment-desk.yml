@@ -1,0 +1,45 @@
+name: Comment desk (drafts only)
+
+# Manual only. Reads new comments with a read-only YouTube scope and writes reply DRAFTS as an
+# artifact. It never posts anything. Uses Actions minutes, so run it only when minutes are available;
+# the same script runs on the owner's PC: python -m newsflow.comment_desk
+on:
+  workflow_dispatch:
+    inputs:
+      max_videos:
+        description: "How many recent videos to check"
+        default: "10"
+      use_llm:
+        description: "Draft with the LLM chain (otherwise fixed replies only)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  drafts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install google-api-python-client google-auth
+      - name: Draft replies
+        env:
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+          GROQ_API_KEY: ${{ inputs.use_llm && secrets.GROQ_API_KEY || '' }}
+          CEREBRAS_API_KEY: ${{ inputs.use_llm && secrets.CEREBRAS_API_KEY || '' }}
+        run: |
+          python -m newsflow.comment_desk --max-videos "${{ inputs.max_videos }}" --out output ${{ inputs.use_llm && ' ' || '--no-llm' }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: comment-drafts
+          path: |
+            output/comment_drafts.md
+            output/comment_drafts.json
+          retention-days: 14
