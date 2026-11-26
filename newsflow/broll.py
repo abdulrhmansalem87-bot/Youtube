@@ -230,8 +230,9 @@ def clean_visual_text(value: str) -> str:
 
 
 INK = (4, 12, 22)               # the one dark colour: bands, bug and chip are all this ink at different opacity
-TEAL = (52, 205, 190, 255)
-AMBER = (232, 170, 60, 255)
+GOLD = (212, 175, 98, 255)   # brand accent: muted metallic gold
+HIT_GREEN = (120, 200, 150, 255)   # semantic only: verdict hit
+MISS_CLAY = (222, 128, 108, 255)   # semantic only: verdict miss (not gold, not alarm red)
 WHITE = (255, 255, 255, 255)
 SOFT = (224, 231, 240, 235)
 FAINT = (190, 201, 214, 220)
@@ -304,7 +305,7 @@ def _band(image: Image.Image, text_top: int, grid: dict) -> None:
 
 
 def _corner_tag(image: Image.Image, draw, text: str, font, side: str, grid: dict) -> None:
-    """Quiet, thin tag flush to a top corner: translucent ink, white text, a 2 px teal underline."""
+    """Quiet, thin tag flush to a top corner: translucent ink, white text, a 2 px gold underline."""
     box = draw.textbbox((0, 0), text, font=font, direction=_text_direction(text), language="ar")
     text_w, text_h = box[2] - box[0], box[3] - box[1]
     pad_x, pad_y = int(grid["small"] * 0.9), int(grid["small"] * 0.5)
@@ -313,7 +314,7 @@ def _corner_tag(image: Image.Image, draw, text: str, font, side: str, grid: dict
     top = grid["top"]
     layer = Image.new("RGBA", (tag_w, tag_h), INK + (140,))
     image.alpha_composite(layer, (left, top))
-    draw.rectangle((left, top + tag_h - 2, left + tag_w, top + tag_h), fill=TEAL[:3] + (170,))
+    draw.rectangle((left, top + tag_h - 2, left + tag_w, top + tag_h), fill=GOLD[:3] + (170,))
     draw.text((left + pad_x - box[0], top + pad_y - box[1]), text, font=font, fill=WHITE,
               direction=_text_direction(text), language="ar")
 
@@ -322,7 +323,7 @@ def _draw_receipt(image: Image.Image, draw, receipt: dict, grid: dict) -> None:
     """Predictions receipt in the same band system: title, hairline, before/after rows, verdict, hit-rate."""
     width = image.size[0]
     hit = receipt.get("verdict") == "hit"
-    accent = TEAL if hit else AMBER
+    accent = HIT_GREEN if hit else MISS_CLAY
     margin = grid["margin"]
     right, left = width - margin, margin
     title = receipt.get("title_ar", "")
@@ -414,7 +415,7 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     _band(image, top, grid)
     y = top
     if head_rows:
-        draw.rectangle((right - int(width * 0.09), y + 2, right, y + 4), fill=TEAL)  # small accent mark
+        draw.rectangle((right - int(width * 0.09), y + 2, right, y + 4), fill=GOLD)  # small accent mark
         y += rule_h
     for row in head_rows:
         draw.text((right, y), row, font=head_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
