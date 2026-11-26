@@ -13,6 +13,8 @@ import os
 import re
 import unicodedata
 
+from . import hook_rule
+
 ARABIC_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹٫", "01234567890123456789.")
 NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)?")
 ARABIC_LETTER_RE = re.compile(r"[\u0600-\u06FF]")
@@ -108,6 +110,8 @@ def validate_story_plan(plan: dict, story: dict) -> dict | None:
     combined = " ".join(cleaned.values()) + " " + key_number
     if _unsupported_numbers(combined, source_numbers):
         return None
+    if hook_rule.hook_problems(cleaned["short_hook_ar"]):
+        return None  # owner hook rule: the promise comes first, no greeting or intro
     if len(cleaned["headline_ar"]) > 80:
         cleaned["headline_ar"] = cleaned["headline_ar"][:77].rsplit(" ", 1)[0] + "…"
     cleaned["key_number_ar"] = key_number
