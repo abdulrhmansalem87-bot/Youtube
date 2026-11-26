@@ -303,10 +303,19 @@ def make_script(stories):
     return "\n\n".join(parts)
 
 
-def make_short_script(story):
-    """Create a hook-first Arabic Short with a practical angle and engagement CTA."""
+TEASER_HOOK_AR = "ماذا يعني هذا لك بالتحديد؟ التفاصيل الكاملة في الفيديو الكامل على قناة ويلث رادار."
+TEASER_DISCLAIMER_AR = "هذا المحتوى للتوعية وليس نصيحة استثمارية."
+
+
+def make_short_script(story, teaser=False):
+    """Create a hook-first Arabic Short with a practical angle and engagement CTA.
+
+    teaser=True is used when the Short accompanies a long episode: the news in seconds, then one line that
+    sends the viewer to the full video (no new facts are added in the hook)."""
     plan = story.get("plan")
     if isinstance(plan, dict):
+        if teaser:
+            return f"{plan['short_hook_ar']} {plan['short_body_ar']} {TEASER_HOOK_AR} {TEASER_DISCLAIMER_AR}"
         return (
             f"{plan['short_hook_ar']} {plan['short_body_ar']} "
             "تابع ويلث رادار لأخبار الاقتصاد كل يوم، وهذا المحتوى للتوعية وليس نصيحة استثمارية."
@@ -321,6 +330,11 @@ def make_short_script(story):
     # never as a guaranteed effect or investment recommendation.
     if len(summary) > 520:
         summary = summary[:520].rsplit(" ", 1)[0]
+    if teaser:
+        return (
+            f"الخبر ده ممكن يفرق في فهمك لفلوسك: {title}. "
+            f"خليني أبسطهالك: {summary} {TEASER_HOOK_AR} {TEASER_DISCLAIMER_AR}"
+        )
     return (
         f"الخبر ده ممكن يفرق في فهمك لفلوسك: {title}. "
         f"خليني أبسطهالك: {summary} "
@@ -1412,7 +1426,7 @@ def main():
         shorts_dir = bulletin / "shorts"
         shorts_dir.mkdir(exist_ok=True)
         for index, story in enumerate(stories[:2], start=1):
-            short_script = make_short_script(story)
+            short_script = make_short_script(story, teaser=True)  # companion Short = teaser for the long episode
             short_audio = shorts_dir / f"short-{index}.mp3"
             short_video = shorts_dir / f"short-{index}.mp4"
             asyncio.run(make_audio(short_script, short_audio))
@@ -1451,13 +1465,21 @@ def main():
             long_video, video_title, description, tags,
             privacy_override="private", credentials=auth_credentials,
         )
+        related_links = []
         for short_video, short_title, short_description, short_tags in staged_shorts:
             linked_description = append_long_video_link(short_description, long_video_url)
             validate_youtube_metadata(short_title, linked_description, short=True)
-            youtube_upload(
+            short_url = youtube_upload(
                 short_video, short_title, linked_description, short_tags,
                 privacy_override="private", credentials=auth_credentials,
             )
+            related_links.append({"short": short_url, "long": long_video_url})
+        # The YouTube Data API cannot set a Short's "Related video"; record the pairs so that single
+        # Studio step can be done (or checked) per Short. The description link is set automatically.
+        links_path = bulletin / "related_video_links.json"
+        links_path.write_text(json.dumps({"pairs": related_links, "api_supported": False},
+                                         ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[RELATED_VIDEO_PAIRS] {len(related_links)} Short(s) -> {long_video_url}; set 'Related video' in Studio")
     else:
         print("[SAFE] Rendered videos remain workflow Artifacts; YouTube upload is disabled.")
 
