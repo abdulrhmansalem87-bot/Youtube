@@ -1034,7 +1034,21 @@ def main():
     parser.add_argument("--private-test", action="store_true", help="Upload exactly one long video with private privacy after manual approvals")
     parser.add_argument("--private-staging", action="store_true", help="Owner-approved PRIVATE production: render the main episode and companion Shorts for review")
     parser.add_argument("--shorts-only", action="store_true", help="Experimental isolated run: render one Short only; never use for standard production")
+    parser.add_argument("--audit-episode", action="store_true", help="Build the 'كشف حساب' (Money Audit) review package: brief, charts, description. Never renders or uploads.")
     args = parser.parse_args()
+    if args.audit_episode:
+        if args.dry_run or args.render_only or args.private_test or args.private_staging or args.shorts_only:
+            parser.error("--audit-episode is a standalone review step and cannot be combined with other modes")
+        from wealthradar_audit.hook import prepare_episode
+        audit = prepare_episode(ROOT / os.getenv("NEWSFLOW_OUTPUT_DIR", "output") / "audit-episode")
+        for note in audit["on_screen_required"]:
+            print(f"[AUDIT_ON_SCREEN] {note}")
+        for warning in audit["warnings"]:
+            print(f"[AUDIT_WARNING] {warning}")
+        if audit["blockers"]:
+            print("[AUDIT_UPLOAD_BLOCKED] " + " | ".join(audit["blockers"]))
+        print(f"[AUDIT_READY] package in {audit['out']}; upload_allowed={audit['upload_allowed']}")
+        return
     if args.shorts_only and os.getenv("NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT", "false").strip().lower() != "true":
         parser.error("--shorts-only is an isolated experiment and requires NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT=true; use NewsFlow standard production for the main video and companion Shorts.")
     args.max_stories = clamp_max_stories(args.max_stories)
