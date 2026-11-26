@@ -163,3 +163,48 @@ class HookTests(unittest.TestCase):
         from wealthradar_audit.__main__ import main
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(main(["--out", tmp]), 2)
+
+
+class FastLaneTests(unittest.TestCase):
+    def test_money_angle_detection(self):
+        from wealthradar_audit import fastlane
+        self.assertTrue(fastlane.money_angles("حريق في سوق تجار خسائر كبيرة")["has_money_angle"])
+        self.assertFalse(fastlane.money_angles("افتتاح مهرجان فني جديد")["has_money_angle"])
+        self.assertEqual(fastlane.pick_angle(fastlane.money_angles("خسائر وتجار وأسعار")["angles"]), "loss")
+
+    def test_title_and_hashtags(self):
+        from wealthradar_audit import fastlane
+        t = fastlane.make_title("حريق سوق الكوبري", "loss")
+        self.assertEqual(t, "حريق سوق الكوبري: كلّف كام؟")
+        self.assertLessEqual(len(fastlane.make_title("كلمة " * 40, "loss")), fastlane.MAX_TITLE_CHARS)
+        tags = fastlane.make_hashtags(["حريق الكوبري", "حريق الكوبري", "بولاق"])
+        self.assertEqual(tags[:2], ["#حريق_الكوبري", "#بولاق"])
+        self.assertIn("#كشف_حساب", tags)
+        self.assertLessEqual(len(tags), fastlane.MAX_HASHTAGS)
+
+    def test_brief_gates(self):
+        from wealthradar_audit import fastlane
+        ev = {"headline": "حريق في سوق خسائر التجار", "summary": "تلفيات", "event_phrase": "حريق السوق"}
+        ok = [{"text": "x", "value": 5, "unit": "مليون", "source_url": "https://a.example/1"},
+              {"text": "y", "value": 6, "unit": "مليون", "source_url": "https://www.b.example/2"}]
+        self.assertTrue(fastlane.build_short_brief(ev, ok, ["حريق"])["publishable"])
+        one = fastlane.build_short_brief(ev, ok[:1], ["حريق"])
+        self.assertFalse(one["publishable"])
+        self.assertTrue(any("single source" in b for b in one["blockers"]))
+        self.assertTrue(any("no sourced" in b for b in fastlane.build_short_brief(ev, [], [])["blockers"]))
+        bad = fastlane.build_short_brief(ev, [{"text": "z", "value": 1, "source_url": "http://x"}], [])
+        self.assertTrue(any("no https source" in b for b in bad["blockers"]))
+
+    def test_sensitive_event_needs_owner_review(self):
+        from wealthradar_audit import fastlane
+        ev = {"headline": "حريق خسائر التجار ووفاة شخص", "summary": "", "event_phrase": "الحريق"}
+        facts = [{"text": "x", "value": 5, "source_url": "https://a.example/1"}, {"text": "y", "value": 6, "source_url": "https://b.example/2"}]
+        b = fastlane.build_short_brief(ev, facts, [])
+        self.assertTrue(b["sensitive"])
+        self.assertFalse(b["publishable"])
+        self.assertTrue(b["owner_review_required"])
+
+    def test_no_money_angle_blocked(self):
+        from wealthradar_audit import fastlane
+        b = fastlane.build_short_brief({"headline": "افتتاح مهرجان", "summary": ""}, [], [])
+        self.assertIn("no money angle: not a fast-lane event", b["blockers"])
