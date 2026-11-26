@@ -82,9 +82,14 @@ YouTube OAuth needs scopes youtube.upload and youtube.readonly; re-authorize if 
 Pipeline checks: 3 pm, 7 pm, 10 pm Cairo. Shorts batch: one per day, same slot (owner to choose time). Long video weekly. All uploads PRIVATE until the owner reviews and publishes.
 
 ## 8. Status: implemented vs not
-Implemented (on branch, tests passing at last report): news pipeline, fact-check gate, scriptwriter, prediction receipts, teaser-Short wiring, quality upgrades.
-Not built yet: chart engine, scenario calculator, episode-structure code, description affiliate placeholder, Shorts matrix config, tracking sheet file.
-Untested: real upload path, anything needing Groq/Tavily/Fish keys.
+Implemented (on branch): news pipeline, fact-check gate, scriptwriter, prediction receipts, teaser-Short wiring, quality upgrades (tests passing at last report).
+New package `wealthradar_audit/` (own 20 tests pass: `python -m unittest discover -s tests`; run `python -m wealthradar_audit --out DIR`):
+- `data.py` sourced snapshot (Egypt CPI, USD/EGP, gold, NBE certificate rates per year with URL, Gulf CPI from the World Bank, pegs). `calculator.py` 100k scenario (cash, dollar, gold, certificate) plus `gulf_view`. `charts.py`, `description.py` (affiliate placeholders), `episode.py` (9-11 min structure and fact brief), `receipts.py` (ledger segment).
+- Certificate method (owner decision): each January roll the whole amount into the best NBE certificate rate available that month, sourced rates only: 2021 11, 2022 11, 2023 25, 2024 27, 2025 30 (percent). Compounded 2022-2025 multiple about 2.29 vs inflation 2.23, real about +2.7 percent. Must be stated on screen and in the script (`brief.on_screen_required`). On-air point: the 18 percent certificate ran only 21 Mar to 30 May 2022 and the 25 percent one only 4 to 31 Jan 2023, so a January-only rule misses windows. Not modelled: caps, new-money limits, tax, monthly payout (22.5 vs 25). 2024 tenor not confirmed; 2025 is the year-one rate of a 3-year stepped certificate.
+- Official vs parallel USD/EGP differed in 2022 to early 2024: say so on air.
+- The receipt segment is dropped when `config/predictions_ledger.json` has no settled, sourced prediction (currently empty).
+Not built yet: pipeline wiring (`newsflow/pipeline.py` does not call `wealthradar_audit`), narration, render of episode 3, Shorts matrix config, tracking sheet file.
+Untested: the repo's 228 tests and Actions on the new code, real upload path, anything needing Groq/Tavily/Fish keys.
 
 ## 9. Open items
 - Owner approval of the 9-Short matrix and topic swaps.
