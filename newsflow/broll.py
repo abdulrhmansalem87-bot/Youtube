@@ -18,9 +18,14 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, features
 
 PEXELS_API = "https://api.pexels.com/v1/videos/search"
+# Pacing rule (owner requirement): a new shot or visible motion roughly every 2 seconds,
+# never a static shot longer than 2.5 s. Every shot also gets a gentle zoom or pan.
+TARGET_SCENE_SECONDS = 2.2
 MAX_SCENE_SECONDS = 2.5
 MIN_SCENE_SECONDS = 1.5
-MAX_BROLL_CLIPS_PER_CARD = 4
+MAX_BROLL_CLIPS_PER_CARD = 8
+MOTION_OVERSCAN = 1.14
+MOTION_STYLES = ("zoom_in", "pan_right", "zoom_out", "pan_left", "zoom_in", "pan_up", "zoom_out", "pan_down")
 
 
 def require_api_key(value: str | None) -> str:
@@ -44,6 +49,9 @@ def split_scene_durations(durations: list[float], maximum: float = MAX_SCENE_SEC
         # approach accumulated rounding error across many shots and could make
         # the final remainder exceed MAX_SCENE_SECONDS for otherwise valid audio.
         count = max(1, math.ceil(total / maximum - 1e-12))
+        # Aim for ~2.2 s shots (a cut about every 2 seconds) without going below the minimum.
+        wanted = min(round(total / TARGET_SCENE_SECONDS), int(total // MIN_SCENE_SECONDS))
+        count = max(count, wanted)
         chunks = [
             round(total * (part + 1) / count - total * part / count, 6)
             for part in range(count)
@@ -221,12 +229,14 @@ def clean_visual_text(value: str) -> str:
     return re.sub(r"\s+", " ", visible).strip()
 
 
-NAVY = (5, 17, 31, 236)
+INK = (4, 12, 22)               # the one dark colour: bands, bug and chip are all this ink at different opacity
 TEAL = (52, 205, 190, 255)
 AMBER = (232, 170, 60, 255)
 WHITE = (255, 255, 255, 255)
-SOFT = (214, 224, 236, 255)
+SOFT = (224, 231, 240, 235)
+FAINT = (190, 201, 214, 220)
 DEJAVU = "/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf"
+BAND_MAX_ALPHA = 222
 
 
 def _brand_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
@@ -253,70 +263,74 @@ def _wrap(draw, text: str, font, limit: int) -> list[str]:
     return rows
 
 
-def _layout(width: int, height: int) -> dict:
-    """Fixed broadcast grid shared by every frame: bug and stat chip on the top row, lower third at a constant baseline."""
-    portrait = height > width
-    margin = int(width * (0.05 if portrait else 0.04))
-    return {
-        "portrait": portrait,
-        "margin": margin,
-        "top": int(height * (0.045 if portrait else 0.05)),
-        # The lower-third bottom edge stays above the Shorts player controls (bottom ~20%).
-        "bottom": int(height * (0.80 if portrait else 0.92)),
-        "head": int(width * (0.040 if portrait else 0.021)),
-        "body": int(width * (0.036 if portrait else 0.019)),
-        "small": int(width * (0.026 if portrait else 0.014)),
-        "pad": int(width * (0.03 if portrait else 0.015)),
-        "bar": max(8, int(width * 0.008)),
-    }
-
-
-def _panel(draw, left: int, top: int, right: int, bottom: int, bar: int, accent=TEAL) -> None:
-    draw.rectangle((left, top, right, bottom), fill=NAVY)
-    draw.rectangle((right - bar, top, right, bottom), fill=accent)  # accent edge on the reading side (RTL)
-
-
-def _draw_bug(draw, grid: dict) -> None:
-    font = _brand_font(int(grid["small"] * 1.15), True)
-    box = draw.textbbox((0, 0), "WealthRadar", font=font)
-    pad = int(grid["small"] * 0.6)
-    left, top = grid["margin"], grid["top"]
-    right, bottom = left + (box[2] - box[0]) + pad * 2 + grid["bar"], top + (box[3] - box[1]) + pad * 2
-    _panel(draw, left, top, right, bottom, grid["bar"])
-    draw.text((left + pad, top + pad - box[1]), "WealthRadar", font=font, fill=WHITE)
-
-
-def _draw_stat_chip(draw, text: str, width: int, grid: dict) -> None:
-    font = _brand_font(int(grid["body"] * 1.1), True)
-    box = draw.textbbox((0, 0), text, font=font)
-    pad = int(grid["small"] * 0.6)
-    right = width - grid["margin"]
-    left = right - (box[2] - box[0]) - pad * 2 - grid["bar"]
-    top = grid["top"]
-    bottom = top + (box[3] - box[1]) + pad * 2
-    _panel(draw, left, top, right, bottom, grid["bar"])
-    draw.text((left + pad, top + pad - box[1]), text, font=font, fill=WHITE,
-              direction=_text_direction(text), language="ar")
-
-
 def _text_direction(value: str) -> str:
     """Numbers like "+11.66%" must stay left-to-right; anything with Arabic letters shapes right-to-left."""
     return "rtl" if re.search(r"[\u0600-\u06FF]", value) else "ltr"
 
 
-def _draw_receipt(draw, receipt: dict, width: int, height: int, grid: dict) -> None:
-    """Predictions receipt in the same lower-third system: title, before/after rows, verdict tag, hit-rate footer."""
+def _layout(width: int, height: int) -> dict:
+    """Fixed broadcast grid shared by every frame."""
+    portrait = height > width
+    return {
+        "portrait": portrait,
+        "margin": int(width * (0.065 if portrait else 0.05)),
+        "top": int(height * (0.05 if portrait else 0.055)),
+        # Text sits above the Shorts player controls (bottom ~20%); the gradient band runs to the screen edge.
+        "text_bottom": int(height * (0.79 if portrait else 0.90)),
+        "head": int(width * (0.041 if portrait else 0.021)),
+        "body": int(width * (0.034 if portrait else 0.0175)),
+        "small": int(width * (0.024 if portrait else 0.0125)),
+        "fade": int(height * (0.085 if portrait else 0.16)),
+        "gap": int(height * (0.014 if portrait else 0.02)),
+    }
+
+
+def _band(image: Image.Image, text_top: int, grid: dict) -> None:
+    """Dark gradient band flush to the screen edges: transparent at the top, darkest at the bottom."""
+    width, height = image.size
+    band_top = max(0, text_top - grid["gap"] - grid["fade"])
+    band_h = height - band_top
+    ramp = Image.linear_gradient("L").resize((width, grid["fade"]))
+    lut = []
+    for value in range(256):
+        x = value / 255
+        lut.append(int(BAND_MAX_ALPHA * x * x * (3 - 2 * x)))  # smoothstep: no visible edge where the fade starts
+    ramp = ramp.point(lut)
+    mask = Image.new("L", (width, band_h), BAND_MAX_ALPHA)
+    mask.paste(ramp, (0, 0))
+    layer = Image.new("RGBA", (width, band_h), INK + (0,))
+    layer.putalpha(mask)
+    image.alpha_composite(layer, (0, band_top))
+
+
+def _corner_tag(image: Image.Image, draw, text: str, font, side: str, grid: dict) -> None:
+    """Quiet, thin tag flush to a top corner: translucent ink, white text, a 2 px teal underline."""
+    box = draw.textbbox((0, 0), text, font=font, direction=_text_direction(text), language="ar")
+    text_w, text_h = box[2] - box[0], box[3] - box[1]
+    pad_x, pad_y = int(grid["small"] * 0.9), int(grid["small"] * 0.5)
+    tag_w, tag_h = text_w + pad_x * 2, text_h + pad_y * 2
+    left = 0 if side == "left" else image.size[0] - tag_w
+    top = grid["top"]
+    layer = Image.new("RGBA", (tag_w, tag_h), INK + (140,))
+    image.alpha_composite(layer, (left, top))
+    draw.rectangle((left, top + tag_h - 2, left + tag_w, top + tag_h), fill=TEAL[:3] + (170,))
+    draw.text((left + pad_x - box[0], top + pad_y - box[1]), text, font=font, fill=WHITE,
+              direction=_text_direction(text), language="ar")
+
+
+def _draw_receipt(image: Image.Image, draw, receipt: dict, grid: dict) -> None:
+    """Predictions receipt in the same band system: title, hairline, before/after rows, verdict, hit-rate."""
+    width = image.size[0]
     hit = receipt.get("verdict") == "hit"
     accent = TEAL if hit else AMBER
-    left, right = grid["margin"], width - grid["margin"]
-    pad, bar = grid["pad"], grid["bar"]
-    inner_right, inner_left = right - bar - pad, left + pad
+    margin = grid["margin"]
+    right, left = width - margin, margin
     title = receipt.get("title_ar", "")
-    title_size = int(grid["body"] * 1.1)
+    title_size = int(grid["head"] * 0.95)
     title_font = _brand_font(title_size, True)
     while title_size > 18:
         box = draw.textbbox((0, 0), title, font=title_font, direction="rtl", language="ar")
-        if box[2] - box[0] <= inner_right - inner_left:
+        if box[2] - box[0] <= right - left:
             break
         title_size -= 2
         title_font = _brand_font(title_size, True)
@@ -324,56 +338,54 @@ def _draw_receipt(draw, receipt: dict, width: int, height: int, grid: dict) -> N
     value_font = _brand_font(grid["body"], True)
     small_font = _brand_font(grid["small"])
     rows = receipt.get("rows") or []
-    line = int(grid["body"] * 1.75)
-    small_line = int(grid["small"] * 1.7)
-    title_h = int(title_size * 1.9)
-    panel_h = pad + title_h + line * len(rows) + line + small_line * 2 + pad
-    bottom = grid["bottom"]
-    top = bottom - panel_h
-    _panel(draw, left, top, right, bottom, bar, accent)
-    y = top + pad
-    draw.text((inner_right, y), title, font=title_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
-    rule = y + int(title_size * 1.55)
-    draw.line((inner_left, rule, inner_right, rule), fill=(52, 205, 190, 110), width=2)
+    line = int(grid["body"] * 1.9)
+    small_line = int(grid["small"] * 1.8)
+    title_h = int(title_size * 2.0)
+    block_h = title_h + line * len(rows) + int(line * 1.15) + small_line * 2
+    top = grid["text_bottom"] - block_h
+    _band(image, top, grid)
+    y = top
+    draw.text((right, y), title, font=title_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
+    rule = y + int(title_size * 1.65)
+    draw.line((left, rule, right, rule), fill=(255, 255, 255, 70), width=1)
     y += title_h
     for label, value in rows:
-        draw.text((inner_right, y), label, font=row_font, fill=SOFT, anchor="ra", direction="rtl", language="ar")
-        draw.text((inner_left, y), value, font=value_font, fill=WHITE, anchor="la",
+        draw.text((right, y), label, font=row_font, fill=FAINT, anchor="ra", direction="rtl", language="ar")
+        draw.text((left, y), value, font=value_font, fill=WHITE, anchor="la",
                   direction=_text_direction(value), language="ar")
         y += line
     tag = receipt.get("marker_ar", "")
-    tag_box = draw.textbbox((0, 0), tag, font=value_font, direction="rtl", language="ar")
-    tag_w = tag_box[2] - tag_box[0]
-    draw.rectangle((inner_right - tag_w - pad, y, inner_right, y + line - 4), fill=accent)
-    draw.text((inner_right - pad // 2, y + (line - 4) // 2), tag, font=value_font, fill=(5, 17, 31, 255), anchor="rm",
+    mark = int(grid["body"] * 0.42)
+    draw.rectangle((right - mark, y + int(line * 0.28), right, y + int(line * 0.28) + mark), fill=accent)
+    draw.text((right - mark - int(mark * 0.8), y), tag, font=value_font, fill=accent, anchor="ra",
               direction="rtl", language="ar")
-    y += line + int(grid["small"] * 0.3)
-    draw.text((inner_right, y), receipt.get("counter_ar", ""), font=small_font, fill=WHITE, anchor="ra",
+    y += int(line * 1.15)
+    draw.text((right, y), receipt.get("counter_ar", ""), font=small_font, fill=SOFT, anchor="ra",
               direction="rtl", language="ar")
     y += small_line
-    draw.text((inner_right, y), receipt.get("speaker_ar", ""), font=small_font, fill=SOFT, anchor="ra",
+    draw.text((right, y), receipt.get("speaker_ar", ""), font=small_font, fill=FAINT, anchor="ra",
               direction="rtl", language="ar")
 
 
 def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int = 0) -> None:
-    """Broadcast-style overlay on a fixed grid: small brand bug (top-left), stat chip (top-right, first seconds only),
-    and a lower-third panel holding the Arabic headline (first shot of a story) above the caption."""
+    """Broadcast-style overlay on a fixed grid: a flush gradient band holds the Arabic headline (first shot of
+    a story) and the caption; a quiet brand tag sits top-left and a stat chip top-right (first shots only)."""
     if not features.check("raqm"):
         raise RuntimeError("محرك تشكيل العربية RAQM غير متاح؛ أوقفنا إخراج النص.")
     grid = _layout(width, height)
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    _draw_bug(draw, grid)
+    _corner_tag(image, draw, "WealthRadar", _brand_font(grid["small"], True), "left", grid)
 
     receipt = card.get("receipt")
     if isinstance(receipt, dict):
-        _draw_receipt(draw, receipt, width, height, grid)
+        _draw_receipt(image, draw, receipt, grid)
         image.save(path)
         return
 
     key_number = clean_visual_text(card.get("key_number"))[:14]
     if key_number and caption_index <= 1:
-        _draw_stat_chip(draw, key_number, width, grid)
+        _corner_tag(image, draw, key_number, _brand_font(int(grid["small"] * 1.25), True), "right", grid)
 
     headline = clean_visual_text(card.get("headline"))
     arabic = len(re.findall(r"[\u0600-\u06FF]", headline))
@@ -385,9 +397,8 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     else:
         text = clean_visual_text(card.get("title"))[:100]
 
-    left, right = grid["margin"], width - grid["margin"]
-    pad, bar = grid["pad"], grid["bar"]
-    limit = right - left - bar - pad * 2
+    margin = grid["margin"]
+    right, limit = width - margin, width - margin * 2
     head_font = _brand_font(grid["head"], True)
     body_font = _brand_font(grid["body"])
     head_rows = _wrap(draw, headline[:90], head_font, limit)[:2] if show_headline else []
@@ -395,22 +406,23 @@ def _overlay(card: dict, path: Path, width: int, height: int, caption_index: int
     if not head_rows and not body_rows:
         image.save(path)
         return
-    head_step, body_step = int(grid["head"] * 1.45), int(grid["body"] * 1.5)
-    gap = int(grid["small"] * 0.9) if head_rows and body_rows else 0
-    panel_h = pad * 2 + head_step * len(head_rows) + gap + body_step * len(body_rows)
-    bottom = grid["bottom"]
-    top = bottom - panel_h
-    _panel(draw, left, top, right, bottom, bar)
-    x = right - bar - pad
-    y = top + pad
+    head_step, body_step = int(grid["head"] * 1.5), int(grid["body"] * 1.55)
+    rule_h = int(grid["small"] * 1.1) if head_rows else 0
+    gap = int(grid["small"] * 0.8) if head_rows and body_rows else 0
+    block_h = rule_h + head_step * len(head_rows) + gap + body_step * len(body_rows)
+    top = grid["text_bottom"] - block_h
+    _band(image, top, grid)
+    y = top
+    if head_rows:
+        draw.rectangle((right - int(width * 0.09), y + 2, right, y + 4), fill=TEAL)  # small accent mark
+        y += rule_h
     for row in head_rows:
-        draw.text((x, y), row, font=head_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
+        draw.text((right, y), row, font=head_font, fill=WHITE, anchor="ra", direction="rtl", language="ar")
         y += head_step
-    if head_rows and body_rows:
-        draw.line((left + pad, y + gap // 2, x, y + gap // 2), fill=(52, 205, 190, 110), width=2)
     y += gap
     for row in body_rows:
-        draw.text((x, y), row, font=body_font, fill=SOFT if head_rows else WHITE, anchor="ra", direction="rtl", language="ar")
+        draw.text((right, y), row, font=body_font, fill=SOFT if head_rows else WHITE, anchor="ra",
+                  direction="rtl", language="ar")
         y += body_step
     image.save(path)
 
@@ -441,6 +453,44 @@ def _select_distinct_candidates(candidates: list[dict], count: int,
             f"لم يوفر Pexels {count} لقطات مختلفة للمشهد؛ أوقفنا الرندر بدلاً من تكرار نفس اللقطة."
         )
     return selected, seen
+
+
+def shot_motion_filter(style: str, width: int, height: int, seconds: float) -> str:
+    """Gentle zoom or pan over one shot. The input must already be overscanned (MOTION_OVERSCAN x the frame).
+    The text overlay is composited afterwards, so only the footage moves."""
+    d = max(seconds, 0.1)
+    if style in ("zoom_in", "zoom_out"):
+        grow = f"(0.12*t/{d:.3f})" if style == "zoom_in" else f"(0.12-0.12*t/{d:.3f})"
+        return (f"scale=w='trunc({width}*(1+{grow})/2)*2':h='trunc({height}*(1+{grow})/2)*2':eval=frame,"
+                f"crop={width}:{height}")
+    spans = {
+        "pan_right": (f"(iw-{width})*t/{d:.3f}", f"(ih-{height})/2"),
+        "pan_left": (f"(iw-{width})*(1-t/{d:.3f})", f"(ih-{height})/2"),
+        "pan_down": (f"(iw-{width})/2", f"(ih-{height})*t/{d:.3f}"),
+        "pan_up": (f"(iw-{width})/2", f"(ih-{height})*(1-t/{d:.3f})"),
+    }
+    if style not in spans:
+        raise ValueError(f"unknown motion style: {style}")
+    x, y = spans[style]
+    return f"crop={width}:{height}:x='{x}':y='{y}'"
+
+
+def shot_filter(index: int, seconds: float, width: int, height: int, round_index: int = 0) -> str:
+    """Filter chain for one shot: cover-crop with overscan, exact duration, motion, mirrored on repeat rounds."""
+    over_w, over_h = (int(width * MOTION_OVERSCAN) // 2 * 2, int(height * MOTION_OVERSCAN) // 2 * 2)
+    style = MOTION_STYLES[index % len(MOTION_STYLES)]
+    chain = [
+        f"scale={over_w}:{over_h}:force_original_aspect_ratio=increase",
+        f"crop={over_w}:{over_h}",
+        "setsar=1", "fps=30",
+        "tpad=stop_mode=clone:stop_duration=3",  # a clip shorter than the shot is held, never short-changed
+        f"trim=duration={seconds:.6f}", "setpts=PTS-STARTPTS",
+        shot_motion_filter(style, width, height, seconds),
+    ]
+    if round_index % 2 == 1:
+        chain.append("hflip")
+    chain += ["setsar=1", "format=yuv420p"]  # scale/crop can change the SAR; concat needs identical shots
+    return ",".join(chain)
 
 
 def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
@@ -496,25 +546,29 @@ def render_broll_video(cards: list[dict], durations: list[float], audio: Path,
                     "source_page": candidate.get("page"),
                 })
 
-            # Build a short loop from distinct Pexels clips. Each clip occupies
-            # one 2.5s scene; the loop repeats only after four different shots.
-            loop_durations = [seconds for _, seconds in card_shots[:clip_count]]
+            # One shot per ~2.2 s. Distinct clips come first; when a card has more shots than
+            # clips, later shots reuse a clip from a different moment, mirrored, with another motion.
+            loop_durations = [seconds for _, seconds in card_shots]
             loop_duration = sum(loop_durations)
             loop = work / f"broll-loop-{card_index:04d}.mp4"
             filter_parts = []
-            for clip_index, seconds in enumerate(loop_durations):
+            inputs: list[tuple[Path, float, float]] = []
+            for shot_number, seconds in enumerate(loop_durations):
+                clip_index = shot_number % clip_count
+                round_index = shot_number // clip_count
+                clip_length = float(selected[clip_index].get("duration") or 0)
+                offset = 0.0
+                if round_index and clip_length > seconds:
+                    offset = min(round_index * seconds * 1.3, max(0.0, clip_length - seconds))
+                inputs.append((source_paths[clip_index], offset, seconds))
                 filter_parts.append(
-                    f"[{clip_index}:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                    f"crop={width}:{height},setsar=1,fps=30,trim=duration={seconds:.6f},"
-                    f"setpts=PTS-STARTPTS,format=yuv420p[v{clip_index}]"
+                    f"[{shot_number}:v]{shot_filter(shot_number, seconds, width, height, round_index)}[v{shot_number}]"
                 )
-            concat_inputs = "".join(f"[v{clip_index}]" for clip_index in range(clip_count))
-            filter_parts.append(
-                f"{concat_inputs}concat=n={clip_count}:v=1:a=0[outv]"
-            )
+            concat_inputs = "".join(f"[v{n}]" for n in range(len(loop_durations)))
+            filter_parts.append(f"{concat_inputs}concat=n={len(loop_durations)}:v=1:a=0[outv]")
             loop_command = [ffmpeg, "-y"]
-            for source, seconds in zip(source_paths, loop_durations):
-                loop_command.extend(["-t", f"{seconds:.3f}", "-i", str(source)])
+            for source, offset, seconds in inputs:
+                loop_command.extend(["-ss", f"{offset:.3f}", "-t", f"{seconds + 0.5:.3f}", "-i", str(source)])
             loop_command.extend([
                 "-filter_complex", ";".join(filter_parts),
                 "-map", "[outv]",
