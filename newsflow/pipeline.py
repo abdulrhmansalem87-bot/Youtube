@@ -24,7 +24,7 @@ from newsflow.editorial import relevance, review_stories, upload_review_blockers
 from newsflow.history import filter_recent_repeats, load_story_history, record_story_history
 from newsflow.broll import render_broll_video
 from newsflow.source_evidence import collect_source_evidence
-from newsflow.fact_check import fact_check_stories
+from newsflow.fact_check import fact_check_stories, live_price_check
 from newsflow.scriptwriter import generate_plan, is_arabic_text
 from newsflow.trend_radar import fetch_signals as fetch_radar_signals, radar_candidates
 from newsflow.discovery import attach_trend_signals, is_trend_source, parse_trend_signal
@@ -823,12 +823,12 @@ def _private_review_passable(result):
 
 
 def attribution_prefix(story):
-    src = story.get("attribution_source") if story.get("fact_check_status") == "supported_single_source" else None
+    src = story.get("attribution_source") if story.get("fact_check_status") in ("supported_single_source", "supported_live_data") else None
     return f"وفقاً لـ {src['name']}، " if isinstance(src, dict) and src.get("name") else ""
 
 
 def attribution_note(story):
-    src = story.get("attribution_source") if story.get("fact_check_status") == "supported_single_source" else None
+    src = story.get("attribution_source") if story.get("fact_check_status") in ("supported_single_source", "supported_live_data") else None
     return f"وفقاً لـ {src['name']}: {src['url']}\n" if isinstance(src, dict) and src.get("name") and src.get("url") else ""
 
 
@@ -1252,6 +1252,13 @@ def main():
             approved_story["attribution_source"] = result.get("single_source")
             eligible_stories.append(approved_story)
             print(f"[FACT_SINGLE_SOURCE_PASS] story={story.get('id')} source={(result.get('single_source') or {}).get('domain')}")
+        elif os.getenv("NEWSFLOW_ALLOW_SINGLE_SOURCE_ATTRIBUTION", "false").strip().lower() == "true" and (live := live_price_check(story)):
+            approved_story = dict(story)
+            approved_story["fact_check_status"] = "supported_live_data"
+            approved_story["fact_check_sources"] = result.get("sources", [])
+            approved_story["attribution_source"] = {"name": live["name"], "url": live["url"]}
+            eligible_stories.append(approved_story)
+            print(f"[FACT_LIVE_PRICE_PASS] story={story.get('id')} kind={live['kind']} live={live['live']}")
         elif relaxed_private and _private_review_passable(result):
             approved_story = dict(story)
             approved_story["fact_check_status"] = "unverified_private_review"
