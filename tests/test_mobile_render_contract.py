@@ -32,7 +32,7 @@ class MobileRenderContractTests(unittest.TestCase):
 
         workflow = (ROOT / ".github" / "workflows" / "newsflow.yml").read_text(encoding="utf-8")
         self.assertIn('NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"', workflow)
-        self.assertIn('NEWSFLOW_MAX_STORIES: "5"', workflow)
+        self.assertIn('NEWSFLOW_MAX_STORIES: "6"', workflow)
         self.assertNotIn("visual_qa_approved", workflow)
         self.assertIn("Capture actual rendered video frames for phone QA", workflow)
         self.assertIn("actions/cache/restore@v6.1.0", workflow)
