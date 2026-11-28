@@ -5,8 +5,11 @@ name: NewsFlow daily private render
 # This only starts the existing manual private test of newsflow.yml at 6 PM Cairo time.
 
 on:
-  # DISABLED Nov 28, 2026: the schedule is off until upload visibility is proven PRIVATE in a test.
+  # Re-enabled Nov 28, 2026 after private test run 46129813862 verified Private in Studio (post-upload recheck on).
   # Restore: schedule with cron "0 15 * * *" and "0 16 * * *" (6 PM Cairo, checked in the step below).
+  schedule:
+    - cron: "0 15 * * *"
+    - cron: "0 16 * * *"
   workflow_dispatch:
 
 permissions:
