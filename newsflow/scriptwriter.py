@@ -142,6 +142,26 @@ def build_prompt(stories: list[dict]) -> str:
 
 
 def generate_plan(stories: list[dict]) -> dict | None:
+    """Retry for stories whose plan was dropped (the LLM is not deterministic); merge all valid plans."""
+    attempts = max(1, int(os.getenv("NEWSFLOW_SCRIPTWRITER_ATTEMPTS", "3")))
+    merged = None
+    remaining = list(stories)
+    for attempt in range(1, attempts + 1):
+        result = _generate_plan_once(remaining)
+        if result:
+            if merged is None:
+                merged = {"episode_title_ar": result.get("episode_title_ar", ""), "stories": {}}
+            merged["stories"].update(result["stories"])
+            if not merged["episode_title_ar"]:
+                merged["episode_title_ar"] = result.get("episode_title_ar", "")
+            remaining = [s for s in stories if str(s.get("id")) not in merged["stories"]]
+            if not remaining:
+                break
+        print(f"[SCRIPTWRITER_RETRY] attempt={attempt}/{attempts} planned={len((merged or {}).get('stories', {}))} remaining={len(remaining)}")
+    return merged
+
+
+def _generate_plan_once(stories: list[dict]) -> dict | None:
     """Ask the LLM chain (Groq first, then free fallbacks) for an Arabic plan. Returns {'episode_title_ar', 'stories': {id: plan}} or None."""
     from newsflow import llm
     if not stories or not llm.available():
