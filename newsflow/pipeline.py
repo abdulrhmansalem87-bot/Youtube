@@ -1241,6 +1241,8 @@ def main():
         f"rejected={fact_check_report.get('rejected_count', len(editorial_report['accepted']))} "
         f"method={fact_check_report.get('method', 'none')}"
     )
+    for _res in fact_check_report.get("results", []):
+        print(f"[FACT_BLOCKERS] story={_res.get('story_id')} verified={_res.get('verified')} blockers={' | '.join(str(b)[:220] for b in (_res.get('blockers') or [])[:3])}")
     # Fish Audio uses the channel owner's configured voice reference; no presenter footage
     # is required for a narrated news video. Licensed B-roll is confirmed after rendering.
     voice_source = (
