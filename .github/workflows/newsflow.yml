@@ -207,6 +207,7 @@ jobs:
           NEWSFLOW_DECLARE_SYNTHETIC: "false"
           NEWSFLOW_TAVILY_DEPTH: "basic"
           NEWSFLOW_PRIVACY_RECHECK_SECONDS: "120"
+          NEWSFLOW_LONG_VERIFIED_ONLY: "true"
           NEWSFLOW_VISUAL_QA_APPROVED: "false"
           # Only the channel owner's manual PRIVATE-test dispatch may enter PRIVATE staging.
           NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && 'true' || 'false' }}
