@@ -269,7 +269,7 @@ jobs:
       # Avoid consuming artifact storage for pull-request test output. Manual owner-approved
       # PRIVATE reviews and scheduled production runs retain their existing artifact behavior.
       - name: Upload generated files
-        if: always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
+        if: always() && !(github.event_name == 'workflow_dispatch' && inputs.private_test) && (github.event_name == 'workflow_dispatch' || (github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
         continue-on-error: true
         uses: actions/upload-artifact@v7.0.2
         with:
