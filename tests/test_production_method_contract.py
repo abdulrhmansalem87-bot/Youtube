@@ -20,7 +20,7 @@ class ApprovedProductionMethodContractTests(unittest.TestCase):
     def test_newsflow_is_the_standard_long_plus_companion_shorts_workflow(self):
         workflow = (ROOT / ".github/workflows/newsflow.yml").read_text(encoding="utf-8")
         self.assertIn("python -m newsflow --private-staging", workflow)
-        self.assertIn("NEWSFLOW_MAX_STORIES: \"5\"", workflow)
+        self.assertIn("NEWSFLOW_MAX_STORIES: \"6\"", workflow)
         self.assertNotIn("--shorts-only", workflow)
         self.assertNotIn("NEWSFLOW_ALLOW_ISOLATED_SHORT_EXPERIMENT", workflow)
 
