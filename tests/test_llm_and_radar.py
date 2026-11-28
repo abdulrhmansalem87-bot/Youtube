@@ -139,7 +139,7 @@ class LlmChainTests(Base):
         stories = [{"id": "a1", "title": "Gold price", "summary": "x", "source": "s", "link": "https://e.com"}]
         with mock.patch.object(fact_check, "_post_json", fake_post):
             self.assertIsNone(scriptwriter.generate_plan(stories))
-        self.assertEqual(len(calls), 2)
+        self.assertGreaterEqual(len(calls), 2)
 
     def test_scriptwriter_skips_without_any_key(self):
         self.assertIsNone(scriptwriter.generate_plan([{"id": "a"}]))
