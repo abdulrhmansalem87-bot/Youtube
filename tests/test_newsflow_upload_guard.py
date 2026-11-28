@@ -80,7 +80,7 @@ class UploadReviewGateTests(unittest.TestCase):
                          }]):
                         main()
             report = json.loads((Path(directory) / "editorial_review.json").read_text(encoding="utf-8"))
-            self.assertEqual(report["voice_source"], "tts")
+            self.assertEqual(report["voice_source"], "neural_tts")
             self.assertEqual(report["presenter_source"], "none")
             self.assertEqual(report["broll_source"], "none")
             self.assertEqual(report["source_evidence_summary"]["readable"], 1)
@@ -92,7 +92,7 @@ class UploadReviewGateTests(unittest.TestCase):
             saved_evidence = json.loads(evidence_file.read_text(encoding="utf-8"))
             self.assertEqual(saved_evidence["evidence_level"], "article_text")
             blockers = upload_review_blockers(report, True, private_staging=True)
-            self.assertTrue(any("مصدر التعليق الصوتي" in item for item in blockers))
+            self.assertFalse(any("مصدر التعليق الصوتي" in item for item in blockers))
             self.assertFalse(any("المقدم الأصلي" in item for item in blockers))
             self.assertTrue(any("B-roll" in item for item in blockers))
 
@@ -281,3 +281,4 @@ class UploadReviewGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -171,7 +171,7 @@ jobs:
       - name: Run NewsFlow
         if: success() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
         env:
-          NEWSFLOW_MAX_STORIES: "4"
+          NEWSFLOW_MAX_STORIES: "5"
           NEWSFLOW_BROLL_CACHE_DIR: output/broll-cache
           NEWSFLOW_FACT_CHECK_ENABLED: "true"
           # Free-only policy: never fall back to a paid OpenAI API provider.
@@ -179,6 +179,9 @@ jobs:
           NEWSFLOW_GROQ_MODEL: openai/gpt-oss-120b
           GROQ_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.GROQ_API_KEY || '' }}
           TAVILY_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.TAVILY_API_KEY || '' }}
+          CEREBRAS_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.CEREBRAS_API_KEY || '' }}
+          GEMINI_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.GEMINI_API_KEY || '' }}
+          OPENROUTER_API_KEY: ${{ (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.private_test)) && secrets.OPENROUTER_API_KEY || '' }}
           NEWSFLOW_LOOKBACK_HOURS: ${{ steps.cairo_schedule.outputs.lookback_hours || '72' }}
           NEWSFLOW_DEDUPE_HISTORY_ENABLED: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
           NEWSFLOW_RECORD_DRAFT_HISTORY: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
@@ -186,8 +189,13 @@ jobs:
           NEWSFLOW_STRICT_FRESHNESS: ${{ (github.event_name == 'schedule' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]'))) && 'true' || 'false' }}
           FISH_AUDIO_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.FISH_AUDIO_API_KEY || '' }}
           FISH_AUDIO_REFERENCE_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.FISH_AUDIO_REFERENCE_ID || '' }}
+          # Free Microsoft neural Arabic voice (no key). Set NEWSFLOW_TTS_PROVIDER=fish to go back to Fish Audio.
+          NEWSFLOW_TTS_PROVIDER: edge
+          NEWSFLOW_TTS_VOICE: ar-EG-ShakirNeural
+          NEWSFLOW_TTS_RATE: "+8%"
           FISH_AUDIO_MODEL: s2.1-pro-free
           PEXELS_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.PEXELS_API_KEY || '' }}
+          PIXABAY_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.PIXABAY_API_KEY || '' }}
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
           NEWSFLOW_VISUAL_QA_APPROVED: "false"

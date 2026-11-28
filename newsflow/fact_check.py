@@ -435,7 +435,7 @@ def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
                 continue
             detail = "; ".join(part for part in (error_code, error_message) if part)
             detail = re.sub(
-                r"(?i)(?:Bearer\s+)?(?:gsk_[A-Za-z0-9_-]{8,}|tvly-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,})",
+                r"(?i)(?:Bearer\s+)?(?:gsk_[A-Za-z0-9_-]{8,}|tvly-[A-Za-z0-9_-]{8,}|sk-[A-Za-z0-9_-]{8,}|csk-[A-Za-z0-9_-]{8,}|AIza[A-Za-z0-9_-]{8,})",
                 "[REDACTED]",
                 detail,
             )[:620]
@@ -454,6 +454,15 @@ def _post_json(url: str, payload: dict, api_key: str, service: str) -> dict:
     if not isinstance(result, dict):
         raise RuntimeError(f"{service} returned an invalid response")
     return result
+
+
+def _llm_chat(payload: dict, service: str, groq_key: str, model: str, stop_on: tuple = ()) -> dict:
+    """Groq first, then the free fallback chain (newsflow.llm). Local validators stay the final gate."""
+    from newsflow import llm
+    response, _name = llm.chat(payload, service, post=_post_json, primary_model=model, groq_key=groq_key, stop_on=stop_on)
+    response = dict(response)
+    response["_answered_by"] = _name
+    return response
 
 
 def _request_groq_tavily_fact_check(
@@ -591,9 +600,7 @@ def _request_groq_tavily_fact_check(
         ],
     }
     try:
-        groq_response = _post_json(
-            GROQ_CHAT_URL, groq_payload, groq_api_key, "Groq Chat"
-        )
+        groq_response = _llm_chat(groq_payload, "Groq Chat", groq_api_key, model, stop_on=("json_validate_failed",))
     except RuntimeError as exc:
         # GPT-OSS occasionally rejects its first JSON-mode generation with
         # json_validate_failed. Retry once with a smaller evidence payload and
@@ -618,9 +625,7 @@ def _request_groq_tavily_fact_check(
         ]
         retry_messages[1]["content"] = json.dumps(user_data, ensure_ascii=False)
         retry_payload["messages"] = retry_messages
-        groq_response = _post_json(
-            GROQ_CHAT_URL, retry_payload, groq_api_key, "Groq Chat retry"
-        )
+        groq_response = _llm_chat(retry_payload, "Groq Chat retry", groq_api_key, model)
     try:
         content = groq_response["choices"][0]["message"]["content"]
         parsed = json.loads(content)
@@ -647,7 +652,7 @@ def _request_groq_tavily_fact_check(
             for source in sources
         ],
         "checked_at": datetime.now(timezone.utc).isoformat(),
-        "model": model,
+        "model": str(groq_response.get("_answered_by") or model),
         "method": "groq_tavily_search",
     }
 

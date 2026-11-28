@@ -258,8 +258,9 @@ def upload_review_blockers(
     if report.get("fact_checking") != "verified":
         blockers.append("التحقق المستقل من الوقائع لم يكتمل؛ أوقفنا إنتاج الصوت والفيديو")
 
-    # Use the channel owner's original recording or their own authorized voice clone.
-    if report.get("voice_source") not in {"owner_recording", "owner_voice_clone"}:
+    # Allowed voices: the owner's own recording/clone, or the free Microsoft neural Arabic voice
+    # the owner chose (Nov 2026) after rejecting the cloned voice as robotic.
+    if report.get("voice_source") not in {"owner_recording", "owner_voice_clone", "neural_tts"}:
         blockers.append("مصدر التعليق الصوتي ليس تسجيلاً أو نسخة صوتية معتمدة لصاحب القناة")
 
     # An on-camera presenter shot is optional for narrated financial-news footage.
@@ -267,3 +268,4 @@ def upload_review_blockers(
     if require_broll and report.get("broll_source") not in {"pexels", "licensed_video"}:
         blockers.append("لقطات B-roll مرخصة غير مدمجة في النسخة")
     return blockers
+
