@@ -234,7 +234,7 @@ def make_planned_script(stories):
         plan = story["plan"]
         ordinal = ORDINALS[index] if index < len(ORDINALS) else str(index + 1)
         parts.append(
-            f"الخبر {ordinal}: {plan['headline_ar']}. {plan['narration_ar']} "
+            f"الخبر {ordinal}: {plan['headline_ar']}. {attribution_prefix(story)}{plan['narration_ar']} "
             f"ماذا يعني هذا لك؟ {plan['why_it_matters_ar']}"
         )
     parts.append(
@@ -321,9 +321,9 @@ def make_short_script(story, teaser=False):
     plan = story.get("plan")
     if isinstance(plan, dict):
         if teaser:
-            return f"{plan['short_hook_ar']} {plan['short_body_ar']} {TEASER_HOOK_AR} {TEASER_DISCLAIMER_AR}"
+            return f"{plan['short_hook_ar']} {attribution_prefix(story)}{plan['short_body_ar']} {TEASER_HOOK_AR} {TEASER_DISCLAIMER_AR}"
         return (
-            f"{plan['short_hook_ar']} {plan['short_body_ar']} "
+            f"{plan['short_hook_ar']} {attribution_prefix(story)}{plan['short_body_ar']} "
             "تابع ويلث رادار لأخبار الاقتصاد كل يوم، وهذا المحتوى للتوعية وليس نصيحة استثمارية."
         )
     title = clean_narration(str(story.get("title", "")).strip())
@@ -423,7 +423,7 @@ def build_short_youtube_metadata(story, script):
     description = (
         f"{title_seed}.\n"
         f"{summary}\n\n{why_line}"
-        f"المصدر:\n1. {story.get('source', 'المصدر الأصلي')}: {original_link(story)}\n\n"
+        f"{attribution_note(story)}المصدر:\n1. {story.get('source', 'المصدر الأصلي')}: {original_link(story)}\n\n"
         "محتوى إخباري وتثقيفي، وليس نصيحة استثمارية. تحقق من المصدر الأصلي قبل أي قرار مالي.\n\n"
         f"#shorts #WealthRadar #{tag_a} #{tag_b}"
     )
@@ -461,7 +461,7 @@ def build_youtube_metadata(stories, script):
         plan = item.get("plan") if isinstance(item.get("plan"), dict) else None
         if plan:
             number = f" ({plan['key_number_ar']})" if plan.get("key_number_ar") else ""
-            story_lines.append(f"{index}. {plan['headline_ar']}{number}\nماذا يعني لك؟ {plan['why_it_matters_ar']}")
+            story_lines.append(f"{index}. {plan['headline_ar']}{number}\n{attribution_note(item)}ماذا يعني لك؟ {plan['why_it_matters_ar']}")
         else:
             item_title = clean_narration(item.get("title", ""))[:160]
             item_summary = clean_narration(item.get("summary", ""))
@@ -820,6 +820,21 @@ def _private_review_passable(result):
     if not claims or str(result.get("decision") or "") == "contradicted":
         return False
     return all(str(c.get("verdict") or "") != "contradicted" for c in claims if isinstance(c, dict))
+
+
+def attribution_prefix(story):
+    src = story.get("attribution_source") if story.get("fact_check_status") == "supported_single_source" else None
+    return f"وفقاً لـ {src['name']}، " if isinstance(src, dict) and src.get("name") else ""
+
+
+def attribution_note(story):
+    src = story.get("attribution_source") if story.get("fact_check_status") == "supported_single_source" else None
+    return f"وفقاً لـ {src['name']}: {src['url']}\n" if isinstance(src, dict) and src.get("name") and src.get("url") else ""
+
+
+def _single_source_ok(result):
+    src = result.get("single_source")
+    return isinstance(src, dict) and bool(src.get("domain")) and result.get("decision") != "contradicted"
 
 
 def make_video(title, audio, output, short=False, stories=None, portrait=None):
@@ -1230,6 +1245,13 @@ def main():
             approved_story["fact_check_status"] = "supported"
             approved_story["fact_check_sources"] = result.get("sources", [])
             eligible_stories.append(approved_story)
+        elif _single_source_ok(result) and os.getenv("NEWSFLOW_ALLOW_SINGLE_SOURCE_ATTRIBUTION", "false").strip().lower() == "true":
+            approved_story = dict(story)
+            approved_story["fact_check_status"] = "supported_single_source"
+            approved_story["fact_check_sources"] = result.get("sources", [])
+            approved_story["attribution_source"] = result.get("single_source")
+            eligible_stories.append(approved_story)
+            print(f"[FACT_SINGLE_SOURCE_PASS] story={story.get('id')} source={(result.get('single_source') or {}).get('domain')}")
         elif relaxed_private and _private_review_passable(result):
             approved_story = dict(story)
             approved_story["fact_check_status"] = "unverified_private_review"
@@ -1280,6 +1302,8 @@ def main():
         f"rejected={fact_check_report.get('rejected_count', len(editorial_report['accepted']))} "
         f"method={fact_check_report.get('method', 'none')}"
     )
+    _rs = fact_check_report.get("results", [])
+    print(f"[FACT_SINGLE_SOURCE_WOULD_PASS] count={sum(1 for r in _rs if r.get('verified') is not True and _single_source_ok(r))} of={len(_rs)} (strict-verified={sum(1 for r in _rs if r.get('verified') is True)})")
     for _res in fact_check_report.get("results", []):
         print(f"[FACT_BLOCKERS] story={_res.get('story_id')} verified={_res.get('verified')} blockers={' | '.join(str(b)[:220] for b in (_res.get('blockers') or [])[:3])}")
     # Fish Audio uses the channel owner's configured voice reference; no presenter footage
