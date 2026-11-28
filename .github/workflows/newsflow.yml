@@ -201,7 +201,8 @@ jobs:
           # PRIVATE review only (workflow_dispatch private_test): unverified-but-not-contradicted stories may render; descriptions carry a private-review notice.
           NEWSFLOW_PRIVATE_RELAXED_FACTCHECK: "true"
           NEWSFLOW_PRIVATE_REVIEW_NOTICE: "true"
-          NEWSFLOW_SHORTS_PER_EPISODE: "1"
+          NEWSFLOW_SHORTS_PER_EPISODE: "6"
+          NEWSFLOW_ALLOW_SINGLE_SOURCE_ATTRIBUTION: "true"
           NEWSFLOW_DECLARE_SYNTHETIC: "false"
           NEWSFLOW_TAVILY_DEPTH: "basic"
           NEWSFLOW_PRIVACY_RECHECK_SECONDS: "120"
