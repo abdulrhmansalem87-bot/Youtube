@@ -219,6 +219,51 @@ def validate_fact_check_decision(
     return not blockers, blockers, accepted_claims
 
 
+ALLOWLIST_DOMAINS = {
+    "bbc.com": "بي بي سي", "bbc.co.uk": "بي بي سي", "reuters.com": "رويترز", "apnews.com": "أسوشيتد برس",
+    "bloomberg.com": "بلومبرغ", "alarabiya.net": "العربية", "asharq.com": "الشرق", "asharqbusiness.com": "الشرق للأعمال",
+    "aawsat.com": "الشرق الأوسط", "aljazeera.com": "الجزيرة", "aljazeera.net": "الجزيرة", "cnbc.com": "سي إن بي سي",
+    "cnbcarabia.com": "سي إن بي سي عربية", "ft.com": "فاينانشال تايمز", "wsj.com": "وول ستريت جورنال",
+    "federalreserve.gov": "الاحتياطي الفيدرالي", "ecb.europa.eu": "البنك المركزي الأوروبي", "cbe.org.eg": "البنك المركزي المصري",
+    "imf.org": "صندوق النقد الدولي", "worldbank.org": "البنك الدولي", "un.org": "الأمم المتحدة",
+}
+OFFICIAL_SUFFIXES = (".gov", ".gov.eg", ".gov.uk", ".gov.sa", ".gov.ae")
+PRICE_STORY_RE = re.compile(r"(الدولار|دولار|الذهب|الجنيه|جنيه|عيار|سعر الصرف|سعر|أسعار|gold|dollar|exchange rate|price)", re.I)
+
+
+def _allowlist_name(domain: str) -> str:
+    if domain in ALLOWLIST_DOMAINS:
+        return ALLOWLIST_DOMAINS[domain]
+    if domain.endswith(OFFICIAL_SUFFIXES):
+        return domain
+    return ""
+
+
+def single_source_attribution(story: dict, parsed: dict, claims: list[dict]):
+    """One reputable named source may carry a story IF the video attributes it ("according to X") and links it.
+    Never for contradicted claims, disagreements, unknown sources, or price/number stories (those need live data)."""
+    if not claims or parsed.get("decision") == "contradicted" or parsed.get("material_disagreements"):
+        return None
+    if PRICE_STORY_RE.search(str(story.get("title") or "") + " " + str(story.get("summary") or "")):
+        return None
+    common = None
+    first_url = {}
+    for claim in claims:
+        if claim.get("verdict") != "supported":
+            return None
+        domains = set()
+        for url in claim.get("evidence_urls") or []:
+            domain = _registrable_domain(url)
+            if domain and _allowlist_name(domain):
+                domains.add(domain)
+                first_url.setdefault(domain, url)
+        common = domains if common is None else (common & domains)
+        if not common:
+            return None
+    domain = sorted(common)[0]
+    return {"domain": domain, "name": _allowlist_name(domain), "url": first_url[domain]}
+
+
 def _reported_decision(parsed: dict, verified: bool, claims: list[dict]) -> str:
     """Require independent evidence before reporting a story as contradicted."""
     if verified:
@@ -643,6 +688,7 @@ def _request_groq_tavily_fact_check(
         "status": "verified" if verified else "needs_review",
         "verified": verified,
         "summary": str(parsed.get("summary") or ""),
+        "single_source": single_source_attribution(story, parsed, claims),
         # Do not expose an optimistic model label when local evidence gates reject it.
         "decision": _reported_decision(parsed, verified, claims),
         "blockers": blockers,
