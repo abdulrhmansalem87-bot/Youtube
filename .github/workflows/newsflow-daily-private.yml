@@ -1,0 +1,32 @@
+name: NewsFlow daily private render
+
+# Standing instruction from the channel owner (Nov 28, 2026): one long video plus six Shorts every day,
+# uploaded PRIVATE only for format testing. Nothing here publishes anything publicly.
+# This only starts the existing manual private test of newsflow.yml at 6 PM Cairo time.
+
+on:
+  schedule:
+    # 6 PM Cairo: 16:00 UTC in winter (UTC+2), 15:00 UTC in summer (UTC+3). The step below checks the Cairo hour.
+    - cron: "0 15 * * *"
+    - cron: "0 16 * * *"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  start-private-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Start PRIVATE render at 6 PM Cairo only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          hour=$(TZ=Africa/Cairo date +%H)
+          if [ "$hour" != "18" ]; then
+            echo "Cairo hour is $hour, not 18; skipping."
+            exit 0
+          fi
+          gh workflow run newsflow.yml --repo "$GITHUB_REPOSITORY" --ref main -f private_test=true
+          echo "Started newsflow.yml with private_test=true (YouTube privacy stays private)."
