@@ -27,8 +27,8 @@ class PipelineSelectionTests(unittest.TestCase):
                 "category": "أسواق المال",
             })
         selected, rejected = select_stories(stories, 8)
-        self.assertEqual(len(selected), 5)
-        self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3", "4"])
+        self.assertEqual(len(selected), 6)
+        self.assertEqual([item["id"] for item in selected], ["0", "1", "2", "3", "4", "5"])
         self.assertEqual(rejected, [])
 
     def test_incomplete_rss_summary_is_kept_for_original_source_recovery(self):
