@@ -66,3 +66,30 @@ sources:
   - name: UN News Arabic
     url: https://news.un.org/feed/subscribe/ar/news/all/rss.xml
     category: دولي
+  - name: CNBC - Business
+    url: https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10001147
+    category: اقتصاد وأسواق
+  - name: CNBC - Economy
+    url: https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258
+    category: اقتصاد عالمي
+  - name: Federal Reserve - Press
+    url: https://www.federalreserve.gov/feeds/press_all.xml
+    category: اقتصاد عالمي
+  - name: ECB - Press
+    url: https://www.ecb.europa.eu/rss/press.html
+    category: اقتصاد عالمي
+  - name: Al Jazeera Arabic - Economy
+    url: https://www.aljazeera.net/aljazeerarss/economy.xml
+    category: اقتصاد وأسواق
+  - name: Al Jazeera English
+    url: https://www.aljazeera.com/xml/rss/all.xml
+    category: أخبار عالمية
+  - name: BBC Arabic - Business
+    url: https://feeds.bbci.co.uk/arabic/business/rss.xml
+    category: اقتصاد وأسواق
+  - name: Youm7 - Economy
+    url: https://www.youm7.com/rss/SectionRss?SectionID=297
+    category: اقتصاد مصر
+  - name: Reuters - Egypt (via Google News)
+    url: https://news.google.com/rss/search?q=when:24h+site:reuters.com+Egypt&hl=en-US&gl=US&ceid=US:en
+    category: اقتصاد مصر
