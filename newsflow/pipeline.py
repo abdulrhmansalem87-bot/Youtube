@@ -1016,6 +1016,29 @@ def verify_target_channel(youtube, expected_title: str | None = None) -> str:
     return channel_id
 
 
+def recheck_private_after_upload(youtube, video_id: str) -> None:
+    """Re-read privacyStatus a while after upload. If not private: force private via the API, then fail the run."""
+    import time
+    time.sleep(int(os.getenv("NEWSFLOW_PRIVACY_RECHECK_SECONDS", "120")))
+    current = None
+    try:
+        items = youtube.videos().list(part="status", id=video_id).execute().get("items", [])
+        current = items[0].get("status", {}).get("privacyStatus") if items else None
+    except Exception as exc:
+        print(f"[PRIVACY_RECHECK_ERROR] {video_id} {type(exc).__name__}")
+    print(f"[PRIVACY_RECHECK] {video_id} privacy={current}")
+    if current != "private":
+        try:
+            youtube.videos().update(
+                part="status",
+                body={"id": video_id, "status": {"privacyStatus": "private", "selfDeclaredMadeForKids": False}},
+            ).execute()
+            print(f"[PRIVACY_FORCED_PRIVATE] {video_id}")
+        except Exception as exc:
+            print(f"[PRIVACY_FORCE_FAILED] {video_id} {type(exc).__name__}")
+        raise RuntimeError(f"Video {video_id} was not private after upload (saw {current}); forced private and stopped.")
+
+
 def youtube_upload(
     video_path: Path, title: str, description: str, tags: list[str],
     privacy_override: str | None = None, credentials=None
@@ -1051,6 +1074,7 @@ def youtube_upload(
         raise RuntimeError("استجابة YouTube لا تطابق القناة التي تم التحقق منها؛ لن نعلن نجاح الرفع.")
     video_url = f"https://youtu.be/{video_id}"
     print(f"[UPLOAD_VERIFIED] {video_url} privacy={status} channel={target_channel_id}")
+    recheck_private_after_upload(youtube, video_id)
     return video_url
 
 def main():
