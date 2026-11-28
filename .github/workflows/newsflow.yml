@@ -58,7 +58,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -171,7 +171,7 @@ jobs:
       - name: Run NewsFlow
         if: success() && ((github.event_name == 'schedule' && steps.cairo_schedule.outputs.run == 'true') || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && contains(github.event.head_commit.message, '[private-stage]')))
         env:
-          NEWSFLOW_MAX_STORIES: "5"
+          NEWSFLOW_MAX_STORIES: "6"
           NEWSFLOW_BROLL_CACHE_DIR: output/broll-cache
           NEWSFLOW_FACT_CHECK_ENABLED: "true"
           # Free-only policy: never fall back to a paid OpenAI API provider.
@@ -198,6 +198,10 @@ jobs:
           PIXABAY_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && secrets.PIXABAY_API_KEY || '' }}
           NEWSFLOW_MAIN_VIDEO_PORTRAIT: "false"
           NEWSFLOW_UPLOAD_SINGLE_LONG: "false"
+          # PRIVATE review only (workflow_dispatch private_test): unverified-but-not-contradicted stories may render; descriptions carry a private-review notice.
+          NEWSFLOW_PRIVATE_RELAXED_FACTCHECK: "true"
+          NEWSFLOW_PRIVATE_REVIEW_NOTICE: "true"
+          NEWSFLOW_SHORTS_PER_EPISODE: "6"
           NEWSFLOW_VISUAL_QA_APPROVED: "false"
           # Only the channel owner's manual PRIVATE-test dispatch may enter PRIVATE staging.
           NEWSFLOW_PRIVATE_STAGING: ${{ github.event_name == 'workflow_dispatch' && inputs.private_test && 'true' || 'false' }}
