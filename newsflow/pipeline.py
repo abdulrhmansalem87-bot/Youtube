@@ -24,7 +24,7 @@ from newsflow.editorial import relevance, review_stories, upload_review_blockers
 from newsflow.history import filter_recent_repeats, load_story_history, record_story_history
 from newsflow.broll import render_broll_video
 from newsflow.source_evidence import collect_source_evidence
-from newsflow.fact_check import fact_check_stories, live_price_check
+from newsflow.fact_check import fact_check_stories, live_price_check, register_feed_pool
 from newsflow.scriptwriter import generate_plan, is_arabic_text
 from newsflow.trend_radar import fetch_signals as fetch_radar_signals, radar_candidates
 from newsflow.discovery import attach_trend_signals, is_trend_source, parse_trend_signal
@@ -165,6 +165,7 @@ def collect(max_stories: int):
                 })
         except Exception as exc:
             print(f"[WARN] تعذر جلب {source.get('name')}: {exc}")
+    register_feed_pool(stories)
     # Tavily radar: extra ranking signals only, fail-soft, never a fact source.
     radar_signals = fetch_radar_signals()
     trend_signals.extend(radar_signals)
