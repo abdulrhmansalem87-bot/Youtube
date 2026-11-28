@@ -223,7 +223,7 @@ ALLOWLIST_DOMAINS = {
     "bbc.com": "بي بي سي", "bbc.co.uk": "بي بي سي", "reuters.com": "رويترز", "apnews.com": "أسوشيتد برس",
     "bloomberg.com": "بلومبرغ", "alarabiya.net": "العربية", "asharq.com": "الشرق", "asharqbusiness.com": "الشرق للأعمال",
     "aawsat.com": "الشرق الأوسط", "aljazeera.com": "الجزيرة", "aljazeera.net": "الجزيرة", "cnbc.com": "سي إن بي سي",
-    "cnbcarabia.com": "سي إن بي سي عربية", "ft.com": "فاينانشال تايمز", "wsj.com": "وول ستريت جورنال",
+    "cnbcarabia.com": "سي إن بي سي عربية", "cnnbusinessarabic.com": "سي إن إن بيزنس بالعربية", "ft.com": "فاينانشال تايمز", "wsj.com": "وول ستريت جورنال",
     "federalreserve.gov": "الاحتياطي الفيدرالي", "ecb.europa.eu": "البنك المركزي الأوروبي", "cbe.org.eg": "البنك المركزي المصري",
     "imf.org": "صندوق النقد الدولي", "worldbank.org": "البنك الدولي", "un.org": "الأمم المتحدة",
 }
@@ -302,6 +302,7 @@ def live_price_check(story: dict):
         if egp <= 0:
             return None
         nums = _numbers(text.translate(_ARABIC_DIGITS))
+        print(f"[LIVE_PRICE] story={story.get('id')} dollar={is_dollar} gold={is_gold} egp={egp:.2f} nums={nums[:8]}")
         checked = datetime.now(timezone.utc).isoformat()
         if is_gold:
             xau = float(_live_json(LIVE_GOLD_URL).get("price") or 0)
