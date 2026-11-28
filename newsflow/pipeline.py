@@ -43,7 +43,7 @@ def config():
         return yaml.safe_load(f)
 
 
-MAX_BULLETIN_STORIES = 5
+MAX_BULLETIN_STORIES = 6
 LOCAL_GOLD_MARKET_NAMES = (
     "مصر", "السعودية", "الإمارات", "الأردن", "العراق", "الكويت",
     "قطر", "البحرين", "عمان", "المغرب", "لبنان",
@@ -814,6 +814,14 @@ def planned_cards(story_list, *, short=False):
     return cards, spoken
 
 
+def _private_review_passable(result):
+    """PRIVATE review only: a story whose claims are not contradicted may be rendered as UNVERIFIED."""
+    claims = result.get("claims") or []
+    if not claims or str(result.get("decision") or "") == "contradicted":
+        return False
+    return all(str(c.get("verdict") or "") != "contradicted" for c in claims if isinstance(c, dict))
+
+
 def make_video(title, audio, output, short=False, stories=None, portrait=None):
     # A vertical long-form video is still a regular video; only Shorts have a 180s cap.
     portrait = short if portrait is None else portrait
@@ -1190,6 +1198,7 @@ def main():
     }
     eligible_stories = []
     skipped_stories = []
+    relaxed_private = bool(args.private_staging) and os.getenv("NEWSFLOW_PRIVATE_RELAXED_FACTCHECK", "false").strip().lower() == "true"
     for story in editorial_report["accepted"]:
         result = check_results.get(str(story.get("id") or ""), {})
         if result.get("verified") is True and result.get("status") == "verified":
@@ -1197,6 +1206,12 @@ def main():
             approved_story["fact_check_status"] = "supported"
             approved_story["fact_check_sources"] = result.get("sources", [])
             eligible_stories.append(approved_story)
+        elif relaxed_private and _private_review_passable(result):
+            approved_story = dict(story)
+            approved_story["fact_check_status"] = "unverified_private_review"
+            approved_story["fact_check_sources"] = result.get("sources", [])
+            eligible_stories.append(approved_story)
+            print(f"[FACT_RELAXED_PRIVATE] story={story.get('id')} rendered UNVERIFIED for PRIVATE review only")
         else:
             skipped_stories.append({
                 "id": story.get("id"),
@@ -1464,7 +1479,7 @@ def main():
     if not single_long_upload:
         shorts_dir = bulletin / "shorts"
         shorts_dir.mkdir(exist_ok=True)
-        for index, story in enumerate(stories[:2], start=1):
+        for index, story in enumerate(stories[:int(os.getenv("NEWSFLOW_SHORTS_PER_EPISODE", "2"))], start=1):
             short_script = make_short_script(story, teaser=True)  # companion Short = teaser for the long episode
             short_audio = shorts_dir / f"short-{index}.mp3"
             short_video = shorts_dir / f"short-{index}.mp4"
