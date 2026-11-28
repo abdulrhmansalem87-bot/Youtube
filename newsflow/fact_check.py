@@ -335,6 +335,51 @@ def _single_source_prompt_note() -> str:
     )
 
 
+FEED_EVIDENCE_POOL: list[dict] = []
+
+
+def register_feed_pool(stories: list[dict]) -> None:
+    """Keep this run's RSS items (already fetched directly from publishers) as keyless fallback evidence."""
+    FEED_EVIDENCE_POOL.clear()
+    FEED_EVIDENCE_POOL.extend(
+        {"url": str(s.get("link") or ""), "title": str(s.get("title") or ""), "content": str(s.get("summary") or "")}
+        for s in stories if s.get("link") and s.get("title")
+    )
+
+
+def _feed_fallback_enabled() -> bool:
+    return os.getenv("NEWSFLOW_FEED_EVIDENCE_FALLBACK", "false").strip().lower() == "true"
+
+
+def _tokens(text: str) -> set[str]:
+    return {w for w in re.findall(r"\w{3,}", str(text or "").casefold())}
+
+
+def _pool_sources(story: dict) -> list[dict]:
+    """Direct-publisher RSS items about the same story (real article URLs, no search API, no key)."""
+    want = _tokens(story.get("title"))
+    if len(want) < 3:
+        return []
+    scored = []
+    for item in FEED_EVIDENCE_POOL:
+        url = _clean_url(item.get("url", ""))
+        domain = _registrable_domain(url)
+        if not url or not domain or domain in BLOCKED_SOURCE_ROOTS or domain.split(".")[0] in BLOCKED_SOURCE_LABELS:
+            continue
+        have = _tokens(item.get("title")) | _tokens(item.get("content"))
+        overlap = len(want & have)
+        same = url == _clean_url(story.get("link", ""))
+        if same or overlap >= max(3, int(len(want) * 0.5)):
+            scored.append((1000 if same else overlap, {
+                "url": url, "title": str(item.get("title") or "")[:500], "domain": domain,
+                "snippet": (str(item.get("title") or "") + ". " + str(item.get("content") or ""))[:2800],
+            }))
+    scored.sort(key=lambda pair: -pair[0])
+    out = [item for _, item in scored[:6]]
+    print(f"[FEED_EVIDENCE_FALLBACK] story={story.get('id')} sources={len(out)} domains={sorted({o['domain'] for o in out})}")
+    return out
+
+
 def _reported_decision(parsed: dict, verified: bool, claims: list[dict]) -> str:
     """Require independent evidence before reporting a story as contradicted."""
     if verified:
@@ -626,12 +671,18 @@ def _request_groq_tavily_fact_check(
         "include_raw_content": "markdown",
         "chunks_per_source": 3,
     }
-    search_response = _post_json(
-        TAVILY_SEARCH_URL, search_payload, tavily_api_key, "Tavily Search"
-    )
-    raw_results = search_response.get("results")
-    if not isinstance(raw_results, list):
-        raise RuntimeError("Tavily لم يرجع قائمة مصادر صالحة.")
+    try:
+        search_response = _post_json(
+            TAVILY_SEARCH_URL, search_payload, tavily_api_key, "Tavily Search"
+        )
+        raw_results = search_response.get("results")
+        if not isinstance(raw_results, list):
+            raise RuntimeError("Tavily لم يرجع قائمة مصادر صالحة.")
+    except RuntimeError as exc:
+        if not _feed_fallback_enabled():
+            raise
+        print(f"[TAVILY_UNAVAILABLE] story={story.get('id')} {str(exc)[:80]}")
+        raw_results = []
 
     sources = []
     for item in raw_results:
@@ -653,6 +704,8 @@ def _request_groq_tavily_fact_check(
             "domain": domain,
             "snippet": str(item.get("raw_content") or item.get("content") or "")[:2800],
         })
+    if not sources and _feed_fallback_enabled():
+        sources = _pool_sources(story)
     if not sources:
         raise RuntimeError("لم يعثر البحث على صفحات مصادر قابلة للتحقق.")
 
