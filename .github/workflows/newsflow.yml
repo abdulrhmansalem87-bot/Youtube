@@ -202,7 +202,7 @@ jobs:
           NEWSFLOW_PRIVATE_RELAXED_FACTCHECK: "true"
           NEWSFLOW_PRIVATE_REVIEW_NOTICE: "true"
           NEWSFLOW_SHORTS_PER_EPISODE: "1"
-          NEWSFLOW_DECLARE_SYNTHETIC: "false"
+          NEWSFLOW_DECLARE_SYNTHETIC: "false"\n          NEWSFLOW_TAVILY_DEPTH: "basic"
           NEWSFLOW_PRIVACY_RECHECK_SECONDS: "120"
           NEWSFLOW_VISUAL_QA_APPROVED: "false"
           # Only the channel owner's manual PRIVATE-test dispatch may enter PRIVATE staging.
