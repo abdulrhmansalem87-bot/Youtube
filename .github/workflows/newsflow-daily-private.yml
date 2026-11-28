@@ -5,10 +5,9 @@ name: NewsFlow daily private render
 # This only starts the existing manual private test of newsflow.yml at 6 PM Cairo time.
 
 on:
-  schedule:
-    # 6 PM Cairo: 16:00 UTC in winter (UTC+2), 15:00 UTC in summer (UTC+3). The step below checks the Cairo hour.
-    - cron: "0 15 * * *"
-    - cron: "0 16 * * *"
+  # DISABLED Nov 28, 2026: the schedule is off until upload visibility is proven PRIVATE in a test.
+  # Restore: schedule with cron "0 15 * * *" and "0 16 * * *" (6 PM Cairo, checked in the step below).
+  workflow_dispatch:
 
 permissions:
   actions: write
