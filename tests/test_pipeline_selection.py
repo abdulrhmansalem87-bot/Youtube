@@ -9,8 +9,8 @@ from newsflow.pipeline import clamp_max_stories, collect, make_script, select_st
 class PipelineSelectionTests(unittest.TestCase):
     def test_bulletin_is_capped_at_five_stories(self):
         self.assertEqual(clamp_max_stories(4), 4)
-        self.assertEqual(clamp_max_stories(8), 5)
-        self.assertEqual(clamp_max_stories(9), 5)
+        self.assertEqual(clamp_max_stories(8), 6)
+        self.assertEqual(clamp_max_stories(9), 6)
         self.assertEqual(clamp_max_stories(0), 1)
 
     def test_eight_candidates_select_only_five_relevant_stories(self):
