@@ -1419,7 +1419,13 @@ def main():
         (folder / "metadata.json").write_text(json.dumps(story, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"[DRAFT] {story['title']} — {story['link']}")
 
-    bulletin_script = make_script(stories)
+    long_stories = stories
+    if os.getenv("NEWSFLOW_LONG_VERIFIED_ONLY", "false").strip().lower() == "true":
+        long_stories = [s for s in stories if s.get("fact_check_status") != "unverified_private_review"]
+        print(f"[LONG_VERIFIED_ONLY] long_stories={len(long_stories)} of={len(stories)} excluded={[s.get('id') for s in stories if s not in long_stories]}")
+        if not long_stories:
+            raise RuntimeError("لا توجد أخبار موثقة للفيديو الطويل.")
+    bulletin_script = make_script(long_stories)
     bulletin = out / "bulletin"
     bulletin.mkdir(exist_ok=True)
     (bulletin / "script.txt").write_text(bulletin_script, encoding="utf-8")
@@ -1494,11 +1500,11 @@ def main():
         print(f"[AUDIO_DURATION] {duration:.1f} seconds (duration follows editorial content)")
 
     single_long_upload = os.getenv("NEWSFLOW_UPLOAD_SINGLE_LONG", "false").lower() == "true"
-    video_title, description, tags = build_youtube_metadata(stories, bulletin_script)
+    video_title, description, tags = build_youtube_metadata(long_stories, bulletin_script)
     print(f"[YOUTUBE_METADATA] title={video_title} | words={len(video_title.split())} | tags={len(tags)}")
 
     long_video = bulletin / "long.mp4"
-    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=stories)
+    make_video(video_title, audio, long_video, short=False, portrait=main_portrait, stories=long_stories)
     validate_video(long_video, audio, expected_portrait=main_portrait)
     description = append_broll_attribution(description, long_video)
     editorial_report["broll_source"] = "pexels"
