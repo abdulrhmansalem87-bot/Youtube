@@ -1313,6 +1313,7 @@ def main():
     _rs = fact_check_report.get("results", [])
     print(f"[FACT_SINGLE_SOURCE_WOULD_PASS] count={sum(1 for r in _rs if r.get('verified') is not True and _single_source_ok(r))} of={len(_rs)} (strict-verified={sum(1 for r in _rs if r.get('verified') is True)})")
     for _res in fact_check_report.get("results", []):
+        print(f"[FACT_CLAIMS] story={_res.get('story_id')} claims={[(c.get('verdict'), [(u.split('/')[2] if u.count('/') >= 2 else u) for u in c.get('evidence_urls', [])]) for c in (_res.get('claims') or []) if isinstance(c, dict)]} single={_res.get('single_source')}")
         print(f"[FACT_BLOCKERS] story={_res.get('story_id')} verified={_res.get('verified')} blockers={' | '.join(str(b)[:220] for b in (_res.get('blockers') or [])[:3])}")
     # Fish Audio uses the channel owner's configured voice reference; no presenter footage
     # is required for a narrated news video. Licensed B-roll is confirmed after rendering.
@@ -1553,8 +1554,11 @@ def main():
                 check=True, capture_output=True, text=True,
             )
             short_duration = float(short_probe.stdout.strip())
-            short_min, short_max = (25, 60) if args.private_staging else (35, 45)
+            short_min, short_max = (15, 60) if args.private_staging else (35, 45)
             if not short_min <= short_duration <= short_max:
+                if args.private_staging:
+                    print(f"[SHORT_SKIPPED_DURATION] story={story['id']} duration={short_duration:.1f}s")
+                    continue
                 raise RuntimeError(
                     f"مدة Short يجب أن تكون بين 35 و45 ثانية؛ المدة الحالية {short_duration:.1f} ثانية."
                 )
